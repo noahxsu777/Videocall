@@ -46,6 +46,23 @@ npm run build
 
 Sube la carpeta `dist/` a tu servidor o hosting estático.
 
+## 5. Desplegar en Vercel
+
+Este repo tiene la app web dentro de la carpeta `web/` (junto a la app móvil en la raíz), así que al importar el proyecto en Vercel hay que indicarle esa subcarpeta:
+
+1. En [vercel.com](https://vercel.com), **Add New → Project** y elige este repositorio de GitHub.
+2. En **Root Directory**, haz clic en "Edit" y selecciona `web`.
+3. Vercel detecta automáticamente que es un proyecto **Vite** (build command `npm run build`, output `dist`) gracias al `vercel.json` incluido — no hace falta tocar nada más ahí.
+4. En **Environment Variables**, agrega:
+   - `VITE_TENCENT_SDK_APP_ID` = tu SDKAppID
+   - `VITE_TENCENT_SDK_SECRET_KEY` = tu SDKSecretKey
+   (Puedes marcarlas para Production, Preview y Development.)
+5. Deploy.
+
+No hace falta configurar "rewrites" para el ruteo — la app usa hash routing (`/#/live-pusher`), así que funciona en cualquier hosting estático sin reglas especiales.
+
+Si ya tenías un proyecto de Vercel apuntando a este repo desde antes (por ejemplo, de cuando solo existía la app móvil), entra a **Settings → General → Root Directory** de ese proyecto y cámbialo a `web`, o crea un proyecto nuevo apuntando a esa carpeta.
+
 ## Cómo funciona el flujo
 
 1. **Pantalla de inicio** (`src/views/login.vue` + `src/components/LoginUserID.vue`): el usuario escribe su nombre y toca **Transmitir**. Esto genera un `userSig` de prueba y hace login contra Tencent Cloud.
