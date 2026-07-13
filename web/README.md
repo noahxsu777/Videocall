@@ -14,14 +14,15 @@ Este proyecto es una copia adaptada del demo oficial de Tencent ([Tencent-RTC/TU
 
 1. Entra a la [consola de Tencent Cloud TRTC](https://console.cloud.tencent.com/trtc) y activa el servicio TUILiveKit.
 2. Copia el **SDKAppID** y el **SDKSecretKey** ("Ver clave secreta" en "Inicio rápido").
-3. Abre `src/config/basic-info-config.js` y reemplaza:
+3. Las credenciales se leen de variables de entorno (`VITE_TENCENT_SDK_APP_ID` y `VITE_TENCENT_SDK_SECRET_KEY`), **no** van escritas en el código:
+   - **Desarrollo local**: crea un archivo `.env.local` (ya está en `.gitignore`, nunca se sube al repo) en esta carpeta con:
+     ```
+     VITE_TENCENT_SDK_APP_ID=tu_sdk_app_id
+     VITE_TENCENT_SDK_SECRET_KEY=tu_sdk_secret_key
+     ```
+   - **Al desplegar** (Vercel, Netlify, etc.): configura esas mismas dos variables en la sección "Environment Variables" del panel de tu proveedor de hosting.
 
-```js
-export const SDKAPPID = 0; // tu SDKAppID
-export const SDKSECRETKEY = ''; // tu SDKSecretKey
-```
-
-> Esto genera el `userSig` directamente en el navegador — es válido solo para pruebas/demo. Antes de producción, mueve ese cálculo a tu backend (ver el comentario en el propio archivo) para no exponer tu clave secreta.
+> El `userSig` se genera directamente en el navegador con `SDKSECRETKEY` — es válido solo para pruebas/demo. Antes de producción real, mueve ese cálculo a tu backend (ver el comentario en `src/config/basic-info-config.js`) para no exponer tu clave secreta a quien inspeccione el código del navegador.
 
 ## 2. Instala dependencias
 

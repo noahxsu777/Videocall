@@ -10,9 +10,12 @@ import LibGenerateTestUserSig from './lib-generate-test-usersig-es.min';
  * and you will see the SDKAppId.
  * It is a unique identifier used by Tencent Cloud to identify users.
  *
+ * Read from the VITE_TENCENT_SDK_APP_ID environment variable so the real value
+ * never has to be committed to source control (set it in .env.local for local
+ * dev, or in your hosting provider's Environment Variables settings for deploys).
  */
 
-export const SDKAPPID = 0;
+export const SDKAPPID = Number(import.meta.env.VITE_TENCENT_SDK_APP_ID) || 0;
 
 /**
  * Encryption key for calculating signature, which can be obtained in the following steps:
@@ -28,8 +31,9 @@ export const SDKAPPID = 0;
  * unauthorized traffic use caused by the leakage of encryption key.
  * Document: https://intl.cloud.tencent.com/document/product/647/35166#Server
  *
+ * Read from the VITE_TENCENT_SDK_SECRET_KEY environment variable, same as SDKAPPID above.
  */
-export const SDKSECRETKEY = '';
+export const SDKSECRETKEY = import.meta.env.VITE_TENCENT_SDK_SECRET_KEY || '';
 
 /**
  * Signature expiration time, which should not be too short
