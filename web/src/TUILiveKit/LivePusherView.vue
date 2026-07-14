@@ -229,12 +229,7 @@
 
 <script lang="ts" setup>
 import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
-import TUIRoomEngine, {
-  TUISeatMode,
-  TUIVideoStreamType,
-  TUIResolutionMode,
-  TUIVideoQuality,
-} from '@tencentcloud/tuiroom-engine-js';
+import TUIRoomEngine, { TUISeatMode } from '@tencentcloud/tuiroom-engine-js';
 import {
   IconArrowStrokeBack,
   TUIDialog,
@@ -325,7 +320,6 @@ const {
   openLocalCamera,
   closeLocalCamera,
   switchCamera,
-  updateVideoQuality,
 } = useDeviceState();
 const { coHostStatus, connected: coHostConnectedUsers, exitHostConnection } = useCoHostState();
 const { currentBattleInfo } = useBattleState();
@@ -586,18 +580,6 @@ const applyPreviewFit = (videoEl: HTMLVideoElement) => {
   videoEl.style.transform = isFrontCameraActive.value ? 'scaleX(-1)' : 'none';
 };
 
-const applyMobilePortraitProfile = async () => {
-  try {
-    await roomEngine.instance?.setVideoResolutionMode({
-      streamType: TUIVideoStreamType.kCameraStream,
-      resolutionMode: TUIResolutionMode.kResolutionMode_Portrait,
-    });
-    await updateVideoQuality({ quality: TUIVideoQuality.kVideoQuality_720p });
-  } catch (error) {
-    console.warn('[LivePusherView] applying portrait video profile failed:', error);
-  }
-};
-
 // Own getUserMedia preview with explicit PORTRAIT constraints — the
 // SDK's startCameraTest takes no constraints and always captures
 // landscape, which can never fill a vertical phone screen.
@@ -643,7 +625,6 @@ const toggleMobileCameraFacing = async () => {
   try {
     if (isInLive.value) {
       await switchCamera({ isFrontCamera: isFrontCameraActive.value });
-      await applyMobilePortraitProfile();
     } else {
       await stopMobileCameraPreview();
       await startMobileCameraPreview();
@@ -690,7 +671,13 @@ const publishMobileCamera = (): Promise<void> => {
   publishCameraPromise = (async () => {
     try {
       await stopMobileCameraPreview();
-      await applyMobilePortraitProfile();
+      // Publish EXACTLY like Tencent's stock co-guest flow does
+      // (useSeatApplication.ts): a bare openLocalCamera(), nothing
+      // else. Comparing the two live: the co-guest feed (stock path)
+      // rendered complete while the host feed — which additionally
+      // applied setVideoResolutionMode/updateVideoQuality/switchCamera
+      // — came out massively cropped. Those "portrait profile" calls
+      // were the problem, not the fix.
       // The engine finishes its own async init after engine-ready;
       // retry with backoff instead of giving up on the first race.
       let lastError: unknown;
@@ -700,14 +687,14 @@ const publishMobileCamera = (): Promise<void> => {
         }
         try {
           await openLocalCamera();
-          // Selfie framing by default; not fatal if unavailable.
-          try {
-            await switchCamera({ isFrontCamera: isFrontCameraActive.value });
-            // Re-apply after the switch — switching re-opens the
-            // capture and can reset it to landscape defaults.
-            await applyMobilePortraitProfile();
-          } catch (switchError) {
-            console.warn('[LivePusherView] switch to front camera failed:', switchError);
+          if (!isFrontCameraActive.value) {
+            // Only touch switchCamera when the user chose the rear
+            // camera; the default is already the front one.
+            try {
+              await switchCamera({ isFrontCamera: false });
+            } catch (switchError) {
+              console.warn('[LivePusherView] switch to rear camera failed:', switchError);
+            }
           }
           return;
         } catch (error) {
