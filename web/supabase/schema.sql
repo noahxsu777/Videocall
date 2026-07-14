@@ -17,6 +17,7 @@ create table if not exists public.profiles (
   vip_until       timestamptz,
   coins           integer not null default 500,
   call_rate       integer not null default 100,
+  verified        boolean not null default false,
   created_at      timestamptz not null default now()
 );
 
@@ -29,8 +30,30 @@ alter table public.profiles
   add column if not exists coins integer not null default 500;
 alter table public.profiles
   add column if not exists call_rate integer not null default 100;
+alter table public.profiles
+  add column if not exists verified boolean not null default false;
 
 alter table public.profiles enable row level security;
+
+-- "verified" (Twitter-style checkmark) can only be granted by YOU, the
+-- project owner, editing the row directly in Supabase's Table Editor /
+-- SQL Editor (no auth.uid() context there). Any update coming through
+-- the app itself (always has a logged-in auth.uid()) has this column
+-- silently reverted, so a user can never grant themselves the badge.
+create or replace function public.protect_verified_column()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  if new.verified is distinct from old.verified and auth.uid() is not null then
+    new.verified := old.verified;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists protect_verified on public.profiles;
+create trigger protect_verified
+  before update on public.profiles
+  for each row execute function public.protect_verified_column();
 
 -- Everyone can read profiles; you can only write your own.
 drop policy if exists "profiles are viewable by everyone" on public.profiles;

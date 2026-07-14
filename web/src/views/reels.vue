@@ -54,6 +54,7 @@
               <span v-else>{{ authorInitial(item) }}</span>
             </span>
             <span class="ra-name">@{{ authorName(item) }}</span>
+            <VerifiedBadge v-if="item.author?.verified" :size="14" />
           </button>
           <p v-if="item.caption" class="reel-caption">{{ item.caption }}</p>
         </div>
@@ -76,7 +77,10 @@
               <span v-else>{{ (c.author?.display_name || '?').charAt(0).toUpperCase() }}</span>
             </span>
             <div class="cmt-body">
-              <span class="cmt-name">{{ c.author?.display_name || c.author?.username || 'Usuario' }}</span>
+              <span class="cmt-name">
+                {{ c.author?.display_name || c.author?.username || 'Usuario' }}
+                <VerifiedBadge v-if="c.author?.verified" :size="12" />
+              </span>
               <p class="cmt-text">{{ c.content }}</p>
             </div>
           </div>
@@ -117,6 +121,7 @@ import {
   type PhotoComment,
 } from '../data/profiles';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
+import VerifiedBadge from '../components/VerifiedBadge.vue';
 
 const { user } = useAuth();
 

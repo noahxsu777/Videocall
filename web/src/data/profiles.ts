@@ -10,6 +10,10 @@ export interface Profile {
   vip_until?: string | null;
   coins?: number;
   call_rate?: number;
+  /** Twitter-style checkmark. Only settable by the project owner directly
+   *  in Supabase (see the protect_verified_column trigger) — never via
+   *  the app's own updateProfile(). */
+  verified?: boolean;
   created_at?: string;
 }
 
@@ -288,7 +292,7 @@ export async function deletePhoto(photoId: string): Promise<void> {
 
 /** A photo plus its author, for the global Reels feed. */
 export interface FeedPhoto extends Photo {
-  author: Pick<Profile, 'id' | 'display_name' | 'username' | 'avatar_url'> | null;
+  author: Pick<Profile, 'id' | 'display_name' | 'username' | 'avatar_url' | 'verified'> | null;
 }
 
 /** All recent photos across users (newest first) with author info. */
@@ -296,7 +300,7 @@ export async function listFeedPhotos(limit = 60): Promise<FeedPhoto[]> {
   const client = requireClient();
   const { data, error } = await client
     .from('photos')
-    .select('*, author:profiles(id, display_name, username, avatar_url)')
+    .select('*, author:profiles(id, display_name, username, avatar_url, verified)')
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) {
@@ -314,7 +318,7 @@ export interface PhotoComment {
   user_id: string;
   content: string;
   created_at: string;
-  author?: Pick<Profile, 'id' | 'display_name' | 'username' | 'avatar_url'> | null;
+  author?: Pick<Profile, 'id' | 'display_name' | 'username' | 'avatar_url' | 'verified'> | null;
 }
 
 /** Like + comment counts for a set of photos, in two batched queries. */
@@ -373,7 +377,7 @@ export async function listComments(photoId: string): Promise<PhotoComment[]> {
   const client = requireClient();
   const { data, error } = await client
     .from('comments')
-    .select('*, author:profiles(id, display_name, username, avatar_url)')
+    .select('*, author:profiles(id, display_name, username, avatar_url, verified)')
     .eq('photo_id', photoId)
     .order('created_at', { ascending: true })
     .limit(200);

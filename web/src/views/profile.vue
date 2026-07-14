@@ -34,6 +34,7 @@
     <div class="profile-meta">
       <div class="name">
         {{ profile?.display_name || '—' }}
+        <VerifiedBadge v-if="profile?.verified" :size="16" />
         <span v-if="isVip" class="vip-badge">⭐ VIP</span>
       </div>
       <div v-if="profile?.username" class="username">@{{ profile.username }}</div>
@@ -81,6 +82,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import GlassBackButton from '../components/GlassBackButton.vue';
+import VerifiedBadge from '../components/VerifiedBadge.vue';
 import { useAuth } from '../auth/useAuth';
 import {
   getProfile,

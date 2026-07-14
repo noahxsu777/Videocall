@@ -60,7 +60,10 @@
           <span v-else>{{ (c.peer.display_name || '?').charAt(0).toUpperCase() }}</span>
         </span>
         <span class="convo-mid">
-          <span class="convo-name">{{ c.peer.display_name || c.peer.username || 'Usuario' }}</span>
+          <span class="convo-name">
+            {{ c.peer.display_name || c.peer.username || 'Usuario' }}
+            <VerifiedBadge v-if="c.peer.verified" :size="13" />
+          </span>
           <span class="convo-snippet" :class="{ unread: c.unread }">
             {{ c.last.kind === 'call' ? '📹 Videollamada' : c.last.content }}
           </span>
@@ -81,7 +84,10 @@
             <img v-if="activePeer.avatar_url" :src="activePeer.avatar_url" alt="" />
             <span v-else>{{ (activePeer.display_name || '?').charAt(0).toUpperCase() }}</span>
           </span>
-          <span class="thread-name">{{ activePeer.display_name || activePeer.username || 'Usuario' }}</span>
+          <span class="thread-name">
+            {{ activePeer.display_name || activePeer.username || 'Usuario' }}
+            <VerifiedBadge v-if="activePeer.verified" :size="14" />
+          </span>
         </button>
         <button class="call-btn" title="Videollamada" :disabled="callState === 'starting' || isOffline" @click="startCall">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
@@ -128,6 +134,7 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import GlassBackButton from '../components/GlassBackButton.vue';
+import VerifiedBadge from '../components/VerifiedBadge.vue';
 import CallSettingsSheet from '../components/CallSettingsSheet.vue';
 import { useAuth } from '../auth/useAuth';
 import { getProfile, type Profile } from '../data/profiles';
@@ -555,7 +562,7 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 3px;
 }
-.convo-name { font-size: 15.5px; font-weight: 700; }
+.convo-name { display: flex; align-items: center; gap: 4px; font-size: 15.5px; font-weight: 700; }
 .convo-snippet {
   font-size: 13.5px;
   color: #8e8e93;
@@ -617,7 +624,7 @@ onUnmounted(() => {
   cursor: pointer;
   text-align: left;
 }
-.thread-name { font-size: 16px; font-weight: 700; }
+.thread-name { display: flex; align-items: center; gap: 5px; font-size: 16px; font-weight: 700; }
 .call-btn {
   width: 44px;
   height: 44px;

@@ -12,6 +12,7 @@
           <div class="su-meta">
             <div class="su-name">
               {{ target.name }}
+              <VerifiedBadge v-if="targetIsVerified" :size="15" />
               <span v-if="targetIsVip" class="su-vip">⭐ VIP</span>
             </div>
             <div v-if="counts" class="su-counts">
@@ -51,6 +52,7 @@ export interface SheetTarget {
 import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../auth/useAuth';
+import VerifiedBadge from './VerifiedBadge.vue';
 import {
   getProfile,
   getFollowCounts,
@@ -76,6 +78,7 @@ const following = ref(false);
 const busy = ref(false);
 const counts = ref<{ followers: number; following: number } | null>(null);
 const targetIsVip = ref(false);
+const targetIsVerified = ref(false);
 
 const initial = computed(() => (props.target?.name || '?').charAt(0).toUpperCase());
 const isSelf = computed(() => !!user.value && props.target?.id === user.value.id);
@@ -89,6 +92,7 @@ watch(
     counts.value = null;
     following.value = false;
     targetIsVip.value = false;
+    targetIsVerified.value = false;
     try {
       const [c, prof] = await Promise.all([
         getFollowCounts(props.target.id),
@@ -96,6 +100,7 @@ watch(
       ]);
       counts.value = c;
       targetIsVip.value = isVipActive(prof?.vip_until);
+      targetIsVerified.value = !!prof?.verified;
       if (user.value && !isSelf.value) {
         following.value = await isFollowing(user.value.id, props.target.id);
       }
