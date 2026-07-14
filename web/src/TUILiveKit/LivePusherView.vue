@@ -76,7 +76,15 @@
         <div class="main-center-top-right">{{ audienceCount }} {{ t('People watching') }}</div>
       </div>
       <div class="main-center-center">
-        <StreamMixer />
+        <!--
+          StreamMixer is built on TRTC's VideoMixer plugin, which hard-
+          throws ENV_NOT_SUPPORTED on mobile browsers ("VideoMixer is
+          not supported on mobile devices currently"). On mobile we use
+          plain LiveCoreView + openLocalCamera() instead — the exact
+          path mobile co-hosts/co-guests already publish through.
+        -->
+        <LiveCoreView v-if="isMobile" />
+        <StreamMixer v-else />
       </div>
       <div class="main-center-bottom">
         <div class="main-center-bottom-content">
@@ -187,7 +195,7 @@
 
 <script lang="ts" setup>
 import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue';
-import TUIRoomEngine, { TUISeatMode, TRTCMediaSourceType } from '@tencentcloud/tuiroom-engine-js';
+import TUIRoomEngine, { TUISeatMode } from '@tencentcloud/tuiroom-engine-js';
 import {
   IconArrowStrokeBack,
   TUIDialog,
@@ -210,13 +218,13 @@ import {
   useLiveAudienceState,
   useLoginState,
   StreamMixer,
+  LiveCoreView,
   useDeviceState,
   useCoHostState,
   useBattleState,
   CoHostStatus,
   useCoGuestState,
   useRoomEngine,
-  useVideoMixerState,
   UIKitModal,
   LiveListEvent,
   LiveEndedReason,
@@ -270,12 +278,11 @@ const { loginUserInfo } = useLoginState();
 const { currentLive, startLive, endLive, joinLive, subscribeEvent: subscribeLiveListEvent, unsubscribeEvent: unsubscribeLiveListEvent, updateLiveInfo } = useLiveListState();
 const roomEngine = useRoomEngine();
 const { audienceCount } = useLiveAudienceState();
-const { openLocalMicrophone, cameraList, getCameraList } = useDeviceState();
+const { openLocalMicrophone, openLocalCamera, switchCamera } = useDeviceState();
 const { coHostStatus, exitHostConnection } = useCoHostState();
 const { currentBattleInfo } = useBattleState();
 const { connected: coGuestConnected } = useCoGuestState();
 const { subscribeEvent: subscribeBarrageEvent, unsubscribeEvent: unsubscribeBarrageEvent} = useBarrageState();
-const { mediaSourceList, addMediaSource, enableLocalVideoMixer } = useVideoMixerState();
 
 const isInLive = computed(() => !!currentLive.value?.liveId);
 const loading = ref(false);
@@ -389,22 +396,24 @@ const handleCopyLiveID = async () => {
 };
 
 // Auto-start the phone's camera on mobile so the broadcaster sees
-// themselves full-screen immediately, without having to tap
-// "Add Camera" first (matches Tango/Bigo — no manual source picker).
+// themselves full-screen immediately, without having to tap anything
+// (matches Tango/Bigo — no manual source picker).
 //
-// This mirrors what the real "Add Camera" dialog does: enumerate the
-// device's cameras and pass a REAL deviceId plus a resolution.
-// The previous version passed an invented cameraId of 'default',
-// which the underlying media source manager rejects — that was the
-// actual reason auto-start kept failing (with a permission toast)
-// even after the user had granted camera permission.
-// Deduped as a shared promise (instead of a boolean flag) so a second
-// caller — e.g. handleStartLive's safety net while the on-mount attempt
-// is still running — awaits the in-flight attempt rather than skipping
-// and going live camera-less.
+// IMPORTANT: this deliberately does NOT go through the video mixer.
+// TRTC's VideoMixer plugin hard-throws ENV_NOT_SUPPORTED on mobile
+// browsers ("VideoMixer is not supported on mobile devices currently"
+// — the exact on-device failure we kept hitting), so the desktop
+// StreamMixer pipeline can never work on a phone. Instead we publish
+// through the plain device path (openLocalCamera + LiveCoreView),
+// which is exactly how mobile co-hosts/co-guests already publish.
+//
+// Deduped as a shared promise so concurrent callers (mount attempt,
+// post-Start-live safety net) await the in-flight attempt instead of
+// double-starting.
 let autoStartCameraPromise: Promise<void> | null = null;
-const autoStartMobileCamera = (): Promise<void> => {
-  if (!isMobile || mediaSourceList.value.length > 0) {
+let mobileCameraStarted = false;
+const autoStartMobileCamera = (options?: { silent?: boolean; force?: boolean }): Promise<void> => {
+  if (!isMobile || (mobileCameraStarted && !options?.force)) {
     return Promise.resolve();
   }
   if (autoStartCameraPromise) {
@@ -412,55 +421,22 @@ const autoStartMobileCamera = (): Promise<void> => {
   }
   autoStartCameraPromise = (async () => {
     try {
-      // Trigger/settle the permission prompt before enumerating —
-      // browsers report blank deviceIds until camera permission is
-      // granted, which would leave us with nothing usable to pass.
-      const probeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      probeStream.getTracks().forEach(track => track.stop());
-
-      await getCameraList();
-      const cameras = cameraList.value;
-      if (!cameras.length || !cameras[0].deviceId) {
-        throw new Error('no usable camera devices found');
-      }
-      // Prefer the front-facing camera when we can identify it by name;
-      // otherwise fall back to the first camera, same as the dialog.
-      const frontCamera = cameras.find(
-        device => /front|user|frontal|delantera/i.test(device.deviceName || ''),
-      ) || cameras[0];
-
-      // The mixer's internal media source manager finishes initializing
-      // asynchronously some time after engine-ready, and addMediaSource
-      // has no readiness guard of its own — retry with backoff instead
-      // of giving up on the first race.
+      // The engine finishes its own async init after engine-ready;
+      // retry with backoff instead of giving up on the first race.
       let lastError: unknown;
       for (const delayMs of [0, 800, 2000, 4000]) {
         if (delayMs) {
           await new Promise(resolve => setTimeout(resolve, delayMs));
         }
-        if (mediaSourceList.value.length > 0) {
-          return;
-        }
         try {
-          // The mixer plugin must be enabled before adding sources —
-          // LocalMixer fires enableLocalVideoMixer() on mount without
-          // awaiting it, and racing it produced the on-device
-          // "updatePlugin abort" failure. Awaiting it here (idempotent)
-          // guarantees the plugin is up for THIS call.
-          await enableLocalVideoMixer();
-          // `id` is REQUIRED by the media source manager ("'id' is a
-          // required param" — the exact on-device failure). The real
-          // "Add Camera" flow generates it as `${type}_${nanoid(5)}`;
-          // mirror that format here.
-          await addMediaSource({
-            id: `${TRTCMediaSourceType.kCamera}_${Math.random().toString(36).slice(2, 7)}`,
-            type: TRTCMediaSourceType.kCamera,
-            name: frontCamera.deviceName,
-            camera: {
-              cameraId: frontCamera.deviceId,
-              resolution: { width: 720, height: 1280 },
-            },
-          } as Parameters<typeof addMediaSource>[0]);
+          await openLocalCamera();
+          mobileCameraStarted = true;
+          // Selfie framing by default; not fatal if unavailable.
+          try {
+            await switchCamera({ isFrontCamera: true });
+          } catch (switchError) {
+            console.warn('[LivePusherView] switch to front camera failed:', switchError);
+          }
           return;
         } catch (error) {
           lastError = error;
@@ -470,13 +446,15 @@ const autoStartMobileCamera = (): Promise<void> => {
       throw lastError;
     } catch (error) {
       console.error('[LivePusherView] Failed to auto-start camera:', error);
-      // Include the underlying reason so on-device failures are
-      // diagnosable from the toast alone (the console isn't reachable
-      // on a phone).
-      const reason = (error as Error)?.message || String(error);
-      TUIToast.error({
-        message: `${t('Please check the current browser camera permission')} (${reason})`,
-      });
+      if (!options?.silent) {
+        // Include the underlying reason so on-device failures are
+        // diagnosable from the toast alone (the console isn't
+        // reachable on a phone).
+        const reason = (error as Error)?.message || String(error);
+        TUIToast.error({
+          message: `${t('Please check the current browser camera permission')} (${reason})`,
+        });
+      }
     } finally {
       autoStartCameraPromise = null;
     }
@@ -496,10 +474,6 @@ const handleStartLive = async () => {
       return;
     }
     loading.value = true;
-    // Safety net: if the on-mount camera auto-start failed or hasn't
-    // completed (e.g. the user only just granted permission), make sure
-    // the camera is up before going live. No-ops when a source exists.
-    await autoStartMobileCamera();
     await initRoomEngineLanguage();
     await startLive({
       liveId: liveParams.value.liveId,
@@ -518,11 +492,15 @@ const handleStartLive = async () => {
       // this from "Layout Settings" before starting a battle.
       ...(isMobile ? { seatLayoutTemplateId: TUISeatLayoutTemplate.PortraitDynamic_Grid9 } : {}),
     });
-    joinLive({
+    await joinLive({
       liveId: liveParams.value.liveId,
     });
     loading.value = false;
     openLocalMicrophone();
+    // Re-open the camera now that we're inside the room so the local
+    // feed is actually published to viewers (the pre-live preview
+    // started before joining doesn't guarantee in-room publishing).
+    autoStartMobileCamera({ force: true });
   } catch (error: any) {
     loading.value = false;
     if (typeof error.message === 'string'
@@ -531,6 +509,7 @@ const handleStartLive = async () => {
         liveId: liveParams.value.liveId,
       });
       await openLocalMicrophone();
+      autoStartMobileCamera({ force: true });
       return;
     }
     const errorInfo = errorHandler.parseError(error);
@@ -625,24 +604,21 @@ onMounted(async () => {
     return;
   }
   rtcSupportChecked.value = true;
-  // Wait for the DOM update AND for TUIRoomEngine's own WASM engine to
-  // report ready before touching the video mixer. A plain nextTick()
-  // (DOM-only) wasn't enough — the WASM engine's own init ("TUIRoomEngineWASM
-  // ready!" in the console) can still be in flight after Vue's next tick,
-  // and calling addMediaSource before it's done failed silently (caught,
-  // logged, never surfaced), which is what kept showing "No video" with
-  // no obvious cause. TUIRoomEngine.once('ready', ...) is the same pattern
-  // already used elsewhere in this app (see live-pusher.vue) and fires
-  // immediately if the engine is already ready by the time we register it.
+  // Pre-live camera preview. Wait for the DOM update AND for
+  // TUIRoomEngine's own WASM engine to report ready first — a plain
+  // nextTick() (DOM-only) isn't enough, the engine's async init can
+  // still be in flight. Silent: this is just the preview attempt; the
+  // decisive (toasting) attempt runs after joining the room in
+  // handleStartLive.
   await nextTick();
   TUIRoomEngine.once('ready', () => {
-    autoStartMobileCamera();
+    autoStartMobileCamera({ silent: true });
   });
   // Defensive fallback in case the 'ready' event above never fires for
   // this listener (e.g. some edge case in event timing) — autoStartMobileCamera
-  // is a no-op if a source was already added, so this is safe to also run.
+  // is a no-op once the camera has started, so this is safe to also run.
   autoStartCameraFallbackTimer = window.setTimeout(() => {
-    autoStartMobileCamera();
+    autoStartMobileCamera({ silent: true });
   }, 2000);
 });
 
