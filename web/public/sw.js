@@ -51,7 +51,7 @@ self.addEventListener('fetch', (event) => {
 
   if (
     url.pathname.includes('/assets/')
-    || /\.(js|css|png|jpg|svg|ico|webmanifest|woff2?)$/.test(url.pathname)
+    || /\.(js|css|png|jpg|svg|ico|webmanifest|woff2?|mp4)$/.test(url.pathname)
   ) {
     event.respondWith(
       (async () => {

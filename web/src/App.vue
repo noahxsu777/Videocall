@@ -5,6 +5,7 @@
       <BottomNav v-if="showBottomNav" />
       <IncomingCallOverlay />
     </div>
+    <SplashScreen />
   </UIKitProvider>
 </template>
 
@@ -16,6 +17,7 @@ import { UIKitProvider, useUIKit } from '@tencentcloud/uikit-base-component-vue3
 import { initRoomEngineLanguage } from './utils/utils';
 import BottomNav from './components/BottomNav.vue';
 import IncomingCallOverlay from './components/IncomingCallOverlay.vue';
+import SplashScreen from './components/SplashScreen.vue';
 import { authReady, currentSession } from './auth/useAuth';
 import { useIncomingCalls } from './calls/useIncomingCalls';
 import { subscribeToPush } from './data/push';
