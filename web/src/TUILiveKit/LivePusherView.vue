@@ -106,6 +106,20 @@
           />
         </div>
       </div>
+      <!--
+        Mobile-only floating camera controls: flip front/rear and
+        toggle the camera off/on. Work both pre-live (our preview
+        stream) and in-live (engine switch / close+republish).
+      -->
+      <div v-if="isMobile" class="mobile-camera-actions">
+        <div class="camera-action-btn" @click="toggleMobileCameraFacing">
+          <IconCameraSwitch size="22" />
+        </div>
+        <div class="camera-action-btn" :class="{ 'is-off': isCameraOff }" @click="toggleMobileCameraOff">
+          <IconCameraOn v-if="!isCameraOff" size="22" />
+          <IconCameraOff v-else size="22" />
+        </div>
+      </div>
       <div class="main-center-bottom">
         <div class="main-center-bottom-content">
           <div class="main-center-bottom-left">
@@ -232,6 +246,9 @@ import {
   IconLiveLoading,
   IconArrowStrokeSelectDown,
   IconCopy,
+  IconCameraOn,
+  IconCameraOff,
+  IconCameraSwitch,
 } from '@tencentcloud/uikit-base-component-vue3';
 import {
   LiveScenePanel,
@@ -306,6 +323,7 @@ const { audienceCount } = useLiveAudienceState();
 const {
   openLocalMicrophone,
   openLocalCamera,
+  closeLocalCamera,
   switchCamera,
   updateVideoQuality,
 } = useDeviceState();
@@ -317,7 +335,7 @@ const { subscribeEvent: subscribeBarrageEvent, unsubscribeEvent: unsubscribeBarr
 const isInLive = computed(() => !!currentLive.value?.liveId);
 // Back to the pre-live state (live ended) → bring the preview back.
 watch(isInLive, (inLive) => {
-  if (!inLive) {
+  if (!inLive && !isCameraOff.value) {
     startMobileCameraPreview();
   }
 });
@@ -448,6 +466,49 @@ const handleCopyLiveID = async () => {
 // vertical phone screen produces the massive crop/zoom the user saw.
 const MOBILE_PREVIEW_VIEW_ID = 'mobile-camera-preview-video';
 let previewStream: MediaStream | null = null;
+const isFrontCameraActive = ref(true);
+const isCameraOff = ref(false);
+
+// Capture size candidates, best first. 1080x1920 is the native
+// vertical-video mode on most phones (full field of view); browsers
+// asked for a size the sensor doesn't natively have may satisfy it by
+// CROPPING the frame — which is exactly the "demasiado cerca" zoom.
+const PREVIEW_SIZE_CANDIDATES: MediaTrackConstraints[] = [
+  { width: { ideal: 1080 }, height: { ideal: 1920 } },
+  { width: { ideal: 720 }, height: { ideal: 1280 } },
+  {},
+];
+
+const acquirePreviewStream = async (): Promise<MediaStream> => {
+  let lastError: unknown;
+  for (const size of PREVIEW_SIZE_CANDIDATES) {
+    try {
+      return await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: isFrontCameraActive.value ? 'user' : 'environment',
+          ...size,
+        },
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+};
+
+// Decide how to fit the delivered frame instead of assuming: a tall
+// (portrait) frame can cover-fill the screen with a negligible crop;
+// anything squarer/landscape gets contain so it can never zoom in.
+const applyPreviewFit = (videoEl: HTMLVideoElement) => {
+  const settings = previewStream?.getVideoTracks()[0]?.getSettings();
+  const width = settings?.width || videoEl.videoWidth;
+  const height = settings?.height || videoEl.videoHeight;
+  const isTall = !!width && !!height && height / width >= 1.5;
+  videoEl.style.objectFit = isTall ? 'cover' : 'contain';
+  // Mirror only the selfie camera.
+  videoEl.style.transform = isFrontCameraActive.value ? 'scaleX(-1)' : 'none';
+};
 
 const applyMobilePortraitProfile = async () => {
   try {
@@ -465,22 +526,17 @@ const applyMobilePortraitProfile = async () => {
 // SDK's startCameraTest takes no constraints and always captures
 // landscape, which can never fill a vertical phone screen.
 const startMobileCameraPreview = async () => {
-  if (!isMobile || previewStream || isInLive.value) {
+  if (!isMobile || previewStream || isInLive.value || isCameraOff.value) {
     return;
   }
   try {
-    previewStream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: {
-        facingMode: 'user',
-        width: { ideal: 720 },
-        height: { ideal: 1280 },
-      },
-    });
+    previewStream = await acquirePreviewStream();
     const videoEl = document.getElementById(MOBILE_PREVIEW_VIEW_ID) as HTMLVideoElement | null;
     if (videoEl) {
       videoEl.srcObject = previewStream;
+      videoEl.onloadedmetadata = () => applyPreviewFit(videoEl);
       await videoEl.play().catch(() => { /* autoplay quirks are fine, muted */ });
+      applyPreviewFit(videoEl);
     }
   } catch (error) {
     // Silent: this is only the preview; the decisive (toasting)
@@ -501,11 +557,55 @@ const stopMobileCameraPreview = async () => {
   }
 };
 
+// Front/rear camera toggle — pre-live restarts our preview stream with
+// the other facing mode; in-live delegates to the engine's switch.
+const toggleMobileCameraFacing = async () => {
+  if (!isMobile || isCameraOff.value) {
+    return;
+  }
+  isFrontCameraActive.value = !isFrontCameraActive.value;
+  try {
+    if (isInLive.value) {
+      await switchCamera({ isFrontCamera: isFrontCameraActive.value });
+      await applyMobilePortraitProfile();
+    } else {
+      await stopMobileCameraPreview();
+      await startMobileCameraPreview();
+    }
+  } catch (error) {
+    console.error('[LivePusherView] camera switch failed:', error);
+  }
+};
+
+// Camera on/off toggle — pre-live stops/starts the preview stream;
+// in-live closes/re-publishes the local camera.
+const toggleMobileCameraOff = async () => {
+  if (!isMobile) {
+    return;
+  }
+  isCameraOff.value = !isCameraOff.value;
+  try {
+    if (isInLive.value) {
+      if (isCameraOff.value) {
+        await closeLocalCamera();
+      } else {
+        await publishMobileCamera();
+      }
+    } else if (isCameraOff.value) {
+      await stopMobileCameraPreview();
+    } else {
+      await startMobileCameraPreview();
+    }
+  } catch (error) {
+    console.error('[LivePusherView] camera toggle failed:', error);
+  }
+};
+
 // Deduped as a shared promise so concurrent callers await the
 // in-flight attempt instead of double-starting.
 let publishCameraPromise: Promise<void> | null = null;
 const publishMobileCamera = (): Promise<void> => {
-  if (!isMobile) {
+  if (!isMobile || isCameraOff.value) {
     return Promise.resolve();
   }
   if (publishCameraPromise) {
@@ -526,7 +626,7 @@ const publishMobileCamera = (): Promise<void> => {
           await openLocalCamera();
           // Selfie framing by default; not fatal if unavailable.
           try {
-            await switchCamera({ isFrontCamera: true });
+            await switchCamera({ isFrontCamera: isFrontCameraActive.value });
             // Re-apply after the switch — switching re-opens the
             // capture and can reset it to landscape defaults.
             await applyMobilePortraitProfile();
@@ -1075,12 +1175,12 @@ onUnmounted(() => {
         video {
           width: 100% !important;
           height: 100% !important;
-          // Our own preview capture is explicitly portrait (see
-          // startMobileCameraPreview), so cover = edge-to-edge with a
-          // barely-there crop — the Instagram-live look. Mirrored for
-          // the natural selfie feel.
-          object-fit: cover !important;
-          transform: scaleX(-1);
+          // object-fit + mirror are set from JS (applyPreviewFit)
+          // based on the aspect the camera actually delivered — tall
+          // frames cover-fill (Instagram look), anything else contains
+          // so it can never crop-zoom. No !important here on purpose:
+          // the inline style must win.
+          object-fit: contain;
         }
       }
 
@@ -1089,6 +1189,35 @@ onUnmounted(() => {
       :deep(#atomicx-live-stream-content) video,
       :deep(#atomicx-live-stream-content) canvas {
         object-fit: contain !important;
+      }
+    }
+
+    // Floating camera controls (flip / on-off), stacked under the
+    // top bar on the right, above every video layer.
+    .mobile-camera-actions {
+      position: absolute !important;
+      top: 60px !important;
+      right: 12px !important;
+      z-index: 4 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 10px !important;
+      pointer-events: auto !important;
+
+      .camera-action-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        cursor: pointer;
+
+        &.is-off {
+          background: rgba(220, 53, 69, 0.75);
+        }
       }
     }
 
