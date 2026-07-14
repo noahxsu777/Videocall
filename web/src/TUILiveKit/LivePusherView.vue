@@ -95,7 +95,7 @@
           feed takes over.
         -->
         <div
-          v-show="isMobile && !isInLive"
+          v-show="isMobile && !isCameraOff && coHostStatus !== CoHostStatus.Connected"
           class="mobile-camera-preview"
         >
           <video
@@ -403,14 +403,19 @@ watch(
       return;
     }
     if (status === CoHostStatus.Connected) {
-      // The engine applies its own landscape template when the
-      // connection forms; apply ours after it (twice, in case of a
-      // slow server echo overwriting the first).
+      // Battle/co-host: drop our own self-view overlay so TRTC's tiles
+      // (which show both participants) are visible, and apply our
+      // custom stacked layout. The engine applies its own landscape
+      // template when the connection forms; apply ours after it (twice,
+      // in case of a slow server echo overwriting the first).
+      stopMobileCameraPreview();
       setTimeout(() => applyMobileBattleLayout(), 500);
       setTimeout(() => applyMobileBattleLayout(), 2000);
     } else if (prevStatus === CoHostStatus.Connected && status === CoHostStatus.Disconnected) {
-      // Back to solo: restore the portrait grid template.
+      // Back to solo: restore the portrait grid template and bring our
+      // own self-view overlay back.
       updateLiveInfo({ layoutTemplate: TUISeatLayoutTemplate.PortraitDynamic_Grid9 });
+      startMobileCameraPreview();
     }
   },
 );
@@ -620,7 +625,13 @@ const applyLocalRenderFit = async () => {
 // SDK's startCameraTest takes no constraints and always captures
 // landscape, which can never fill a vertical phone screen.
 const startMobileCameraPreview = async () => {
-  if (!isMobile || previewStream || isInLive.value || isCameraOff.value) {
+  // Runs both pre-live AND during a solo live: our own getUserMedia
+  // capture (correctly framed, see acquirePreviewStream) stays as the
+  // host's self-view over TRTC's own — which reverts to the cropped
+  // render once live starts. Skipped only while camera-off or during a
+  // co-host/battle (TRTC's tiles show everyone then).
+  if (!isMobile || previewStream || isCameraOff.value
+    || coHostStatus.value === CoHostStatus.Connected) {
     return;
   }
   try {
@@ -707,7 +718,11 @@ const publishMobileCamera = (): Promise<void> => {
   }
   publishCameraPromise = (async () => {
     try {
-      await stopMobileCameraPreview();
+      // NOTE: we intentionally keep our own getUserMedia preview
+      // running as the host's self-view during a solo live (it's
+      // correctly framed; TRTC's local render is not). TRTC opens its
+      // own capture below for the published stream — Android Chrome
+      // allows both to read the front camera concurrently.
       // Publish EXACTLY like Tencent's stock co-guest flow does
       // (useSeatApplication.ts): a bare openLocalCamera(), nothing
       // else. Comparing the two live: the co-guest feed (stock path)
