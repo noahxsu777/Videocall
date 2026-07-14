@@ -72,15 +72,20 @@
       <LiveAudienceList />
     </Drawer>
     <div class="message-list">
-      <BarrageList />
+      <LiveChat
+        :is-host="false"
+        hide-input
+        @open-user="handleOpenChatUser"
+      />
     </div>
+    <UserActionSheet v-model="chatUserSheet" :target="chatUserTarget" />
     <div ref="bottomBarRef" class="bottom">
       <div class="message-input">
-        <BarrageInput
-          width="158px"
-          :auto-focus="false"
+        <LiveChat
+          :is-host="false"
+          hide-list
           :disabled="!isInLive"
-          :placeholder="isInLive ? '' : t('Live not started')"
+          :disabled-placeholder="t('Live not started')"
           @focus="handleBarrageInputFocus"
           @blur="handleBarrageInputBlur"
         />
@@ -182,8 +187,6 @@ import { TUIButton, IconClose, IconLike, TUIDialog, TUIToast, useUIKit } from '@
 import {
   LiveAudienceList,
   LiveView,
-  BarrageInput,
-  BarrageList,
   LiveGift,
   useLiveAudienceState,
   useLiveListState,
@@ -203,6 +206,8 @@ import SeatApplicationButtonH5 from '../SeatApplication/SeatApplicationButtonH5.
 import { useSeatApplication } from '../SeatApplication/useSeatApplication';
 import ShareLiveSheet from '../../../components/ShareLiveSheet.vue';
 import LiveQualitySheet from '../../../components/LiveQualitySheet.vue';
+import LiveChat from '../../../components/LiveChat.vue';
+import UserActionSheet, { type SheetTarget } from '../../../components/UserActionSheet.vue';
 import { initRoomEngineLanguage } from '../../../utils/utils';
 
 const { t } = useUIKit();
@@ -240,6 +245,12 @@ const {
 } = useSeatApplication('h5');
 const shareSheetVisible = ref(false);
 const qualitySheetVisible = ref(false);
+const chatUserSheet = ref(false);
+const chatUserTarget = ref<SheetTarget | null>(null);
+function handleOpenChatUser(target: SheetTarget) {
+  chatUserTarget.value = target;
+  chatUserSheet.value = true;
+}
 
 // Hide Tencent's built-in tap-to-reveal PlayerControl bar (the plain
 // Play/Resolution/Volume/PictureInPicture/Fullscreen strip) — it looks
