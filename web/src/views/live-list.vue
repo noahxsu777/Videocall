@@ -1,6 +1,11 @@
 <template>
   <div class="live-list-container">
-    <!-- Snapchat-style top bar -->
+    <!-- Ambient glass glows drifting behind everything -->
+    <span class="bg-blob bg-blob-1" />
+    <span class="bg-blob bg-blob-2" />
+    <span class="bg-blob bg-blob-3" />
+
+    <!-- Snapchat-style top bar, liquid glass -->
     <header class="snap-header">
       <button class="snap-avatar" @click="goProfile" aria-label="Perfil">
         <img v-if="avatarUrl" :src="avatarUrl" alt="perfil" />
@@ -13,6 +18,7 @@
       </button>
 
       <button class="snap-live" @click="gotoPusher">
+        <span class="snap-live-shine" />
         <span class="snap-live-dot" />
         En vivo
       </button>
@@ -22,6 +28,16 @@
     <div class="snap-greet">
       <span class="snap-hi">Hola, <b>{{ displayName }}</b> 👋</span>
       <span class="snap-tag">Lives de tus amigos</span>
+    </div>
+
+    <div class="snap-banner">
+      <EventBanner
+        icon="👑"
+        title="Tu próximo nivel VIP está cerca"
+        subtitle="Mensajes silenciosos, insignia dorada y más"
+        cta="Mejorar"
+        @click="goVip"
+      />
     </div>
 
     <div class="live-list-scroll">
@@ -39,6 +55,7 @@ import { LiveListView } from '../TUILiveKit';
 import { isH5 } from '../TUILiveKit/utils/environment';
 import { useAuth } from '../auth/useAuth';
 import { getProfile } from '../data/profiles';
+import EventBanner from '../components/EventBanner.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -78,6 +95,9 @@ function goProfile() {
 function goMessages() {
   router.push({ path: '/messages' });
 }
+function goVip() {
+  router.push({ path: '/vip' });
+}
 
 function handleLiveRoomClick(liveInfo: LiveInfo) {
   if (loginUserInfo.value?.userId === liveInfo.liveOwner?.userId) {
@@ -115,6 +135,7 @@ onMounted(async () => {
 
 <style lang="scss" scoped>
 .live-list-container {
+  position: relative;
   width: 100%;
   max-width: 100%;
   height: 100%;
@@ -127,8 +148,51 @@ onMounted(async () => {
   box-sizing: border-box;
 }
 
-/* ---------- Snapchat-style header ---------- */
+/* ---------- Ambient liquid-glass background blobs ---------- */
+.bg-blob {
+  position: fixed;
+  z-index: 0;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+}
+.bg-blob-1 {
+  top: -8%;
+  left: -12%;
+  width: 55vw;
+  height: 55vw;
+  background: radial-gradient(circle, rgba(94, 92, 230, 0.35), transparent 70%);
+  animation: blob-float-1 9s ease-in-out infinite;
+}
+.bg-blob-2 {
+  top: 12%;
+  right: -18%;
+  width: 60vw;
+  height: 60vw;
+  background: radial-gradient(circle, rgba(10, 132, 255, 0.28), transparent 70%);
+  animation: blob-float-2 11s ease-in-out infinite;
+}
+.bg-blob-3 {
+  bottom: -10%;
+  left: 20%;
+  width: 50vw;
+  height: 50vw;
+  background: radial-gradient(circle, rgba(255, 45, 133, 0.18), transparent 70%);
+  animation: blob-float-1 13s ease-in-out infinite reverse;
+}
+@keyframes blob-float-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(4%, 6%) scale(1.1); }
+}
+@keyframes blob-float-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-6%, 4%) scale(1.08); }
+}
+
+/* ---------- Snapchat-style header, liquid glass ---------- */
 .snap-header {
+  position: relative;
+  z-index: 1;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -143,7 +207,9 @@ onMounted(async () => {
   height: 40px;
   border-radius: 50%;
   border: 2px solid #fffc00;
-  background: #1a2030;
+  background: rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: blur(12px) saturate(160%);
   color: #fffc00;
   font-size: 17px;
   font-weight: 800;
@@ -168,9 +234,11 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   padding: 0 14px;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
-  background: #171d2b;
+  background: rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
   color: #8b93a7;
   font-size: 14px;
   cursor: pointer;
@@ -186,6 +254,8 @@ onMounted(async () => {
 }
 
 .snap-live {
+  position: relative;
+  overflow: hidden;
   flex-shrink: 0;
   height: 40px;
   display: flex;
@@ -200,7 +270,23 @@ onMounted(async () => {
   font-weight: 800;
   cursor: pointer;
 }
+.snap-live-shine {
+  position: absolute;
+  top: -80%;
+  left: -60%;
+  width: 40%;
+  height: 260%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: rotate(18deg);
+  animation: snap-live-sweep 3.6s ease-in-out infinite;
+}
+@keyframes snap-live-sweep {
+  0% { left: -60%; }
+  55% { left: 140%; }
+  100% { left: 140%; }
+}
 .snap-live-dot {
+  position: relative;
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -216,6 +302,8 @@ onMounted(async () => {
 
 /* ---------- Greeting ---------- */
 .snap-greet {
+  position: relative;
+  z-index: 1;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -237,8 +325,18 @@ onMounted(async () => {
   letter-spacing: 0.4px;
 }
 
+/* ---------- Event banner ---------- */
+.snap-banner {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  padding: 4px 14px 12px;
+}
+
 /* ---------- Live list ---------- */
 .live-list-scroll {
+  position: relative;
+  z-index: 1;
   flex: 1;
   min-height: 0;
   width: 100%;

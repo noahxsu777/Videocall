@@ -43,6 +43,26 @@
       />
       <span class="pending-approval-text">{{ t('Pending approval') }}<span class="dots" /></span>
     </div>
+    <!--
+      Viewer action rail: replaces Tencent's built-in tap-to-reveal
+      PlayerControl bar (plain-looking Play/Resolution/Volume/PiP/
+      Fullscreen strip, hidden via hideBuiltinPlayerControls below) with
+      two always-visible, app-styled buttons stacked above the chat bar.
+    -->
+    <div class="viewer-rail">
+      <button class="rail-btn" @click="shareSheetVisible = true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-3.9M8.6 13.5l6.8 3.9"/></svg>
+      </button>
+      <button class="rail-btn" @click="qualitySheetVisible = true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.36.4.66.73.85.32.19.7.27 1.07.24H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+      </button>
+    </div>
+    <ShareLiveSheet
+      v-model="shareSheetVisible"
+      :live-id="props.liveId"
+      :host-name="currentLive?.liveOwner?.userName || currentLive?.liveOwner?.userId"
+    />
+    <LiveQualitySheet v-model="qualitySheetVisible" />
     <Drawer
       v-model:visible="audienceListPanelVisible"
       :title="audienceListTitle"
@@ -173,12 +193,16 @@ import {
   LiveListEvent,
   useLiveGiftState,
   LiveGiftEvents,
+  useLivePlayerState,
+  PlayerControlButton,
   type LikesMessage,
 } from 'tuikit-atomicx-vue3';
 import Drawer from '../../base-component/Drawer.vue';
 import LikeAnimation from '../LikeAnimation/LikeAnimation.vue';
 import SeatApplicationButtonH5 from '../SeatApplication/SeatApplicationButtonH5.vue';
 import { useSeatApplication } from '../SeatApplication/useSeatApplication';
+import ShareLiveSheet from '../../../components/ShareLiveSheet.vue';
+import LiveQualitySheet from '../../../components/LiveQualitySheet.vue';
 import { initRoomEngineLanguage } from '../../../utils/utils';
 
 const { t } = useUIKit();
@@ -214,6 +238,32 @@ const {
   handleCancelApplication,
   handleCancelApplicationOnSeat,
 } = useSeatApplication('h5');
+const shareSheetVisible = ref(false);
+const qualitySheetVisible = ref(false);
+
+// Hide Tencent's built-in tap-to-reveal PlayerControl bar (the plain
+// Play/Resolution/Volume/PictureInPicture/Fullscreen strip) — it looks
+// out of place next to the app's own design. Our own always-visible
+// "viewer-rail" buttons (share + quality/PiP, above) cover the same
+// ground with app-consistent styling. With every builtin button hidden
+// and no custom buttons registered, PlayerControl's `hasVisibleButtons`
+// is false, so the bar never renders even when a tap toggles
+// `controlBarVisible`.
+const { buttons: playerButtons } = useLivePlayerState();
+function hideBuiltinPlayerControls() {
+  ([
+    PlayerControlButton.Play,
+    PlayerControlButton.Resolution,
+    PlayerControlButton.Volume,
+    PlayerControlButton.PictureInPicture,
+    PlayerControlButton.Fullscreen,
+  ] as const).forEach((key) => {
+    if (playerButtons[key]) {
+      playerButtons[key].visible = false;
+    }
+  });
+}
+
 const audienceListPanelVisible = ref(false);
 const leaveLiveDialogVisible = ref(false);
 const exitLiveDialogVisible = ref(false);
@@ -285,6 +335,7 @@ onMounted(async () => {
   document.documentElement.style.backgroundColor = 'black';
   document.body.style.backgroundColor = 'black';
 
+  hideBuiltinPlayerControls();
   subscribeEvent(LiveListEvent.onKickedOutOfLive, handleKickedOutOfLive);
   subscribeGiftEvent(LiveGiftEvents.ON_RECEIVE_LIKES_MESSAGE, handleReceiveLikesMessage);
   await initRoomEngineLanguage();
@@ -904,5 +955,40 @@ function handleBarrageInputBlur() {
   25% { content: '.'; }
   50% { content: '..'; }
   75% { content: '...'; }
+}
+
+// Share + quality/PiP action rail — fixed to the bottom-right corner,
+// stacked above the chat/co-guest bar so it never overlaps the phone
+// (co-guest apply) button that sits in `.bottom-operate-button`.
+.viewer-rail {
+  position: fixed;
+  right: 12px;
+  bottom: 78px;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rail-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 21px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.12);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(16px) saturate(180%);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.35),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.1),
+    0 6px 16px rgba(0, 0, 0, 0.3);
+  -webkit-tap-highlight-color: transparent;
+}
+.rail-btn:active {
+  transform: scale(0.92);
 }
 </style>
