@@ -110,7 +110,13 @@ function waitSubscribed(channel: ReturnType<typeof personalRingChannel>, timeout
   });
 }
 
-/** Ring the callee: briefly join their personal channel to send one invite. */
+/**
+ * Ring the callee: briefly join their personal channel to send one
+ * invite (instant if their app is already open) AND, in parallel, ask
+ * our serverless function to push a real OS notification so the phone
+ * rings even if their app/tab is closed or backgrounded — best-effort,
+ * never blocks or fails the call if push isn't configured.
+ */
 export async function ringUser(calleeId: string, invite: IncomingCallPayload): Promise<void> {
   const channel = personalRingChannel(calleeId);
   const ok = await waitSubscribed(channel);
@@ -118,6 +124,31 @@ export async function ringUser(calleeId: string, invite: IncomingCallPayload): P
     await channel.send({ type: 'broadcast', event: 'invite', payload: invite });
   }
   window.setTimeout(() => channel.unsubscribe(), 300);
+  void sendCallPushNotification(calleeId, invite);
+}
+
+async function sendCallPushNotification(calleeId: string, invite: IncomingCallPayload): Promise<void> {
+  try {
+    const client = requireClient();
+    const { data } = await client.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      return;
+    }
+    await fetch('/api/notify-call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        calleeId,
+        callId: invite.callId,
+        callerId: invite.callerId,
+        callerName: invite.callerName,
+        callerAvatar: invite.callerAvatar,
+      }),
+    });
+  } catch (error) {
+    console.warn('[calls] push notify failed (call still rings if the app is open):', error);
+  }
 }
 
 /** Caller-side cancel: tell the callee's ring channel to dismiss the invite. */

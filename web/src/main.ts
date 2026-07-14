@@ -5,6 +5,7 @@ import router from './router/index';
 
 import { addI18n } from 'tuikit-atomicx-vue3';
 import { enResource, zhResource } from './i18n';
+import { useIncomingCalls } from './calls/useIncomingCalls';
 
 const app = createApp(App);
 app.use(router);
@@ -32,6 +33,16 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch((error) => {
       console.warn('[pwa] service worker registration failed:', error);
     });
+  });
+
+  // Tapping an incoming-call push notification while this tab was ALREADY
+  // open focuses it and posts the call payload here (rather than
+  // navigating away) — restore the same ring/accept overlay App.vue uses
+  // for live in-app invites.
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'incoming-call' && event.data.payload) {
+      useIncomingCalls().restore(event.data.payload);
+    }
   });
 }
 

@@ -69,3 +69,50 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
+
+// ---------------------------------------------------------------------
+// Web Push: rings an incoming call even when the app/tab is closed or
+// backgrounded (see web/api/notify-call.ts, which sends the push, and
+// src/data/push.ts, which registers this device to receive it).
+// ---------------------------------------------------------------------
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
+  }
+  if (data.type !== 'incoming-call' || !data.callId) {
+    return;
+  }
+  event.waitUntil(
+    self.registration.showNotification(`${data.callerName || 'Alguien'} te está llamando`, {
+      body: 'Videollamada entrante',
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png',
+      tag: `call-${data.callId}`,
+      requireInteraction: true,
+      vibrate: [300, 150, 300, 150, 300],
+      data,
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const data = event.notification.data || {};
+  event.waitUntil(
+    (async () => {
+      const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of allClients) {
+        if ('focus' in client) {
+          await client.focus();
+          client.postMessage({ type: 'incoming-call', payload: data });
+          return;
+        }
+      }
+      const params = new URLSearchParams({ incomingCall: JSON.stringify(data) });
+      await self.clients.openWindow(`./#/messages?${params.toString()}`);
+    })(),
+  );
+});

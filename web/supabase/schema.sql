@@ -192,6 +192,32 @@ do $$ begin
   alter publication supabase_realtime add table public.messages;
 exception when others then null; end $$;
 
+-- ---------- push_subscriptions (llamadas entrantes con la app cerrada) ----------
+create table if not exists public.push_subscriptions (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  endpoint   text not null unique,
+  p256dh     text not null,
+  auth       text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists push_subscriptions_user_idx
+  on public.push_subscriptions (user_id);
+
+alter table public.push_subscriptions enable row level security;
+
+drop policy if exists "users manage their own push subscriptions" on public.push_subscriptions;
+create policy "users manage their own push subscriptions"
+  on public.push_subscriptions for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+-- Nota: enviar el push en sí lo hace la función serverless
+-- (web/api/notify-call.ts) con la service role key, que se salta esta
+-- política para poder leer las suscripciones de la persona a la que se
+-- llama — el usuario normal solo puede leer/crear/borrar la suya.
+
 -- =====================================================================
 -- STORAGE: not required. Avatars and photos are compressed on the client
 -- and stored inline as data URLs in the columns above, so you do NOT need

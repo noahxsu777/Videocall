@@ -52,5 +52,16 @@ export function useIncomingCalls() {
     incomingCall.value = null;
   }
 
-  return { incomingCall, start, decline, clear };
+  /**
+   * Restore an incoming-call ring from outside the realtime channel —
+   * used when a Web Push notification (app closed/backgrounded) is what
+   * actually woke this page up, so the normal broadcast was never seen
+   * by this tab. See main.ts's serviceWorker message listener and
+   * App.vue's `?incomingCall=` cold-start deep link.
+   */
+  function restore(payload: IncomingCallPayload) {
+    incomingCall.value = payload;
+  }
+
+  return { incomingCall, start, decline, clear, restore };
 }
