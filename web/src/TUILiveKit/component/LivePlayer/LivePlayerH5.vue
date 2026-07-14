@@ -812,6 +812,18 @@ function handleBarrageInputBlur() {
     width: 32px;
     height: 32px;
     -webkit-tap-highlight-color: transparent;
+
+    // <LiveGift>'s own root (.live-gift-h5-container) ships with 8px of
+    // internal padding around a fixed 32x32 icon — 48x48px total. Forcing
+    // it into our 32x32 slot above made the icon overflow its box, and
+    // since SeatApplicationButtonH5 (the "phone" co-guest button) sits
+    // right after it in DOM order, the phone button painted on top of
+    // the overflow and visually hid most of the gift icon. Dropping the
+    // padding here makes the 32x32 icon fill the slot exactly, so it
+    // renders fully visible right beside the phone button.
+    :deep(.live-gift-h5-container) {
+      padding: 0;
+    }
   }
 
   .like-button {
