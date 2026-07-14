@@ -86,17 +86,25 @@
         <LiveCoreView v-if="isMobile" />
         <StreamMixer v-else />
         <!--
-          Pre-live camera preview target (mobile only). startCameraTest
-          renders the local camera here before any room exists, so the
-          broadcaster sees themselves immediately on entering the
-          screen. Hidden (v-show keeps the element mounted for the SDK)
-          once live starts and the published feed takes over.
+          Pre-live camera preview (mobile only). We render our own
+          getUserMedia stream with EXPLICIT portrait constraints into
+          this <video> — the SDK's startCameraTest takes no constraints
+          and always captures landscape, which showed up as a
+          letterboxed strip instead of an Instagram-style full-bleed
+          vertical preview. Hidden once live starts and the published
+          feed takes over.
         -->
         <div
           v-show="isMobile && !isInLive"
-          :id="MOBILE_PREVIEW_VIEW_ID"
           class="mobile-camera-preview"
-        />
+        >
+          <video
+            :id="MOBILE_PREVIEW_VIEW_ID"
+            autoplay
+            playsinline
+            muted
+          />
+        </div>
       </div>
       <div class="main-center-bottom">
         <div class="main-center-bottom-content">
@@ -206,7 +214,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import TUIRoomEngine, {
   TUISeatMode,
   TUIVideoStreamType,
@@ -299,8 +307,6 @@ const {
   openLocalMicrophone,
   openLocalCamera,
   switchCamera,
-  startCameraTest,
-  stopCameraTest,
   updateVideoQuality,
 } = useDeviceState();
 const { coHostStatus, exitHostConnection } = useCoHostState();
@@ -309,6 +315,12 @@ const { connected: coGuestConnected } = useCoGuestState();
 const { subscribeEvent: subscribeBarrageEvent, unsubscribeEvent: unsubscribeBarrageEvent} = useBarrageState();
 
 const isInLive = computed(() => !!currentLive.value?.liveId);
+// Back to the pre-live state (live ended) → bring the preview back.
+watch(isInLive, (inLive) => {
+  if (!inLive) {
+    startMobileCameraPreview();
+  }
+});
 const loading = ref(false);
 const liveParamsEditForm = ref({
   liveName: '',
@@ -434,8 +446,8 @@ const handleCopyLiveID = async () => {
 // Both phases set portrait resolution mode first: the default capture
 // is landscape, and rendering a landscape frame cover-fit into a
 // vertical phone screen produces the massive crop/zoom the user saw.
-const MOBILE_PREVIEW_VIEW_ID = 'mobile-camera-preview';
-let cameraTestRunning = false;
+const MOBILE_PREVIEW_VIEW_ID = 'mobile-camera-preview-video';
+let previewStream: MediaStream | null = null;
 
 const applyMobilePortraitProfile = async () => {
   try {
@@ -449,26 +461,28 @@ const applyMobilePortraitProfile = async () => {
   }
 };
 
+// Own getUserMedia preview with explicit PORTRAIT constraints — the
+// SDK's startCameraTest takes no constraints and always captures
+// landscape, which can never fill a vertical phone screen.
 const startMobileCameraPreview = async () => {
-  if (!isMobile || cameraTestRunning || isInLive.value) {
+  if (!isMobile || previewStream || isInLive.value) {
     return;
   }
-  cameraTestRunning = true;
   try {
-    await applyMobilePortraitProfile();
-    await startCameraTest({ view: MOBILE_PREVIEW_VIEW_ID });
-    try {
-      await switchCamera({ isFrontCamera: true });
-      // switchCamera re-opens the capture and can reset it to the
-      // default landscape constraints — re-apply the portrait profile
-      // so the switch doesn't undo it (this was the residual extreme
-      // zoom after the first portrait fix).
-      await applyMobilePortraitProfile();
-    } catch (switchError) {
-      console.warn('[LivePusherView] switch to front camera failed:', switchError);
+    previewStream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: {
+        facingMode: 'user',
+        width: { ideal: 720 },
+        height: { ideal: 1280 },
+      },
+    });
+    const videoEl = document.getElementById(MOBILE_PREVIEW_VIEW_ID) as HTMLVideoElement | null;
+    if (videoEl) {
+      videoEl.srcObject = previewStream;
+      await videoEl.play().catch(() => { /* autoplay quirks are fine, muted */ });
     }
   } catch (error) {
-    cameraTestRunning = false;
     // Silent: this is only the preview; the decisive (toasting)
     // attempt happens on Start live.
     console.error('[LivePusherView] camera preview failed:', error);
@@ -476,14 +490,14 @@ const startMobileCameraPreview = async () => {
 };
 
 const stopMobileCameraPreview = async () => {
-  if (!cameraTestRunning) {
+  if (!previewStream) {
     return;
   }
-  cameraTestRunning = false;
-  try {
-    await stopCameraTest();
-  } catch (error) {
-    console.warn('[LivePusherView] stopping camera preview failed:', error);
+  previewStream.getTracks().forEach(track => track.stop());
+  previewStream = null;
+  const videoEl = document.getElementById(MOBILE_PREVIEW_VIEW_ID) as HTMLVideoElement | null;
+  if (videoEl) {
+    videoEl.srcObject = null;
   }
 };
 
@@ -1058,15 +1072,15 @@ onUnmounted(() => {
         z-index: 2 !important;
         background: #000;
 
-        :deep(video) {
+        video {
           width: 100% !important;
           height: 100% !important;
-          // contain, not cover: if anything upstream still delivers a
-          // landscape frame, cover-fitting it into a tall phone screen
-          // crops away most of the image (the "super zoomed" symptom).
-          // With a portrait capture, contain is effectively full-bleed
-          // anyway — like an Instagram live.
-          object-fit: contain !important;
+          // Our own preview capture is explicitly portrait (see
+          // startMobileCameraPreview), so cover = edge-to-edge with a
+          // barely-there crop — the Instagram-live look. Mirrored for
+          // the natural selfie feel.
+          object-fit: cover !important;
+          transform: scaleX(-1);
         }
       }
 
