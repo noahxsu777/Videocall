@@ -65,19 +65,23 @@ Si ya tenías un proyecto de Vercel apuntando a este repo desde antes (por ejemp
 
 ## Cómo funciona el flujo
 
-1. **Pantalla de inicio** (`src/views/login.vue` + `src/components/LoginUserID.vue`): el usuario escribe su nombre y toca **Transmitir**. Esto genera un `userSig` de prueba y hace login contra Tencent Cloud.
-2. **Pantalla en vivo** (`src/views/live-pusher.vue`): se abre directamente a pantalla completa mostrando `LivePusherView` del UIKit — cámara, micrófono, chat y controles de transmisión, igual que Bigo Live.
+Es la experiencia móvil completa de Tencent (todas las funciones), pensada para correr en el navegador del celular:
 
-A diferencia del demo original de Tencent, este flujo **no pasa por una lista de salas**: tocar "Transmitir" lleva directo a transmitir, tal como se pidió para la app móvil equivalente.
+1. **Pantalla de inicio** (`src/views/login.vue` + `src/components/LoginUserID.vue`): el usuario escribe su nombre y toca **Transmitir**. Esto genera un `userSig` de prueba y hace login contra Tencent Cloud.
+2. **Lista de transmisiones** (`src/views/live-list.vue`): grilla de streams en vivo (diseño móvil H5 de Tencent). Desde aquí puedes:
+   - Tocar un stream para **verlo** (`src/views/live-player.vue`) con chat, regalos, lista de espectadores y batallas PK.
+   - Tocar **Start live** (botón visible también en celular) para **transmitir** tú.
+3. **Transmitir** (`src/views/live-pusher.vue`): abre `LivePusherView` con cámara, micrófono, controles, co-host y batallas PK. En pantallas de celular se muestra con un layout móvil a pantalla completa (ver `LivePusherView.vue`).
+
+Todas las funciones del UIKit de Tencent quedan disponibles: **batallas PK, co-host, chat (barrage), regalos y lista de espectadores**.
 
 ## Diferencias respecto al demo oficial de Tencent
 
 - Se quitó `upload-server` (subida de imágenes de portada), una función opcional no necesaria para el flujo básico.
-- Textos de la pantalla de login traducidos a español y simplificados ("Usuario" / "Transmitir").
-- Redirección tras login apunta a `/live-pusher` en vez de `/live-list`.
+- Textos de la pantalla de login traducidos a español ("Usuario" / "Transmitir").
+- El botón **Start live** se muestra también en celular (el demo original lo ocultaba en móvil).
+- La pantalla de transmitir (`LivePusherView.vue`) tiene un layout móvil a pantalla completa añadido, porque el diseño original de ese componente solo estaba pensado para escritorio.
 - Se corrigió un bug del componente `LoginUserID.vue` original (una variable duplicada que rompía la restauración de sesión al recargar la página).
-
-Las salas de espectadores (`/live-list`, `/live-player`) y las variantes de estilo (`/business`, `/education`) del demo original se mantienen en el código por si quieres reactivarlas, pero no forman parte del flujo principal.
 
 ## Estructura del proyecto
 
@@ -86,11 +90,12 @@ index.html
 src/
   config/basic-info-config.js   # SDKAppID / SDKSecretKey / generador de userSig
   components/LoginUserID.vue    # Formulario de usuario + botón Transmitir
+  components/LiveHeader.vue     # Cabecera con botón Start live
   views/login.vue               # Pantalla de inicio
-  views/live-pusher.vue         # Transmisión en vivo a pantalla completa (host)
-  views/live-player.vue         # Vista de espectador (no usada en el flujo principal)
-  views/live-list.vue           # Lista de salas (no usada en el flujo principal)
-  TUILiveKit/                   # Componentes del UIKit de Tencent (LivePusherView, etc.)
+  views/live-list.vue           # Lista de transmisiones (home)
+  views/live-player.vue         # Ver una transmisión (chat, regalos, PK, espectadores)
+  views/live-pusher.vue         # Transmitir en vivo (host)
+  TUILiveKit/                   # Componentes del UIKit de Tencent (LivePusherView, batallas, etc.)
   router/index.ts               # Rutas y guard de sesión
 ```
 

@@ -6,7 +6,7 @@ import { isH5 } from '@/TUILiveKit/utils/environment';
 const routes = [
   {
     path: '/',
-    redirect: '/live-pusher',
+    redirect: '/live-list',
   },
   {
     path: '/login',

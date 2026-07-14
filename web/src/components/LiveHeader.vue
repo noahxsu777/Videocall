@@ -5,7 +5,7 @@
       <div class="header-left-title">LiveKit</div>
     </div>
     <div class="header-right">
-      <TUIButton v-if="isLiveListPage && !isH5" class="btn-start-live" type="primary" @click="gotoPusher">{{ t('Start live') }}</TUIButton>
+      <TUIButton v-if="isLiveListPage" class="btn-start-live" type="primary" @click="gotoPusher">{{ t('Start live') }}</TUIButton>
       <Avatar :src="loginUserInfo?.avatarUrl" :size="24" />
       <div class="header-right-name">
         {{ loginUserInfo?.userName || loginUserInfo?.userId }}
@@ -24,7 +24,6 @@ import { onMounted, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { TUIButton, TUIMessageBox, TUIToast, TOAST_TYPE, useUIKit } from '@tencentcloud/uikit-base-component-vue3';
 import { useLoginState, useLiveListState, Avatar, UIKitModal } from 'tuikit-atomicx-vue3';
-import { isH5 } from '../TUILiveKit/utils/environment';
 import { errorHandler } from '../TUILiveKit/utils/errorHandler';
 
 const props = defineProps({

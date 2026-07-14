@@ -25,7 +25,7 @@ const handleLogin = (userInfo: {
   sessionStorage.setItem('tuiLive-userInfo', JSON.stringify(userInfo));
   const currentQuery = deepClone(route.query);
   delete currentQuery.from;
-  router.push({ path: route.query.from as string || '/live-pusher', query: currentQuery });
+  router.push({ path: route.query.from as string || '/live-list', query: currentQuery });
 };
 
 </script>
