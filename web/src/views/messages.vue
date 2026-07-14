@@ -2,10 +2,17 @@
   <div class="messages">
     <header class="msg-top">
       <span class="msg-title">Mensajes</span>
-      <button class="new-chat" @click="openNewChat">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-      </button>
+      <div class="msg-top-actions">
+        <button class="new-chat" title="Tarifa de llamadas" @click="callSettingsOpen = true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.36.4.66.73.85.32.19.7.27 1.07.24H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+        </button>
+        <button class="new-chat" @click="openNewChat">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        </button>
+      </div>
     </header>
+
+    <CallSettingsSheet v-model="callSettingsOpen" />
 
     <!-- New chat: search users -->
     <div v-if="newOpen" class="search-panel">
@@ -74,10 +81,12 @@
           </span>
           <span class="thread-name">{{ activePeer.display_name || activePeer.username || 'Usuario' }}</span>
         </button>
-        <button class="call-btn" title="Videollamada" @click="startCall">
+        <button class="call-btn" title="Videollamada" :disabled="callState === 'starting'" @click="startCall">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
         </button>
       </header>
+
+      <p v-if="callError" class="call-error">{{ callError }}</p>
 
       <div ref="threadEl" class="thread-list">
         <div
@@ -114,8 +123,10 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import GlassBackButton from '../components/GlassBackButton.vue';
-import { useAuth, tencentUserIdFor } from '../auth/useAuth';
+import CallSettingsSheet from '../components/CallSettingsSheet.vue';
+import { useAuth } from '../auth/useAuth';
 import { getProfile, type Profile } from '../data/profiles';
+import { getCallRate, getCoins, ringUser } from '../data/calls';
 import {
   listConversations,
   fetchThread,
@@ -130,7 +141,7 @@ import {
 
 const router = useRouter();
 const route = useRoute();
-const { user } = useAuth();
+const { user, displayName } = useAuth();
 const myId = user.value?.id || '';
 
 const conversations = ref<Conversation[]>([]);
@@ -144,6 +155,9 @@ const thread = ref<DirectMessage[]>([]);
 const draft = ref('');
 const sending = ref(false);
 const threadEl = ref<HTMLElement | null>(null);
+const callSettingsOpen = ref(false);
+const callError = ref('');
+const callState = ref<'idle' | 'starting'>('idle');
 
 let unsubscribe: (() => void) | null = null;
 let pollTimer: number | null = null;
@@ -252,25 +266,58 @@ async function send() {
   }
 }
 
-// Video call = my live room. The invite goes into the chat; the other
-// person taps it and lands in the room as a viewer, from where they can
-// join on camera (co-guest).
+// Real 1-to-1 video call: WebRTC peer connection signaled over Supabase
+// Realtime (see src/data/calls.ts + src/views/call.vue). The callee pays
+// nothing; the CALLER is charged the callee's configured rate per minute
+// (see the ⚙️ tarifa button above), so we check they can afford at least
+// one minute before ringing.
 async function startCall() {
-  if (!activePeer.value || !myId || !user.value) {
+  if (!activePeer.value || !myId || !user.value || callState.value === 'starting') {
     return;
   }
-  const liveId = `live_${tencentUserIdFor(user.value)}`;
+  callError.value = '';
+  callState.value = 'starting';
   try {
-    const m = await sendDirectMessage(myId, activePeer.value.id, liveId, 'call');
+    const [rate, coins] = await Promise.all([
+      getCallRate(activePeer.value.id),
+      getCoins(myId),
+    ]);
+    if (coins < rate) {
+      callError.value = `Necesitas al menos ${rate} coins para llamar a esta persona (tienes ${coins}).`;
+      return;
+    }
+    const callId = crypto.randomUUID();
+    const m = await sendDirectMessage(myId, activePeer.value.id, callId, 'call');
     thread.value.push(m);
-  } catch (error) {
-    console.warn('[messages] call invite failed:', error);
+    const myProfile = await getProfile(myId).catch(() => null);
+    await ringUser(activePeer.value.id, {
+      callId,
+      callerId: myId,
+      callerName: myProfile?.display_name || myProfile?.username || displayName.value,
+      callerAvatar: myProfile?.avatar_url || null,
+    });
+    router.push({
+      path: `/call/${callId}`,
+      query: {
+        peer: activePeer.value.id,
+        role: 'caller',
+        name: activePeer.value.display_name || activePeer.value.username || 'Usuario',
+      },
+    });
+  } catch (error: any) {
+    callError.value = error?.message || 'No se pudo iniciar la llamada.';
+    console.warn('[messages] call start failed:', error);
+  } finally {
+    callState.value = 'idle';
   }
-  router.push({ path: '/live-pusher' });
 }
 
 function joinCall(m: DirectMessage) {
-  router.push({ path: '/live-player', query: { liveId: m.content } });
+  const peer = activePeer.value;
+  router.push({
+    path: `/call/${m.content}`,
+    query: { peer: peer?.id, role: 'callee', name: peer?.display_name || peer?.username || 'Usuario' },
+  });
 }
 
 onMounted(async () => {
@@ -339,6 +386,10 @@ onUnmounted(() => {
   font-size: 22px;
   font-weight: 800;
 }
+.msg-top-actions {
+  display: flex;
+  gap: 8px;
+}
 .new-chat {
   width: 40px;
   height: 40px;
@@ -352,6 +403,17 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+
+.call-error {
+  margin: 8px 14px 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 69, 58, 0.14);
+  border: 1px solid rgba(255, 69, 58, 0.35);
+  color: #ffb4ae;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .search-panel {

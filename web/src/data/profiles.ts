@@ -8,6 +8,8 @@ export interface Profile {
   avatar_url: string | null;
   name_updated_at?: string | null;
   vip_until?: string | null;
+  coins?: number;
+  call_rate?: number;
   created_at?: string;
 }
 

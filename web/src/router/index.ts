@@ -32,6 +32,10 @@ const routes = [
     component: () => import('@/views/messages.vue'),
   },
   {
+    path: '/call/:callId',
+    component: () => import('@/views/call.vue'),
+  },
+  {
     path: '/profile',
     component: () => import('@/views/profile.vue'),
   },

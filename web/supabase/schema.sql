@@ -15,6 +15,8 @@ create table if not exists public.profiles (
   avatar_url      text,
   name_updated_at timestamptz,
   vip_until       timestamptz,
+  coins           integer not null default 500,
+  call_rate       integer not null default 100,
   created_at      timestamptz not null default now()
 );
 
@@ -23,6 +25,10 @@ alter table public.profiles
   add column if not exists name_updated_at timestamptz;
 alter table public.profiles
   add column if not exists vip_until timestamptz;
+alter table public.profiles
+  add column if not exists coins integer not null default 500;
+alter table public.profiles
+  add column if not exists call_rate integer not null default 100;
 
 alter table public.profiles enable row level security;
 
