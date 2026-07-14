@@ -232,7 +232,11 @@ async function handleLogout() {
 
 <style scoped>
 .settings {
-  min-height: 100vh;
+  /* The global stylesheet sets overflow:hidden on body, so every page
+     must be its own scroll container. */
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: #000;
   color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;

@@ -104,6 +104,51 @@ drop policy if exists "users can delete own photos" on public.photos;
 create policy "users can delete own photos"
   on public.photos for delete using (auth.uid() = user_id);
 
+-- ---------- likes ----------
+create table if not exists public.likes (
+  photo_id   uuid not null references public.photos(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (photo_id, user_id)
+);
+
+alter table public.likes enable row level security;
+
+drop policy if exists "likes are viewable by everyone" on public.likes;
+create policy "likes are viewable by everyone"
+  on public.likes for select using (true);
+
+drop policy if exists "users can like" on public.likes;
+create policy "users can like"
+  on public.likes for insert with check (auth.uid() = user_id);
+
+drop policy if exists "users can unlike" on public.likes;
+create policy "users can unlike"
+  on public.likes for delete using (auth.uid() = user_id);
+
+-- ---------- comments ----------
+create table if not exists public.comments (
+  id         uuid primary key default gen_random_uuid(),
+  photo_id   uuid not null references public.photos(id) on delete cascade,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  content    text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.comments enable row level security;
+
+drop policy if exists "comments are viewable by everyone" on public.comments;
+create policy "comments are viewable by everyone"
+  on public.comments for select using (true);
+
+drop policy if exists "users can comment" on public.comments;
+create policy "users can comment"
+  on public.comments for insert with check (auth.uid() = user_id);
+
+drop policy if exists "users can delete own comments" on public.comments;
+create policy "users can delete own comments"
+  on public.comments for delete using (auth.uid() = user_id);
+
 -- ---------- messages (chat 1 a 1) ----------
 create table if not exists public.messages (
   id           uuid primary key default gen_random_uuid(),

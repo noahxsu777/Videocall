@@ -393,10 +393,12 @@ const applyMobileBattleLayout = async () => {
   if (members.length < 2) {
     return;
   }
+  // Canvas exactly the size of the two tiles (no dead space below) so
+  // LiveCoreView can fill the on-screen container edge to edge.
   const canvasWidth = 720;
-  const canvasHeight = 1280;
+  const canvasHeight = 640;
   const tileWidth = canvasWidth / 2;
-  const tileHeight = 640; // 9:16 halves side by side
+  const tileHeight = canvasHeight; // two 9:16 halves side by side
   const layout = {
     VideoEncode: { Width: canvasWidth, Height: canvasHeight },
     LayoutMode: 1000,
@@ -1549,24 +1551,28 @@ onUnmounted(() => {
     position: absolute !important;
     left: 10px !important;
     right: 10px !important;
-    bottom: 150px !important;
-    height: 34vh !important;
+    // Clear the mic/speaker + tools + End live stack at the bottom so the
+    // chat input never overlaps the volume pills.
+    bottom: 235px !important;
+    height: 30vh !important;
     z-index: 3 !important;
     pointer-events: none !important;
   }
 
-  // Battle / co-host: lift both camera tiles into the top half so the
-  // viewer messages below them are visible (instead of dead space).
+  // Battle / co-host: the mixed canvas is 720x640 (two 9:16 halves), so
+  // give the container the SAME aspect ratio pinned under the top bar —
+  // the video then fills it completely edge to edge, and the viewer
+  // messages take the space below.
   &.is-battle {
     .main-center-center {
-      inset: 10px 0 auto 0 !important;
-      height: 54% !important;
+      inset: 50px 0 auto 0 !important;
+      height: auto !important;
+      aspect-ratio: 9 / 8;
     }
-    // Give the messages more room: start them right under the tiles.
     .mobile-barrage {
-      bottom: 150px !important;
-      height: calc(100% - 54% - 10px - 156px) !important;
-      min-height: 140px !important;
+      top: calc(58px + 88.9vw) !important; // just under the tiles (100vw * 8/9)
+      bottom: 235px !important;
+      height: auto !important;
     }
   }
 }

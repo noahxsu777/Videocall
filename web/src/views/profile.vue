@@ -226,7 +226,9 @@ watch(() => route.fullPath, load);
 
 <style scoped>
 .profile {
-  min-height: 100vh;
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: #010101;
   color: #fff;
   padding-bottom: 24px;

@@ -262,6 +262,98 @@ export async function listFeedPhotos(limit = 60): Promise<FeedPhoto[]> {
   return (data || []) as FeedPhoto[];
 }
 
+// ---------- likes & comments (reels) ----------
+
+export interface PhotoComment {
+  id: string;
+  photo_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  author?: Pick<Profile, 'id' | 'display_name' | 'username' | 'avatar_url'> | null;
+}
+
+/** Like + comment counts for a set of photos, in two batched queries. */
+export async function getPhotoStats(
+  photoIds: string[],
+): Promise<Record<string, { likes: number; comments: number }>> {
+  const client = requireClient();
+  const stats: Record<string, { likes: number; comments: number }> = {};
+  for (const id of photoIds) {
+    stats[id] = { likes: 0, comments: 0 };
+  }
+  if (!photoIds.length) {
+    return stats;
+  }
+  const [{ data: likes }, { data: comments }] = await Promise.all([
+    client.from('likes').select('photo_id').in('photo_id', photoIds),
+    client.from('comments').select('photo_id').in('photo_id', photoIds),
+  ]);
+  for (const row of (likes || []) as { photo_id: string }[]) {
+    stats[row.photo_id].likes += 1;
+  }
+  for (const row of (comments || []) as { photo_id: string }[]) {
+    stats[row.photo_id].comments += 1;
+  }
+  return stats;
+}
+
+/** Which of these photos has the user already liked? */
+export async function myLikedPhotoIds(userId: string, photoIds: string[]): Promise<Set<string>> {
+  const client = requireClient();
+  if (!photoIds.length) {
+    return new Set();
+  }
+  const { data } = await client
+    .from('likes')
+    .select('photo_id')
+    .eq('user_id', userId)
+    .in('photo_id', photoIds);
+  return new Set(((data || []) as { photo_id: string }[]).map(r => r.photo_id));
+}
+
+export async function likePhoto(userId: string, photoId: string): Promise<void> {
+  const client = requireClient();
+  const { error } = await client.from('likes').insert({ user_id: userId, photo_id: photoId });
+  if (error && !error.message.includes('duplicate')) {
+    throw new Error(error.message);
+  }
+}
+
+export async function unlikePhoto(userId: string, photoId: string): Promise<void> {
+  const client = requireClient();
+  await client.from('likes').delete().eq('user_id', userId).eq('photo_id', photoId);
+}
+
+export async function listComments(photoId: string): Promise<PhotoComment[]> {
+  const client = requireClient();
+  const { data, error } = await client
+    .from('comments')
+    .select('*, author:profiles(id, display_name, username, avatar_url)')
+    .eq('photo_id', photoId)
+    .order('created_at', { ascending: true })
+    .limit(200);
+  if (error) {
+    console.warn('[profiles] listComments failed:', error.message);
+    return [];
+  }
+  return (data || []) as PhotoComment[];
+}
+
+export async function addComment(
+  userId: string,
+  photoId: string,
+  content: string,
+): Promise<void> {
+  const client = requireClient();
+  const { error } = await client
+    .from('comments')
+    .insert({ user_id: userId, photo_id: photoId, content });
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 /**
  * Activate (or extend) a VIP subscription. Simulated purchase — no real
  * payment gateway is wired yet, so this just extends vip_until by the

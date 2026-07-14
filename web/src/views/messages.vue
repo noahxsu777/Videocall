@@ -322,7 +322,9 @@ onUnmounted(() => {
 
 <style scoped>
 .messages {
-  min-height: 100vh;
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: #050308;
   color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;

@@ -106,7 +106,9 @@ async function buy() {
 
 <style scoped>
 .vip {
-  min-height: 100vh;
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: radial-gradient(120% 80% at 50% 0%, #2a1f05 0%, #0a0a0c 55%);
   color: #fff;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
