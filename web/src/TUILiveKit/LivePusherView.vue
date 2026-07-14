@@ -778,58 +778,130 @@ onUnmounted(() => {
   gap: 10px;
 }
 
-// Mobile layout: the desktop 3-column layout above doesn't fit narrow
-// screens (text wraps to one word per line, the bottom toolbar overlaps
-// the Start Live button). Stack everything into a single scrollable
-// column instead of shrinking 3 fixed-width columns into no room.
+// Mobile layout — Bigo-style full-screen broadcast.
+//
+// The desktop layout is a fixed 3-column studio (source panel | video |
+// viewers+chat) that makes no sense on a phone. On mobile we turn the
+// video preview into a full-screen background and overlay only the
+// essentials on top of it: a translucent top bar (title + viewer count),
+// the source/"Add Camera" card (the web SDK does not auto-start the
+// camera, so the user still needs it), and a bottom control bar with a
+// large "Start live" button. The viewers list and side chat panel are
+// hidden to keep the broadcast screen clean, just like Bigo.
 @media (max-width: 768px) {
   .live-pusher-main {
-    flex-direction: column;
-    height: auto;
-    min-height: 100%;
-    overflow-y: auto;
+    position: relative;
+    display: block;
+    height: 100%;
+    gap: 0;
+    overflow: hidden;
+    background-color: #000;
   }
 
-  .main-left,
-  .main-right {
-    width: 100%;
-    max-width: none;
-    min-width: 0;
-  }
-
-  .main-left-top {
-    flex: none;
-  }
-
+  // Video preview = full-screen base layer.
   .main-center {
+    position: absolute;
+    inset: 0;
     flex: none;
-    min-height: 60vh;
+    display: flex;
+    flex-direction: column;
 
     .main-center-center {
-      min-height: 300px;
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      min-height: 0;
     }
 
-    .main-center-bottom-content {
-      height: auto;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 8px;
-      padding: 8px 0;
+    // Title + viewer count → translucent overlay pinned to the top.
+    .main-center-top {
+      position: relative;
+      z-index: 3;
+      height: 52px;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0));
+      &::after {
+        display: none;
+      }
+    }
 
-      .main-center-bottom-left,
-      .main-center-bottom-right {
-        width: 100%;
+    // Controls + Start live → translucent overlay pinned to the bottom.
+    .main-center-bottom {
+      position: relative;
+      z-index: 3;
+      margin-top: auto;
+      background: linear-gradient(0deg, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0));
+      &::before {
+        display: none;
       }
 
-      .main-center-bottom-tools {
-        flex-wrap: wrap;
+      .main-center-bottom-content {
+        height: auto;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        padding: 12px 0 20px;
+
+        .main-center-bottom-left {
+          width: 100%;
+          justify-content: center;
+          flex-wrap: wrap;
+          gap: 12px;
+        }
+
+        .main-center-bottom-right {
+          width: 100%;
+
+          :deep(button) {
+            width: 70%;
+            max-width: 320px;
+            height: 48px;
+            margin: 0 auto;
+            border-radius: 24px;
+            font-size: 16px;
+          }
+        }
       }
     }
   }
 
-  .main-right-top {
+  // Source / "Add Camera" panel → floating translucent card over the video.
+  .main-left {
+    position: absolute;
+    top: 64px;
+    left: 12px;
+    right: 12px;
+    z-index: 2;
+    width: auto;
+    max-width: none;
+    min-width: 0;
     height: auto;
-    max-height: 240px;
+    gap: 0;
+    pointer-events: none;
+
+    .main-left-top {
+      flex: none;
+      pointer-events: auto;
+      background: rgba(20, 22, 30, 0.72);
+      backdrop-filter: blur(6px);
+      border-radius: 12px;
+
+      // The long "We support you to add rich sources" blurb is desktop
+      // filler — hide it on mobile so the card stays compact.
+      :deep(.live-scene-placeholder-content) {
+        display: none;
+      }
+    }
+
+    // "Live tool" (CoGuest / CoHost) fold is not needed for a basic
+    // solo broadcast — hide it on mobile.
+    .main-left-bottom {
+      display: none;
+    }
+  }
+
+  // Viewers list + side barrage/chat panel → hidden for a clean screen.
+  .main-right {
+    display: none;
   }
 }
 </style>

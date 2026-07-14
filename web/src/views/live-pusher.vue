@@ -87,7 +87,8 @@ watch(loginUserInfo, (newVal) => {
   box-sizing: border-box;
 
   @media (max-width: 768px) {
-    padding: 8px;
+    padding: 0;
+    overflow: hidden;
   }
 }
 </style>

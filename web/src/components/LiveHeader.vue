@@ -137,6 +137,11 @@ watch(
   align-items: center;
   user-select: none;
 
+  @media (max-width: 768px) {
+    padding: 8px 12px;
+    box-sizing: border-box;
+  }
+
   .header-left {
     display: flex;
     align-items: center;
