@@ -442,7 +442,12 @@ const autoStartMobileCamera = (): Promise<void> => {
           return;
         }
         try {
+          // `id` is REQUIRED by the media source manager ("'id' is a
+          // required param" — the exact on-device failure). The real
+          // "Add Camera" flow generates it as `${type}_${nanoid(5)}`;
+          // mirror that format here.
           await addMediaSource({
+            id: `${TRTCMediaSourceType.kCamera}_${Math.random().toString(36).slice(2, 7)}`,
             type: TRTCMediaSourceType.kCamera,
             name: frontCamera.deviceName,
             camera: {

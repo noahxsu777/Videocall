@@ -29,13 +29,19 @@ import {
   IconHorizontalMode,
 } from '@tencentcloud/uikit-base-component-vue3';
 import { useLiveListState, LiveOrientation } from 'tuikit-atomicx-vue3';
+import { isMobile } from '../utils/environment';
 
 const { t } = useUIKit();
 
 const { currentLive, updateLiveInfo } = useLiveListState();
-const currentOrientation = ref(LiveOrientation.Landscape);
+// On mobile the whole experience is portrait-first (full-screen
+// vertical broadcast, stacked battle layout), so portrait is the
+// default there; the desktop studio keeps its landscape default.
+const currentOrientation = ref(isMobile ? LiveOrientation.Portrait : LiveOrientation.Landscape);
 // Store layout template before live starts to restore after live ends
-let layoutBeforeLive = TUISeatLayoutTemplate.LandscapeDynamic_1v3;
+let layoutBeforeLive = isMobile
+  ? TUISeatLayoutTemplate.PortraitDynamic_Grid9
+  : TUISeatLayoutTemplate.LandscapeDynamic_1v3;
 
 // Determine if layout template is valid
 const isValidLayout = (layout: number | undefined) => layout && layout !== 0;
@@ -74,7 +80,8 @@ watch(
   { immediate: true },
 );
 
-// Ensure default landscape mode on initial load
+// Ensure the default orientation's layout on initial load
+// (portrait on mobile, landscape on desktop — see layoutBeforeLive)
 watch(
   () => currentLive.value?.liveId,
   (liveId) => {
