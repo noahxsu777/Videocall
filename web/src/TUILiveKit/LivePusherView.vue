@@ -777,4 +777,59 @@ onUnmounted(() => {
   display: flex;
   gap: 10px;
 }
+
+// Mobile layout: the desktop 3-column layout above doesn't fit narrow
+// screens (text wraps to one word per line, the bottom toolbar overlaps
+// the Start Live button). Stack everything into a single scrollable
+// column instead of shrinking 3 fixed-width columns into no room.
+@media (max-width: 768px) {
+  .live-pusher-main {
+    flex-direction: column;
+    height: auto;
+    min-height: 100%;
+    overflow-y: auto;
+  }
+
+  .main-left,
+  .main-right {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .main-left-top {
+    flex: none;
+  }
+
+  .main-center {
+    flex: none;
+    min-height: 60vh;
+
+    .main-center-center {
+      min-height: 300px;
+    }
+
+    .main-center-bottom-content {
+      height: auto;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+      padding: 8px 0;
+
+      .main-center-bottom-left,
+      .main-center-bottom-right {
+        width: 100%;
+      }
+
+      .main-center-bottom-tools {
+        flex-wrap: wrap;
+      }
+    }
+  }
+
+  .main-right-top {
+    height: auto;
+    max-height: 240px;
+  }
+}
 </style>
