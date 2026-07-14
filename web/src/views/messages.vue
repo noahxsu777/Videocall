@@ -14,6 +14,8 @@
 
     <CallSettingsSheet v-model="callSettingsOpen" />
 
+    <p v-if="isOffline" class="offline-banner">📡 Sin conexión — mostrando tus últimos mensajes guardados</p>
+
     <!-- New chat: search users -->
     <div v-if="newOpen" class="search-panel">
       <input
@@ -81,12 +83,15 @@
           </span>
           <span class="thread-name">{{ activePeer.display_name || activePeer.username || 'Usuario' }}</span>
         </button>
-        <button class="call-btn" title="Videollamada" :disabled="callState === 'starting'" @click="startCall">
+        <button class="call-btn" title="Videollamada" :disabled="callState === 'starting' || isOffline" @click="startCall">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
         </button>
       </header>
 
       <p v-if="callError" class="call-error">{{ callError }}</p>
+      <p v-if="isOffline" class="offline-banner thread-offline-banner">
+        📡 Sin conexión — estos son los últimos mensajes guardados
+      </p>
 
       <div ref="threadEl" class="thread-list">
         <div
@@ -113,7 +118,7 @@
           placeholder="Escribe un mensaje…"
           @keyup.enter="send"
         />
-        <button class="thread-send" :disabled="!draft.trim() || sending" @click="send">➤</button>
+        <button class="thread-send" :disabled="!draft.trim() || sending || isOffline" @click="send">➤</button>
       </div>
     </div>
   </div>
@@ -158,6 +163,7 @@ const threadEl = ref<HTMLElement | null>(null);
 const callSettingsOpen = ref(false);
 const callError = ref('');
 const callState = ref<'idle' | 'starting'>('idle');
+const isOffline = ref(typeof navigator !== 'undefined' && !navigator.onLine);
 
 let unsubscribe: (() => void) | null = null;
 let pollTimer: number | null = null;
@@ -320,7 +326,24 @@ function joinCall(m: DirectMessage) {
   });
 }
 
+function handleOnline() {
+  isOffline.value = false;
+  // Back online — refresh with real data instead of the cached snapshot.
+  loadList();
+  if (activePeer.value) {
+    fetchThread(myId, activePeer.value.id).then((fresh) => {
+      thread.value = fresh;
+      scrollThreadDown();
+    });
+  }
+}
+function handleOffline() {
+  isOffline.value = true;
+}
+
 onMounted(async () => {
+  window.addEventListener('online', handleOnline);
+  window.addEventListener('offline', handleOffline);
   await loadList();
   // Deep link: /messages?user=<id> opens that thread directly (used by
   // the "Mensaje" buttons on profiles and user sheets).
@@ -364,6 +387,8 @@ onUnmounted(() => {
   if (pollTimer) {
     window.clearInterval(pollTimer);
   }
+  window.removeEventListener('online', handleOnline);
+  window.removeEventListener('offline', handleOffline);
 });
 </script>
 
@@ -414,6 +439,21 @@ onUnmounted(() => {
   color: #ffb4ae;
   font-size: 13px;
   line-height: 1.4;
+}
+
+.offline-banner {
+  margin: 4px 14px 0;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: rgba(255, 159, 10, 0.14);
+  border: 1px solid rgba(255, 159, 10, 0.35);
+  color: #ffcf8f;
+  font-size: 12.5px;
+  line-height: 1.4;
+  text-align: center;
+}
+.thread-offline-banner {
+  margin: 8px 14px 0;
 }
 
 .search-panel {

@@ -1,5 +1,6 @@
 import { supabase } from '../auth/supabase';
 import type { Profile } from './profiles';
+import { saveCache, loadCache } from './offlineCache';
 
 /** One direct (1-to-1) message. kind: 'text' | 'call'. */
 export interface DirectMessage {
@@ -30,60 +31,76 @@ function requireClient() {
  * grouping by peer — newest message per peer wins, unread = messages to
  * me without read_at).
  */
+const CONVERSATIONS_CACHE_KEY = 'conversations';
+
 export async function listConversations(myId: string): Promise<Conversation[]> {
-  const client = requireClient();
-  const { data, error } = await client
-    .from('messages')
-    .select('*')
-    .or(`sender_id.eq.${myId},recipient_id.eq.${myId}`)
-    .order('created_at', { ascending: false })
-    .limit(400);
-  if (error) {
-    console.warn('[messages] listConversations failed:', error.message);
-    return [];
-  }
-  const grouped = new Map<string, { last: DirectMessage; unread: number }>();
-  for (const m of (data || []) as DirectMessage[]) {
-    const peerId = m.sender_id === myId ? m.recipient_id : m.sender_id;
-    if (!grouped.has(peerId)) {
-      grouped.set(peerId, { last: m, unread: 0 });
+  try {
+    const client = requireClient();
+    const { data, error } = await client
+      .from('messages')
+      .select('*')
+      .or(`sender_id.eq.${myId},recipient_id.eq.${myId}`)
+      .order('created_at', { ascending: false })
+      .limit(400);
+    if (error) {
+      throw new Error(error.message);
     }
-    if (m.recipient_id === myId && !m.read_at) {
-      grouped.get(peerId)!.unread += 1;
+    const grouped = new Map<string, { last: DirectMessage; unread: number }>();
+    for (const m of (data || []) as DirectMessage[]) {
+      const peerId = m.sender_id === myId ? m.recipient_id : m.sender_id;
+      if (!grouped.has(peerId)) {
+        grouped.set(peerId, { last: m, unread: 0 });
+      }
+      if (m.recipient_id === myId && !m.read_at) {
+        grouped.get(peerId)!.unread += 1;
+      }
     }
+    const peerIds = [...grouped.keys()];
+    if (!peerIds.length) {
+      saveCache(myId, CONVERSATIONS_CACHE_KEY, []);
+      return [];
+    }
+    const { data: profs } = await client.from('profiles').select('*').in('id', peerIds);
+    const profMap = new Map(((profs || []) as Profile[]).map(p => [p.id, p]));
+    const result = peerIds.map(id => ({
+      peer:
+        profMap.get(id)
+        || ({ id, username: null, display_name: 'Usuario', bio: null, avatar_url: null } as Profile),
+      last: grouped.get(id)!.last,
+      unread: grouped.get(id)!.unread,
+    }));
+    saveCache(myId, CONVERSATIONS_CACHE_KEY, result);
+    return result;
+  } catch (error: any) {
+    console.warn('[messages] listConversations failed, falling back to cache:', error?.message || error);
+    return loadCache<Conversation[]>(myId, CONVERSATIONS_CACHE_KEY)?.data || [];
   }
-  const peerIds = [...grouped.keys()];
-  if (!peerIds.length) {
-    return [];
-  }
-  const { data: profs } = await client.from('profiles').select('*').in('id', peerIds);
-  const profMap = new Map(((profs || []) as Profile[]).map(p => [p.id, p]));
-  return peerIds.map(id => ({
-    peer:
-      profMap.get(id)
-      || ({ id, username: null, display_name: 'Usuario', bio: null, avatar_url: null } as Profile),
-    last: grouped.get(id)!.last,
-    unread: grouped.get(id)!.unread,
-  }));
 }
 
 /** Full thread between me and a peer, oldest first. */
 export async function fetchThread(myId: string, peerId: string): Promise<DirectMessage[]> {
-  const client = requireClient();
-  const { data, error } = await client
-    .from('messages')
-    .select('*')
-    .or(
-      `and(sender_id.eq.${myId},recipient_id.eq.${peerId}),`
-      + `and(sender_id.eq.${peerId},recipient_id.eq.${myId})`,
-    )
-    .order('created_at', { ascending: true })
-    .limit(300);
-  if (error) {
-    console.warn('[messages] fetchThread failed:', error.message);
-    return [];
+  const cacheKey = `thread_${peerId}`;
+  try {
+    const client = requireClient();
+    const { data, error } = await client
+      .from('messages')
+      .select('*')
+      .or(
+        `and(sender_id.eq.${myId},recipient_id.eq.${peerId}),`
+        + `and(sender_id.eq.${peerId},recipient_id.eq.${myId})`,
+      )
+      .order('created_at', { ascending: true })
+      .limit(300);
+    if (error) {
+      throw new Error(error.message);
+    }
+    const result = (data || []) as DirectMessage[];
+    saveCache(myId, cacheKey, result);
+    return result;
+  } catch (error: any) {
+    console.warn('[messages] fetchThread failed, falling back to cache:', error?.message || error);
+    return loadCache<DirectMessage[]>(myId, cacheKey)?.data || [];
   }
-  return (data || []) as DirectMessage[];
 }
 
 export async function sendDirectMessage(

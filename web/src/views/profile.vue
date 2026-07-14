@@ -43,7 +43,7 @@
     <div class="actions">
       <template v-if="isOwnProfile">
         <button class="btn btn-outline" @click="goSettings">Editar perfil</button>
-        <button class="btn btn-outline" @click="pickPhoto">Subir foto</button>
+        <button class="btn btn-outline" @click="pickPhoto">Subir foto/video</button>
       </template>
       <template v-else>
         <button
@@ -62,7 +62,9 @@
 
     <div class="photos-grid">
       <div v-for="photo in photos" :key="photo.id" class="photo-cell">
-        <img :src="photo.image_url" :alt="photo.caption || 'foto'" />
+        <video v-if="photo.media_type === 'video'" :src="photo.image_url" muted playsinline preload="metadata" />
+        <img v-else :src="photo.image_url" :alt="photo.caption || 'foto'" />
+        <span v-if="photo.media_type === 'video'" class="photo-play">▶</span>
         <button v-if="isOwnProfile" class="photo-del" @click="removePhoto(photo.id)">×</button>
       </div>
       <div v-if="!photos.length" class="photos-empty">
@@ -71,7 +73,7 @@
     </div>
 
     <input ref="avatarInput" type="file" accept="image/*" hidden @change="onAvatarSelected" />
-    <input ref="photoInput" type="file" accept="image/*" hidden @change="onPhotoSelected" />
+    <input ref="photoInput" type="file" accept="image/*,video/*" hidden @change="onPhotoSelected" />
   </div>
 </template>
 
@@ -89,6 +91,7 @@ import {
   follow,
   unfollow,
   uploadMedia,
+  uploadVideo,
   listPhotos,
   addPhoto,
   deletePhoto,
@@ -191,12 +194,13 @@ async function onPhotoSelected(e: Event) {
   if (!file || !user.value) {
     return;
   }
+  const isVideo = file.type.startsWith('video/');
   try {
-    const url = await uploadMedia(user.value.id, file);
-    await addPhoto(user.value.id, url);
+    const url = isVideo ? await uploadVideo(user.value.id, file) : await uploadMedia(user.value.id, file);
+    await addPhoto(user.value.id, url, '', isVideo ? 'video' : 'image');
     photos.value = await listPhotos(user.value.id);
   } catch (error: any) {
-    loadError.value = `No se pudo subir la foto: ${error.message}`;
+    loadError.value = `No se pudo subir: ${error.message}`;
   }
 }
 
@@ -402,10 +406,19 @@ watch(() => route.fullPath, load);
   aspect-ratio: 1;
   background: #111116;
 }
-.photo-cell img {
+.photo-cell img,
+.photo-cell video {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.photo-play {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  font-size: 11px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 .photo-del {
   position: absolute;

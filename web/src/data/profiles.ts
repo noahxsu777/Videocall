@@ -39,6 +39,7 @@ export interface Photo {
   user_id: string;
   image_url: string;
   caption: string | null;
+  media_type?: 'image' | 'video';
   created_at: string;
 }
 
@@ -224,16 +225,57 @@ export async function listPhotos(userId: string): Promise<Photo[]> {
   return (data || []) as Photo[];
 }
 
-export async function addPhoto(userId: string, imageUrl: string, caption = ''): Promise<void> {
+export async function addPhoto(
+  userId: string,
+  imageUrl: string,
+  caption = '',
+  mediaType: 'image' | 'video' = 'image',
+): Promise<void> {
   const client = requireClient();
   const { error } = await client.from('photos').insert({
     user_id: userId,
     image_url: imageUrl,
     caption,
+    media_type: mediaType,
   });
   if (error) {
     throw new Error(error.message);
   }
+}
+
+const REELS_VIDEO_BUCKET = 'reels-videos';
+export const MAX_VIDEO_BYTES = 50 * 1024 * 1024; // 50MB
+
+/**
+ * Upload a video File to Storage and return its public URL. Unlike
+ * photos (compressed client-side into a small data URL and stored
+ * inline), videos are too large for that — they need the
+ * "reels-videos" Storage bucket (public, no RLS policies required).
+ */
+export async function uploadVideo(userId: string, file: File): Promise<string> {
+  if (!file.type.startsWith('video/')) {
+    throw new Error('El archivo debe ser un video.');
+  }
+  if (file.size > MAX_VIDEO_BYTES) {
+    throw new Error('El video pesa demasiado (máximo 50MB).');
+  }
+  const client = requireClient();
+  const ext = file.name.split('.').pop() || 'mp4';
+  const path = `${userId}/${Date.now()}.${ext}`;
+  const { error } = await client.storage.from(REELS_VIDEO_BUCKET).upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+    contentType: file.type,
+  });
+  if (error) {
+    throw new Error(
+      error.message.includes('not found')
+        ? 'Falta crear el bucket "reels-videos" en Supabase Storage (público).'
+        : error.message,
+    );
+  }
+  const { data } = client.storage.from(REELS_VIDEO_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
 }
 
 export async function deletePhoto(photoId: string): Promise<void> {

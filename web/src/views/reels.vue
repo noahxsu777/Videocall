@@ -13,12 +13,21 @@
     <div v-else-if="!feed.length" class="state empty">
       <div class="empty-emoji">🎬</div>
       <p>Aún no hay reels.</p>
-      <button class="empty-btn" @click="pickPhoto">Sube la primera imagen</button>
+      <button class="empty-btn" @click="pickPhoto">Sube la primera foto o video</button>
     </div>
 
     <div v-else class="feed">
       <article v-for="item in feed" :key="item.id" class="reel">
-        <img class="reel-img" :src="item.image_url" :alt="item.caption || 'reel'" />
+        <video
+          v-if="item.media_type === 'video'"
+          class="reel-img"
+          :src="item.image_url"
+          autoplay
+          muted
+          loop
+          playsinline
+        />
+        <img v-else class="reel-img" :src="item.image_url" :alt="item.caption || 'reel'" />
 
         <!-- Vertical action rail (like / comment), TikTok style -->
         <div class="rail">
@@ -51,7 +60,7 @@
       </article>
     </div>
 
-    <input ref="photoInput" type="file" accept="image/*" hidden @change="onPhotoSelected" />
+    <input ref="photoInput" type="file" accept="image/*,video/*" hidden @change="onPhotoSelected" />
 
     <div v-if="toast" class="toast">{{ toast }}</div>
 
@@ -96,6 +105,7 @@ import { useAuth } from '../auth/useAuth';
 import {
   listFeedPhotos,
   uploadMedia,
+  uploadVideo,
   addPhoto,
   getPhotoStats,
   myLikedPhotoIds,
@@ -227,10 +237,13 @@ async function onPhotoSelected(e: Event) {
   if (!file || !user.value) {
     return;
   }
-  showToast('Subiendo…');
+  const isVideo = file.type.startsWith('video/');
+  showToast(isVideo ? 'Subiendo video…' : 'Subiendo…');
   try {
-    const url = await uploadMedia(user.value.id, file, 1280, 0.72);
-    await addPhoto(user.value.id, url);
+    const url = isVideo
+      ? await uploadVideo(user.value.id, file)
+      : await uploadMedia(user.value.id, file, 1280, 0.72);
+    await addPhoto(user.value.id, url, '', isVideo ? 'video' : 'image');
     showToast('¡Publicado! 🎉');
     await load();
   } catch (error: any) {

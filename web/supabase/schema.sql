@@ -88,13 +88,22 @@ create policy "users can unfollow"
   on public.follows for delete using (auth.uid() = follower_id);
 
 -- ---------- photos ----------
+-- "image_url" also holds video URLs when media_type = 'video' (kept the
+-- original column name to avoid a rename touching every call site —
+-- think of it as "media_url"). Images are compressed client-side into a
+-- data URL and stored directly here; videos are too large for that and
+-- are uploaded to the "reels-videos" Storage bucket instead (see bottom).
 create table if not exists public.photos (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references public.profiles(id) on delete cascade,
   image_url  text not null,
   caption    text default '',
+  media_type text not null default 'image',
   created_at timestamptz not null default now()
 );
+
+alter table public.photos
+  add column if not exists media_type text not null default 'image';
 
 alter table public.photos enable row level security;
 
@@ -219,7 +228,10 @@ create policy "users manage their own push subscriptions"
 -- llama — el usuario normal solo puede leer/crear/borrar la suya.
 
 -- =====================================================================
--- STORAGE: not required. Avatars and photos are compressed on the client
--- and stored inline as data URLs in the columns above, so you do NOT need
--- to create a "media" bucket. Just run this SQL and you're done.
+-- STORAGE: avatars and PHOTOS are compressed on the client and stored
+-- inline as data URLs, so no bucket is needed for those. VIDEOS are too
+-- large for that, so they need a real Storage bucket:
+--   Storage → New bucket → name: reels-videos → Public bucket: ON → Save.
+-- No SQL policies needed for it — the app uploads with the logged-in
+-- user's own session, and a public bucket allows anyone to read/play.
 -- =====================================================================
