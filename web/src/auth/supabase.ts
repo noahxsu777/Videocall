@@ -15,9 +15,17 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
  *   Project Settings → API → Project URL / Project API keys (anon public).
  * The anon key is safe to expose in the browser; Row Level Security on
  * the database is what protects your data.
+ *
+ * As a fallback we also accept the non-prefixed names created by the
+ * Vercel ⇄ Supabase integration (SUPABASE_URL / SUPABASE_ANON_KEY, incl.
+ * project-prefixed variants). Those are bridged into __SUPABASE_URL__ /
+ * __SUPABASE_ANON_KEY__ at build time by vite.config.ts.
  */
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+declare const __SUPABASE_URL__: string;
+declare const __SUPABASE_ANON_KEY__: string;
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || __SUPABASE_URL__ || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || __SUPABASE_ANON_KEY__ || '';
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
