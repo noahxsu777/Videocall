@@ -231,6 +231,14 @@
           >
             {{ t('Exit connection') }}
           </TUIButton>
+          <TUIButton
+            v-if="currentBattleInfo?.battleId"
+            type="primary"
+            color="red"
+            @click="handleExitBattle"
+          >
+            Salir de la batalla
+          </TUIButton>
         </div>
       </template>
     </TUIDialog>
@@ -344,7 +352,7 @@ const {
   switchCamera,
 } = useDeviceState();
 const { coHostStatus, connected: coHostConnectedUsers, exitHostConnection } = useCoHostState();
-const { currentBattleInfo } = useBattleState();
+const { currentBattleInfo, exitBattle } = useBattleState();
 const { connected: coGuestConnected } = useCoGuestState();
 const { subscribeEvent: subscribeBarrageEvent, unsubscribeEvent: unsubscribeBarrageEvent} = useBarrageState();
 
@@ -897,6 +905,24 @@ const handleExitConnection = async () => {
     await exitHostConnection();
   } catch (error) {
     console.error('[LivePusherView] exitHostConnection from end-live dialog failed', error);
+  }
+};
+// Leave just the PK/battle (score + timer), keeping the live broadcast
+// going — previously the only option shown here during an active battle
+// was "End live" (ending the whole broadcast), with no way to step out
+// of the battle alone and later send a new PK invite via the CoHost/PK
+// button.
+const handleExitBattle = async () => {
+  const battleId = currentBattleInfo.value?.battleId;
+  exitLiveDialogVisible.value = false;
+  if (!battleId) {
+    return;
+  }
+  try {
+    await exitBattle({ battleId });
+  } catch (error) {
+    console.error('[LivePusherView] exitBattle failed:', error);
+    TUIToast.error({ message: 'No se pudo salir de la batalla.' });
   }
 };
 const showEndLiveDialog = async () => {
@@ -1568,6 +1594,18 @@ onUnmounted(() => {
       inset: 50px 0 auto 0 !important;
       height: auto !important;
       aspect-ratio: 9 / 8;
+
+      // Both battle tiles must fill their half edge to edge — "contain"
+      // (used for the solo self-view so the host's own frame is never
+      // cropped) instead left visible navy letterbox bars around
+      // whichever participant's camera aspect didn't exactly match the
+      // tile. In battle mode a full, gap-free frame matters more than
+      // avoiding a slight crop, so switch to "cover" here. More specific
+      // than the base rule above (one extra class), so it wins.
+      :deep(#atomicx-live-stream-content) video,
+      :deep(#atomicx-live-stream-content) canvas {
+        object-fit: cover !important;
+      }
     }
     .mobile-barrage {
       top: calc(58px + 88.9vw) !important; // just under the tiles (100vw * 8/9)
