@@ -275,7 +275,7 @@ const { coHostStatus, exitHostConnection } = useCoHostState();
 const { currentBattleInfo } = useBattleState();
 const { connected: coGuestConnected } = useCoGuestState();
 const { subscribeEvent: subscribeBarrageEvent, unsubscribeEvent: unsubscribeBarrageEvent} = useBarrageState();
-const { mediaSourceList, addMediaSource } = useVideoMixerState();
+const { mediaSourceList, addMediaSource, enableLocalVideoMixer } = useVideoMixerState();
 
 const isInLive = computed(() => !!currentLive.value?.liveId);
 const loading = ref(false);
@@ -442,6 +442,12 @@ const autoStartMobileCamera = (): Promise<void> => {
           return;
         }
         try {
+          // The mixer plugin must be enabled before adding sources —
+          // LocalMixer fires enableLocalVideoMixer() on mount without
+          // awaiting it, and racing it produced the on-device
+          // "updatePlugin abort" failure. Awaiting it here (idempotent)
+          // guarantees the plugin is up for THIS call.
+          await enableLocalVideoMixer();
           // `id` is REQUIRED by the media source manager ("'id' is a
           // required param" — the exact on-device failure). The real
           // "Add Camera" flow generates it as `${type}_${nanoid(5)}`;
@@ -499,6 +505,12 @@ const handleStartLive = async () => {
       liveId: liveParams.value.liveId,
       liveName: liveParams.value.liveName,
       coverUrl: liveParams.value.coverUrl,
+      // Enable the gift + likes kit for this room so viewers see the
+      // LiveGift panel and like button (both already wired into the
+      // player views; the gift catalog itself comes from Tencent's
+      // server for this SDKAppID).
+      isGiftEnabled: true,
+      isLikeEnabled: true,
       // On mobile, default to the dynamic grid template so that when a
       // second person joins (co-host / PK battle), the two video feeds
       // stack full-width on top of each other instead of using the
