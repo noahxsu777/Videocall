@@ -175,7 +175,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue';
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue';
 import { TUISeatMode, TRTCMediaSourceType } from '@tencentcloud/tuiroom-engine-js';
 import {
   IconArrowStrokeBack,
@@ -227,6 +227,7 @@ import { errorHandler } from './utils/errorHandler';
 import { initRoomEngineLanguage } from '../utils/utils';
 import { useWebRTCSupportGuard } from './utils/webrtcSupport';
 import { isMobile } from './utils/environment';
+import { TUISeatLayoutTemplate } from './types/LivePusher';
 
 const { t } = useUIKit();
 const props = defineProps<{
@@ -389,6 +390,9 @@ const autoStartMobileCamera = async () => {
     } as Parameters<typeof addMediaSource>[0]);
   } catch (error) {
     console.error('[LivePusherView] Failed to auto-start camera:', error);
+    TUIToast.error({
+      message: t('Please check the current browser camera permission'),
+    });
   }
 };
 
@@ -409,6 +413,12 @@ const handleStartLive = async () => {
       liveId: liveParams.value.liveId,
       liveName: liveParams.value.liveName,
       coverUrl: liveParams.value.coverUrl,
+      // On mobile, default to the dynamic grid template so that when a
+      // second person joins (co-host / PK battle), the two video feeds
+      // stack full-width on top of each other instead of using the
+      // desktop-oriented side-by-side layout. Users can still change
+      // this from "Layout Settings" before starting a battle.
+      ...(isMobile ? { seatLayoutTemplateId: TUISeatLayoutTemplate.PortraitDynamic_Grid9 } : {}),
     });
     joinLive({
       liveId: liveParams.value.liveId,
@@ -517,6 +527,14 @@ onMounted(async () => {
     return;
   }
   rtcSupportChecked.value = true;
+  // Wait for the DOM update triggered by rtcSupportChecked so the pusher
+  // subtree (LiveScenePanel etc.) has actually mounted and initialized
+  // the underlying video mixer manager before we call addMediaSource —
+  // calling it in the same tick risked racing that initialization and
+  // failing silently (source: internal error caught and logged below,
+  // never surfaced to the user, which showed up as "No video" staying
+  // put with no obvious cause).
+  await nextTick();
   autoStartMobileCamera();
 });
 

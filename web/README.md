@@ -85,8 +85,9 @@ Todas las funciones del UIKit de Tencent quedan disponibles: **batallas PK, co-h
 - El botón **Start live** se muestra también en celular (el demo original lo ocultaba en móvil).
 - La pantalla de transmitir (`LivePusherView.vue`) tiene un layout móvil a pantalla completa añadido, porque el diseño original de ese componente solo estaba pensado para escritorio.
 - Se corrigió un bug del componente `LoginUserID.vue` original (una variable duplicada que rompía la restauración de sesión al recargar la página).
-- La cámara se activa automáticamente en móvil al entrar a transmitir (en vez de requerir tocar "Add Camera").
+- La cámara se activa automáticamente en móvil al entrar a transmitir (en vez de requerir tocar "Add Camera"); espera a que el panel de video termine de montarse (`nextTick`) antes de pedirla, porque llamarla antes hacía que fallara en silencio.
 - El botón de copiar link es visible siempre (antes solo aparecía una vez ya en vivo), y copia una URL completa a `/#/live-player?liveId=...`, no solo el ID.
+- Al transmitir desde celular, se usa por defecto la plantilla de layout **"Dynamic Grid9"** (`seatLayoutTemplateId`), para que cuando alguien se conecte en batalla/co-host los dos videos se apilen a pantalla completa (uno arriba, uno abajo, estilo Bigo) en vez del layout horizontal de escritorio. Se puede cambiar manualmente desde "Layout Settings" antes de iniciar la batalla.
 
 ### Limitación conocida: efectos/belleza
 
