@@ -71,7 +71,10 @@ Es la experiencia móvil completa de Tencent (todas las funciones), pensada para
 2. **Lista de transmisiones** (`src/views/live-list.vue`): grilla de streams en vivo (diseño móvil H5 de Tencent). Desde aquí puedes:
    - Tocar un stream para **verlo** (`src/views/live-player.vue`) con chat, regalos, lista de espectadores y batallas PK.
    - Tocar **Start live** (botón visible también en celular) para **transmitir** tú.
-3. **Transmitir** (`src/views/live-pusher.vue`): abre `LivePusherView` con cámara, micrófono, controles, co-host y batallas PK. En pantallas de celular se muestra con un layout móvil a pantalla completa (ver `LivePusherView.vue`).
+3. **Transmitir** (`src/views/live-pusher.vue`): abre `LivePusherView` con cámara, micrófono, controles, co-host y batallas PK. En pantallas de celular se muestra con un layout móvil a pantalla completa (ver `LivePusherView.vue`):
+   - La cámara del celular se activa **automáticamente** al entrar (no hay que tocar "Add Camera"); si el usuario niega el permiso de cámara, quedan los íconos flotantes para intentarlo de nuevo o elegir otra fuente.
+   - El ícono de copiar (arriba) copia el **link para ver tu transmisión** en cualquier momento, incluso antes de tocar "Start live".
+   - El nombre del stream (arriba, junto al ✎) abre el diálogo para poner **título y foto de portada** antes de transmitir.
 
 Todas las funciones del UIKit de Tencent quedan disponibles: **batallas PK, co-host, chat (barrage), regalos y lista de espectadores**.
 
@@ -82,6 +85,12 @@ Todas las funciones del UIKit de Tencent quedan disponibles: **batallas PK, co-h
 - El botón **Start live** se muestra también en celular (el demo original lo ocultaba en móvil).
 - La pantalla de transmitir (`LivePusherView.vue`) tiene un layout móvil a pantalla completa añadido, porque el diseño original de ese componente solo estaba pensado para escritorio.
 - Se corrigió un bug del componente `LoginUserID.vue` original (una variable duplicada que rompía la restauración de sesión al recargar la página).
+- La cámara se activa automáticamente en móvil al entrar a transmitir (en vez de requerir tocar "Add Camera").
+- El botón de copiar link es visible siempre (antes solo aparecía una vez ya en vivo), y copia una URL completa a `/#/live-player?liveId=...`, no solo el ID.
+
+### Limitación conocida: efectos/belleza
+
+El componente de efectos de belleza (`FreeBeautyPanel`) existe dentro del paquete de Tencent, pero **no está expuesto en su API pública** (`tuikit-atomicx-vue3` solo publica los subpaths `.`, `/chat`, `/live`, `/room`, `/types` — no hay forma soportada de importarlo desde fuera del paquete sin que el build falle). No se agregó por esa razón; sería necesario que Tencent lo exponga en una versión futura, o vendorizar ese componente igual que hicimos con `LivePusherView`.
 
 ## Estructura del proyecto
 

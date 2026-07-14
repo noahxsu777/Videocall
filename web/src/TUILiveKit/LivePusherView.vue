@@ -56,7 +56,7 @@
             @confirm="handleLiveSettingConfirm"
           />
           <IconCopy
-            v-if="isInLive"
+            v-if="loginUserInfo?.userId"
             class="copy-icon"
             size="16"
             @click="handleCopyLiveID"
@@ -176,7 +176,7 @@
 
 <script lang="ts" setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue';
-import { TUISeatMode } from '@tencentcloud/tuiroom-engine-js';
+import { TUISeatMode, TRTCMediaSourceType } from '@tencentcloud/tuiroom-engine-js';
 import {
   IconArrowStrokeBack,
   TUIDialog,
@@ -205,6 +205,7 @@ import {
   CoHostStatus,
   useCoGuestState,
   useRoomEngine,
+  useVideoMixerState,
   UIKitModal,
   LiveListEvent,
   LiveEndedReason,
@@ -225,6 +226,7 @@ import { copyToClipboard, isSvgCoverUrl } from './utils/utils';
 import { errorHandler } from './utils/errorHandler';
 import { initRoomEngineLanguage } from '../utils/utils';
 import { useWebRTCSupportGuard } from './utils/webrtcSupport';
+import { isMobile } from './utils/environment';
 
 const { t } = useUIKit();
 const props = defineProps<{
@@ -260,6 +262,7 @@ const { coHostStatus, exitHostConnection } = useCoHostState();
 const { currentBattleInfo } = useBattleState();
 const { connected: coGuestConnected } = useCoGuestState();
 const { subscribeEvent: subscribeBarrageEvent, unsubscribeEvent: unsubscribeBarrageEvent} = useBarrageState();
+const { mediaSourceList, addMediaSource } = useVideoMixerState();
 
 const isInLive = computed(() => !!currentLive.value?.liveId);
 const loading = ref(false);
@@ -350,15 +353,18 @@ const handleLiveSettingConfirm = async (form: { liveName: string; coverUrl?: str
 };
 
 const handleCopyLiveID = async () => {
-  if (!currentLive.value?.liveId) {
+  const liveId = currentLive.value?.liveId || liveParams.value.liveId;
+  if (!liveId) {
     TUIToast.error({
       message: t('Copy failed'),
     });
     return;
   }
 
+  const shareUrl = `${window.location.origin}${window.location.pathname}#/live-player?liveId=${encodeURIComponent(liveId)}`;
+
   try {
-    await copyToClipboard(currentLive.value?.liveId || '');
+    await copyToClipboard(shareUrl);
     TUIToast.success({
       message: t('Copy successful'),
     });
@@ -366,6 +372,23 @@ const handleCopyLiveID = async () => {
     TUIToast.error({
       message: t('Copy failed'),
     });
+  }
+};
+
+// Auto-start the phone's default camera on mobile so the broadcaster
+// sees themselves full-screen immediately, without having to tap
+// "Add Camera" first (matches Tango/Bigo — no manual source picker).
+const autoStartMobileCamera = async () => {
+  if (!isMobile || mediaSourceList.value.length > 0) {
+    return;
+  }
+  try {
+    await addMediaSource({
+      type: TRTCMediaSourceType.kCamera,
+      camera: { cameraId: 'default' },
+    } as Parameters<typeof addMediaSource>[0]);
+  } catch (error) {
+    console.error('[LivePusherView] Failed to auto-start camera:', error);
   }
 };
 
@@ -494,6 +517,7 @@ onMounted(async () => {
     return;
   }
   rtcSupportChecked.value = true;
+  autoStartMobileCamera();
 });
 
 onUnmounted(() => {
