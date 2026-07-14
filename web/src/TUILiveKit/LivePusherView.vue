@@ -259,7 +259,7 @@ const { loginUserInfo } = useLoginState();
 const { currentLive, startLive, endLive, joinLive, subscribeEvent: subscribeLiveListEvent, unsubscribeEvent: unsubscribeLiveListEvent, updateLiveInfo } = useLiveListState();
 const roomEngine = useRoomEngine();
 const { audienceCount } = useLiveAudienceState();
-const { openLocalMicrophone } = useDeviceState();
+const { openLocalMicrophone, cameraList, getCameraList } = useDeviceState();
 const { coHostStatus, exitHostConnection } = useCoHostState();
 const { currentBattleInfo } = useBattleState();
 const { connected: coGuestConnected } = useCoGuestState();
@@ -377,23 +377,55 @@ const handleCopyLiveID = async () => {
   }
 };
 
-// Auto-start the phone's default camera on mobile so the broadcaster
-// sees themselves full-screen immediately, without having to tap
+// Auto-start the phone's camera on mobile so the broadcaster sees
+// themselves full-screen immediately, without having to tap
 // "Add Camera" first (matches Tango/Bigo — no manual source picker).
+//
+// This mirrors what the real "Add Camera" dialog does: enumerate the
+// device's cameras and pass a REAL deviceId plus a resolution.
+// The previous version passed an invented cameraId of 'default',
+// which the underlying media source manager rejects — that was the
+// actual reason auto-start kept failing (with a permission toast)
+// even after the user had granted camera permission.
+let autoStartCameraInFlight = false;
 const autoStartMobileCamera = async () => {
-  if (!isMobile || mediaSourceList.value.length > 0) {
+  if (!isMobile || autoStartCameraInFlight || mediaSourceList.value.length > 0) {
     return;
   }
+  autoStartCameraInFlight = true;
   try {
+    // Trigger/settle the permission prompt before enumerating —
+    // browsers report blank deviceIds until camera permission is
+    // granted, which would leave us with nothing usable to pass.
+    const probeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    probeStream.getTracks().forEach(track => track.stop());
+
+    await getCameraList();
+    const cameras = cameraList.value;
+    if (!cameras.length || !cameras[0].deviceId) {
+      throw new Error('no usable camera devices found');
+    }
+    // Prefer the front-facing camera when we can identify it by name;
+    // otherwise fall back to the first camera, same as the dialog.
+    const frontCamera = cameras.find(
+      device => /front|user|frontal|delantera/i.test(device.deviceName || ''),
+    ) || cameras[0];
+
     await addMediaSource({
       type: TRTCMediaSourceType.kCamera,
-      camera: { cameraId: 'default' },
+      name: frontCamera.deviceName,
+      camera: {
+        cameraId: frontCamera.deviceId,
+        resolution: { width: 720, height: 1280 },
+      },
     } as Parameters<typeof addMediaSource>[0]);
   } catch (error) {
     console.error('[LivePusherView] Failed to auto-start camera:', error);
     TUIToast.error({
       message: t('Please check the current browser camera permission'),
     });
+  } finally {
+    autoStartCameraInFlight = false;
   }
 };
 
