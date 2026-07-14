@@ -229,7 +229,12 @@
 
 <script lang="ts" setup>
 import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
-import TUIRoomEngine, { TUISeatMode } from '@tencentcloud/tuiroom-engine-js';
+import TUIRoomEngine, {
+  TUISeatMode,
+  TRTCVideoFillMode,
+  TRTCVideoRotation,
+  TRTCVideoMirrorType,
+} from '@tencentcloud/tuiroom-engine-js';
 import {
   IconArrowStrokeBack,
   TUIDialog,
@@ -580,6 +585,28 @@ const applyPreviewFit = (videoEl: HTMLVideoElement) => {
   videoEl.style.transform = isFrontCameraActive.value ? 'scaleX(-1)' : 'none';
 };
 
+// The host's own (local) self-view is attached via setLocalVideoView,
+// which — unlike the remote path — sets NO render params, so it
+// inherits a Fill (cover) default that crop-zooms a landscape capture
+// into the portrait seat tile. That's why co-hosts (remote, explicitly
+// rendered) looked complete but the host looked cropped. Force the
+// local render to Fit (contain): the whole frame is shown, never
+// cropped. Mirror only the front camera.
+const applyLocalRenderFit = async () => {
+  try {
+    const trtcCloud = (roomEngine.instance as any)?.getTRTCCloud?.();
+    await trtcCloud?.setLocalRenderParams({
+      rotation: TRTCVideoRotation.TRTCVideoRotation0,
+      fillMode: TRTCVideoFillMode.TRTCVideoFillMode_Fit,
+      mirrorType: isFrontCameraActive.value
+        ? TRTCVideoMirrorType.TRTCVideoMirrorType_Enable
+        : TRTCVideoMirrorType.TRTCVideoMirrorType_Disable,
+    });
+  } catch (error) {
+    console.warn('[LivePusherView] setLocalRenderParams failed:', error);
+  }
+};
+
 // Own getUserMedia preview with explicit PORTRAIT constraints — the
 // SDK's startCameraTest takes no constraints and always captures
 // landscape, which can never fill a vertical phone screen.
@@ -625,6 +652,7 @@ const toggleMobileCameraFacing = async () => {
   try {
     if (isInLive.value) {
       await switchCamera({ isFrontCamera: isFrontCameraActive.value });
+      await applyLocalRenderFit();
     } else {
       await stopMobileCameraPreview();
       await startMobileCameraPreview();
@@ -696,6 +724,12 @@ const publishMobileCamera = (): Promise<void> => {
               console.warn('[LivePusherView] switch to rear camera failed:', switchError);
             }
           }
+          // Fix the local self-view fit (see applyLocalRenderFit).
+          // Twice — the seat player re-attaches the local view via
+          // setLocalVideoView shortly after publishing, which can land
+          // after our first call.
+          await applyLocalRenderFit();
+          setTimeout(() => applyLocalRenderFit(), 1500);
           return;
         } catch (error) {
           lastError = error;
