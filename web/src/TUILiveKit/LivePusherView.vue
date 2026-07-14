@@ -843,6 +843,22 @@ onUnmounted(() => {
       inset: 0 !important;
       z-index: 1 !important;
       min-height: 0 !important;
+
+      // StreamMixer/LiveCoreView (solo broadcast AND battle/co-host
+      // split view alike) measures #live-core-view-container with a
+      // ResizeObserver and fits its aspect-ratio-correct canvas inside
+      // whatever size that container reports. Without an explicit
+      // 100%/100% here, the container only takes its content's
+      // intrinsic size, the ResizeObserver reports something small,
+      // and the video renders in a tiny box instead of filling the
+      // screen — this is what actually makes it full-size (matching
+      // the container's height lets the aspect-ratio math use all the
+      // available space instead of shrinking to fit content).
+      :deep(#live-core-view-container),
+      :deep(.live-core-view-container) {
+        width: 100% !important;
+        height: 100% !important;
+      }
     }
 
     // Title + viewer count → translucent overlay pinned to the top,
