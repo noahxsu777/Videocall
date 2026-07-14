@@ -1,6 +1,6 @@
 <template>
   <div class="live-pusher-container">
-    <LiveHeader />
+    <LiveHeader v-if="!isMobile" />
     <LivePusherView v-if="loginUserInfo?.userId" @leave-live="onLeaveLive" />
   </div>
 </template>
@@ -13,6 +13,7 @@ import { TUIMessageBox, useUIKit } from '@tencentcloud/uikit-base-component-vue3
 import { useLiveListState, useLoginState, useDeviceState } from 'tuikit-atomicx-vue3';
 import { LivePusherView } from '../TUILiveKit';
 import LiveHeader from '@/components/LiveHeader.vue';
+import { isMobile } from '../TUILiveKit/utils/environment';
 
 const router = useRouter();
 const { currentLive, joinLive } = useLiveListState();

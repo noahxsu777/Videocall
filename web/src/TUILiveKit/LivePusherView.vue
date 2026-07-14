@@ -176,7 +176,7 @@
 
 <script lang="ts" setup>
 import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue';
-import { TUISeatMode, TRTCMediaSourceType } from '@tencentcloud/tuiroom-engine-js';
+import TUIRoomEngine, { TUISeatMode, TRTCMediaSourceType } from '@tencentcloud/tuiroom-engine-js';
 import {
   IconArrowStrokeBack,
   TUIDialog,
@@ -251,6 +251,7 @@ const { guardLiveEntry } = useWebRTCSupportGuard();
 // avoiding wasted camera preview initialization and SDK error logs
 // during the probe-then-leave window.
 const rtcSupportChecked = ref(false);
+let autoStartCameraFallbackTimer: number | null = null;
 
 const isToolsExpanded = ref(true);
 const exitLiveDialogVisible = ref(false);
@@ -527,18 +528,31 @@ onMounted(async () => {
     return;
   }
   rtcSupportChecked.value = true;
-  // Wait for the DOM update triggered by rtcSupportChecked so the pusher
-  // subtree (LiveScenePanel etc.) has actually mounted and initialized
-  // the underlying video mixer manager before we call addMediaSource —
-  // calling it in the same tick risked racing that initialization and
-  // failing silently (source: internal error caught and logged below,
-  // never surfaced to the user, which showed up as "No video" staying
-  // put with no obvious cause).
+  // Wait for the DOM update AND for TUIRoomEngine's own WASM engine to
+  // report ready before touching the video mixer. A plain nextTick()
+  // (DOM-only) wasn't enough — the WASM engine's own init ("TUIRoomEngineWASM
+  // ready!" in the console) can still be in flight after Vue's next tick,
+  // and calling addMediaSource before it's done failed silently (caught,
+  // logged, never surfaced), which is what kept showing "No video" with
+  // no obvious cause. TUIRoomEngine.once('ready', ...) is the same pattern
+  // already used elsewhere in this app (see live-pusher.vue) and fires
+  // immediately if the engine is already ready by the time we register it.
   await nextTick();
-  autoStartMobileCamera();
+  TUIRoomEngine.once('ready', () => {
+    autoStartMobileCamera();
+  });
+  // Defensive fallback in case the 'ready' event above never fires for
+  // this listener (e.g. some edge case in event timing) — autoStartMobileCamera
+  // is a no-op if a source was already added, so this is safe to also run.
+  autoStartCameraFallbackTimer = window.setTimeout(() => {
+    autoStartMobileCamera();
+  }, 2000);
 });
 
 onUnmounted(() => {
+  if (autoStartCameraFallbackTimer !== null) {
+    window.clearTimeout(autoStartCameraFallbackTimer);
+  }
   unsubscribeLiveListEvent(LiveListEvent.onLiveEnded, handleLiveEnded);
   unsubscribeBarrageEvent(BarrageEvent.onCustomMessageReceived, handleCustomMessageReceived);
   updateLiveInfo({ layoutTemplate: 0 });
@@ -962,10 +976,11 @@ onUnmounted(() => {
       .main-left-top-title {
         // Fixed relative to the viewport (not .main-left, which is
         // anchored top-right) so the back arrow can sit at the opposite
-        // corner. Offset top by the LiveHeader's height (~52px) plus a
-        // little breathing room, otherwise it renders underneath it.
+        // corner. LiveHeader is hidden on mobile (see live-pusher.vue),
+        // so this screen now starts at the very top of the viewport —
+        // just a small safe-area offset, not the header's height.
         position: fixed !important;
-        top: 64px !important;
+        top: 12px !important;
         left: 8px !important;
         height: auto !important;
         margin-bottom: 0 !important;
