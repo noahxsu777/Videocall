@@ -459,6 +459,11 @@ const startMobileCameraPreview = async () => {
     await startCameraTest({ view: MOBILE_PREVIEW_VIEW_ID });
     try {
       await switchCamera({ isFrontCamera: true });
+      // switchCamera re-opens the capture and can reset it to the
+      // default landscape constraints — re-apply the portrait profile
+      // so the switch doesn't undo it (this was the residual extreme
+      // zoom after the first portrait fix).
+      await applyMobilePortraitProfile();
     } catch (switchError) {
       console.warn('[LivePusherView] switch to front camera failed:', switchError);
     }
@@ -508,6 +513,9 @@ const publishMobileCamera = (): Promise<void> => {
           // Selfie framing by default; not fatal if unavailable.
           try {
             await switchCamera({ isFrontCamera: true });
+            // Re-apply after the switch — switching re-opens the
+            // capture and can reset it to landscape defaults.
+            await applyMobilePortraitProfile();
           } catch (switchError) {
             console.warn('[LivePusherView] switch to front camera failed:', switchError);
           }
@@ -1053,8 +1061,20 @@ onUnmounted(() => {
         :deep(video) {
           width: 100% !important;
           height: 100% !important;
-          object-fit: cover !important;
+          // contain, not cover: if anything upstream still delivers a
+          // landscape frame, cover-fitting it into a tall phone screen
+          // crops away most of the image (the "super zoomed" symptom).
+          // With a portrait capture, contain is effectively full-bleed
+          // anyway — like an Instagram live.
+          object-fit: contain !important;
         }
+      }
+
+      // Same guarantee for the in-live self view rendered by
+      // LiveCoreView: never crop the local frame, whatever its aspect.
+      :deep(#atomicx-live-stream-content) video,
+      :deep(#atomicx-live-stream-content) canvas {
+        object-fit: contain !important;
       }
     }
 
