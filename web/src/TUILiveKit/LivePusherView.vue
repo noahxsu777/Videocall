@@ -398,46 +398,79 @@ const handleCopyLiveID = async () => {
 // which the underlying media source manager rejects — that was the
 // actual reason auto-start kept failing (with a permission toast)
 // even after the user had granted camera permission.
-let autoStartCameraInFlight = false;
-const autoStartMobileCamera = async () => {
-  if (!isMobile || autoStartCameraInFlight || mediaSourceList.value.length > 0) {
-    return;
+// Deduped as a shared promise (instead of a boolean flag) so a second
+// caller — e.g. handleStartLive's safety net while the on-mount attempt
+// is still running — awaits the in-flight attempt rather than skipping
+// and going live camera-less.
+let autoStartCameraPromise: Promise<void> | null = null;
+const autoStartMobileCamera = (): Promise<void> => {
+  if (!isMobile || mediaSourceList.value.length > 0) {
+    return Promise.resolve();
   }
-  autoStartCameraInFlight = true;
-  try {
-    // Trigger/settle the permission prompt before enumerating —
-    // browsers report blank deviceIds until camera permission is
-    // granted, which would leave us with nothing usable to pass.
-    const probeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-    probeStream.getTracks().forEach(track => track.stop());
+  if (autoStartCameraPromise) {
+    return autoStartCameraPromise;
+  }
+  autoStartCameraPromise = (async () => {
+    try {
+      // Trigger/settle the permission prompt before enumerating —
+      // browsers report blank deviceIds until camera permission is
+      // granted, which would leave us with nothing usable to pass.
+      const probeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      probeStream.getTracks().forEach(track => track.stop());
 
-    await getCameraList();
-    const cameras = cameraList.value;
-    if (!cameras.length || !cameras[0].deviceId) {
-      throw new Error('no usable camera devices found');
+      await getCameraList();
+      const cameras = cameraList.value;
+      if (!cameras.length || !cameras[0].deviceId) {
+        throw new Error('no usable camera devices found');
+      }
+      // Prefer the front-facing camera when we can identify it by name;
+      // otherwise fall back to the first camera, same as the dialog.
+      const frontCamera = cameras.find(
+        device => /front|user|frontal|delantera/i.test(device.deviceName || ''),
+      ) || cameras[0];
+
+      // The mixer's internal media source manager finishes initializing
+      // asynchronously some time after engine-ready, and addMediaSource
+      // has no readiness guard of its own — retry with backoff instead
+      // of giving up on the first race.
+      let lastError: unknown;
+      for (const delayMs of [0, 800, 2000, 4000]) {
+        if (delayMs) {
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+        if (mediaSourceList.value.length > 0) {
+          return;
+        }
+        try {
+          await addMediaSource({
+            type: TRTCMediaSourceType.kCamera,
+            name: frontCamera.deviceName,
+            camera: {
+              cameraId: frontCamera.deviceId,
+              resolution: { width: 720, height: 1280 },
+            },
+          } as Parameters<typeof addMediaSource>[0]);
+          return;
+        } catch (error) {
+          lastError = error;
+          console.error('[LivePusherView] auto-start camera attempt failed, retrying:', error);
+        }
+      }
+      throw lastError;
+    } catch (error) {
+      console.error('[LivePusherView] Failed to auto-start camera:', error);
+      // Include the underlying reason so on-device failures are
+      // diagnosable from the toast alone (the console isn't reachable
+      // on a phone).
+      const reason = (error as Error)?.message || String(error);
+      TUIToast.error({
+        message: `${t('Please check the current browser camera permission')} (${reason})`,
+      });
+    } finally {
+      autoStartCameraPromise = null;
     }
-    // Prefer the front-facing camera when we can identify it by name;
-    // otherwise fall back to the first camera, same as the dialog.
-    const frontCamera = cameras.find(
-      device => /front|user|frontal|delantera/i.test(device.deviceName || ''),
-    ) || cameras[0];
-
-    await addMediaSource({
-      type: TRTCMediaSourceType.kCamera,
-      name: frontCamera.deviceName,
-      camera: {
-        cameraId: frontCamera.deviceId,
-        resolution: { width: 720, height: 1280 },
-      },
-    } as Parameters<typeof addMediaSource>[0]);
-  } catch (error) {
-    console.error('[LivePusherView] Failed to auto-start camera:', error);
-    TUIToast.error({
-      message: t('Please check the current browser camera permission'),
-    });
-  } finally {
-    autoStartCameraInFlight = false;
-  }
+  })();
+  return autoStartCameraPromise;
 };
 
 const handleStartLive = async () => {
