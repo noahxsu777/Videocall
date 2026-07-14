@@ -5,7 +5,7 @@
  *  - same-origin static assets (hashed js/css/img): cache first
  *  - everything else (Supabase, TRTC, websockets): untouched
  */
-const CACHE = 'hypecall-v2';
+const CACHE = 'hypecall-v3';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -51,7 +51,7 @@ self.addEventListener('fetch', (event) => {
 
   if (
     url.pathname.includes('/assets/')
-    || /\.(js|css|png|jpg|svg|ico|webmanifest|woff2?|mp4)$/.test(url.pathname)
+    || /\.(js|css|png|jpg|svg|ico|webmanifest|woff2?)$/.test(url.pathname)
   ) {
     event.respondWith(
       (async () => {
