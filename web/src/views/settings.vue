@@ -65,6 +65,14 @@
           <span class="row-val vip-val">{{ vipActive ? vipUntilText : '👑' }}</span>
           <span class="chev" v-html="CHEV" />
         </button>
+        <button class="row row-tap" @click="router.push('/verified')">
+          <span class="ic ic-verified">
+            <VerifiedBadge :size="16" />
+          </span>
+          <span class="row-key">{{ verified ? 'Cuenta verificada' : 'Obtener verificación' }}</span>
+          <span class="row-val verified-val">{{ verified ? '✓' : '🪙' }}</span>
+          <span class="chev" v-html="CHEV" />
+        </button>
       </section>
 
       <!-- Preferencias -->
@@ -125,6 +133,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import TUIRoomEngine from '@tencentcloud/tuiroom-engine-js';
 import GlassBackButton from '../components/GlassBackButton.vue';
+import VerifiedBadge from '../components/VerifiedBadge.vue';
 import { useAuth } from '../auth/useAuth';
 import { supabase } from '../auth/supabase';
 import {
@@ -152,6 +161,7 @@ const saveOk = ref(false);
 const infoMsg = ref('');
 const darkTheme = ref(true);
 const vipUntil = ref<string | null>(null);
+const verified = ref(false);
 
 const shortId = computed(() => (user.value?.id || '').slice(0, 8) || '—');
 const daysLeft = computed(() => daysUntilNameChange(nameUpdatedAt.value));
@@ -173,6 +183,7 @@ onMounted(async () => {
     bio.value = p?.bio || '';
     nameUpdatedAt.value = p?.name_updated_at || null;
     vipUntil.value = p?.vip_until || null;
+    verified.value = !!p?.verified;
   } catch (error) {
     console.error('[settings] load failed:', error);
     username.value = displayName.value;
@@ -413,6 +424,8 @@ textarea.row-field {
   100% { left: 140%; }
 }
 .vip-val { color: #ffcf5e; }
+.ic-verified { background: transparent; }
+.verified-val { color: #1d9bf0; }
 
 .chev {
   margin-left: auto;

@@ -10,9 +10,10 @@ export interface Profile {
   vip_until?: string | null;
   coins?: number;
   call_rate?: number;
-  /** Twitter-style checkmark. Only settable by the project owner directly
-   *  in Supabase (see the protect_verified_column trigger) — never via
-   *  the app's own updateProfile(). */
+  /** Twitter-style checkmark. Can't be set via updateProfile() — the
+   *  protect_verified_column trigger blocks direct writes to it. The only
+   *  legitimate way to grant it (besides you editing it by hand in
+   *  Supabase) is purchaseVerification() below. */
   verified?: boolean;
   created_at?: string;
 }
@@ -421,4 +422,24 @@ export async function activateVip(userId: string, days: number): Promise<string>
     throw new Error(error.message);
   }
   return until;
+}
+
+/** Coins needed to self-purchase the verified badge (see purchaseVerification). */
+export const VERIFIED_PRICE_COINS = 5000;
+
+/**
+ * Self-purchase the Twitter-style verified badge with coins. Goes through
+ * the purchase_verification() RPC (a security-definer function) because
+ * the profiles table itself rejects any direct update to `verified` made
+ * with a logged-in session — this is the only path that's allowed
+ * through. Throws 'insufficient_coins' or 'already_verified' on failure.
+ * Returns the buyer's new coin balance on success.
+ */
+export async function purchaseVerification(): Promise<number> {
+  const client = requireClient();
+  const { data, error } = await client.rpc('purchase_verification');
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data as number;
 }

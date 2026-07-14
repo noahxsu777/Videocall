@@ -28,6 +28,10 @@ const routes = [
     component: () => import('@/views/vip.vue'),
   },
   {
+    path: '/verified',
+    component: () => import('@/views/verified.vue'),
+  },
+  {
     path: '/messages',
     component: () => import('@/views/messages.vue'),
   },

@@ -35,15 +35,19 @@ alter table public.profiles
 
 alter table public.profiles enable row level security;
 
--- "verified" (Twitter-style checkmark) can only be granted by YOU, the
--- project owner, editing the row directly in Supabase's Table Editor /
--- SQL Editor (no auth.uid() context there). Any update coming through
--- the app itself (always has a logged-in auth.uid()) has this column
--- silently reverted, so a user can never grant themselves the badge.
+-- "verified" (Twitter-style checkmark) can't be set by a direct table
+-- update from the app — this trigger silently reverts it — EXCEPT when
+-- the update comes from purchase_verification() below, which flips a
+-- transaction-local flag right before writing. That keeps the badge
+-- un-gameable via the REST API while still letting users self-purchase
+-- it the normal way (or you can still grant it for free from the
+-- Table Editor / SQL Editor, which has no auth.uid() context either).
 create or replace function public.protect_verified_column()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  if new.verified is distinct from old.verified and auth.uid() is not null then
+  if new.verified is distinct from old.verified
+     and auth.uid() is not null
+     and coalesce(current_setting('app.bypass_verified_protect', true), '') <> 'on' then
     new.verified := old.verified;
   end if;
   return new;
@@ -54,6 +58,42 @@ drop trigger if exists protect_verified on public.profiles;
 create trigger protect_verified
   before update on public.profiles
   for each row execute function public.protect_verified_column();
+
+-- Self-purchase the verified badge with coins. Runs as a single locked
+-- read-modify-write so two concurrent purchases can't both succeed off
+-- a stale balance, and sets the bypass flag above only for the instant
+-- it needs it. Returns the buyer's new coin balance.
+create or replace function public.purchase_verification(price integer default 5000)
+returns integer
+language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  current_coins integer;
+  already_verified boolean;
+begin
+  if uid is null then
+    raise exception 'not_authenticated';
+  end if;
+
+  select coins, verified into current_coins, already_verified
+    from public.profiles where id = uid for update;
+
+  if already_verified then
+    raise exception 'already_verified';
+  end if;
+
+  if current_coins < price then
+    raise exception 'insufficient_coins';
+  end if;
+
+  perform set_config('app.bypass_verified_protect', 'on', true);
+  update public.profiles set coins = coins - price, verified = true where id = uid;
+
+  return current_coins - price;
+end;
+$$;
+
+grant execute on function public.purchase_verification(integer) to authenticated;
 
 -- Everyone can read profiles; you can only write your own.
 drop policy if exists "profiles are viewable by everyone" on public.profiles;
