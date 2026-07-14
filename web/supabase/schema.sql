@@ -14,12 +14,15 @@ create table if not exists public.profiles (
   bio             text default '',
   avatar_url      text,
   name_updated_at timestamptz,
+  vip_until       timestamptz,
   created_at      timestamptz not null default now()
 );
 
--- Safe for existing projects: add the column if the table already existed.
+-- Safe for existing projects: add the columns if the table already existed.
 alter table public.profiles
   add column if not exists name_updated_at timestamptz;
+alter table public.profiles
+  add column if not exists vip_until timestamptz;
 
 alter table public.profiles enable row level security;
 
@@ -102,8 +105,7 @@ create policy "users can delete own photos"
   on public.photos for delete using (auth.uid() = user_id);
 
 -- =====================================================================
--- STORAGE (do this in the dashboard, not SQL):
---   Storage → New bucket → name: media → Public bucket: ON → Save.
--- The app uploads avatars and photos there and stores the public URL
--- in the tables above.
+-- STORAGE: not required. Avatars and photos are compressed on the client
+-- and stored inline as data URLs in the columns above, so you do NOT need
+-- to create a "media" bucket. Just run this SQL and you're done.
 -- =====================================================================

@@ -57,6 +57,19 @@
         </div>
       </section>
 
+      <!-- VIP -->
+      <p class="group-header">Membresía</p>
+      <section class="group">
+        <button class="row row-tap" @click="router.push('/vip')">
+          <span class="ic ic-vip">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M3 7l4 3 5-6 5 6 4-3-2 12H5L3 7z"/></svg>
+          </span>
+          <span class="row-key">{{ vipActive ? 'VIP activo' : 'Comprar VIP' }}</span>
+          <span class="row-val vip-val">{{ vipActive ? vipUntilText : '👑' }}</span>
+          <span class="chev" v-html="CHEV" />
+        </button>
+      </section>
+
       <!-- Preferencias -->
       <p class="group-header">Preferencias</p>
       <section class="group">
@@ -122,6 +135,7 @@ import {
   updateProfile,
   updateDisplayName,
   daysUntilNameChange,
+  isVipActive,
 } from '../data/profiles';
 
 const router = useRouter();
@@ -139,10 +153,14 @@ const saveMsg = ref('');
 const saveOk = ref(false);
 const infoMsg = ref('');
 const darkTheme = ref(true);
+const vipUntil = ref<string | null>(null);
 
 const shortId = computed(() => (user.value?.id || '').slice(0, 8) || '—');
 const daysLeft = computed(() => daysUntilNameChange(nameUpdatedAt.value));
 const canChangeName = computed(() => daysLeft.value === 0);
+const vipActive = computed(() => isVipActive(vipUntil.value));
+const vipUntilText = computed(() =>
+  vipUntil.value ? new Date(vipUntil.value).toLocaleDateString() : '');
 
 onMounted(async () => {
   if (!user.value) {
@@ -156,6 +174,7 @@ onMounted(async () => {
     originalName.value = name;
     bio.value = p?.bio || '';
     nameUpdatedAt.value = p?.name_updated_at || null;
+    vipUntil.value = p?.vip_until || null;
   } catch (error) {
     console.error('[settings] load failed:', error);
     username.value = displayName.value;
@@ -383,6 +402,8 @@ textarea.row-field {
 .ic-bell { background: #ff3b30; }
 .ic-lock { background: #34c759; }
 .ic-moon { background: #5e5ce6; }
+.ic-vip { background: linear-gradient(135deg, #ffd75e, #ff9d2f); }
+.vip-val { color: #ffcf5e; }
 
 .chev {
   margin-left: auto;

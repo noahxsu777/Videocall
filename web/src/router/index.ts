@@ -21,7 +21,11 @@ const routes = [
   },
   {
     path: '/reels',
-    component: () => import('@/views/placeholder.vue'),
+    component: () => import('@/views/reels.vue'),
+  },
+  {
+    path: '/vip',
+    component: () => import('@/views/vip.vue'),
   },
   {
     path: '/messages',

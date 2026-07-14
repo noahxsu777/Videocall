@@ -7,7 +7,16 @@ export interface Profile {
   bio: string | null;
   avatar_url: string | null;
   name_updated_at?: string | null;
+  vip_until?: string | null;
   created_at?: string;
+}
+
+/** True if the profile has an active VIP subscription right now. */
+export function isVipActive(vipUntil?: string | null): boolean {
+  if (!vipUntil) {
+    return false;
+  }
+  return new Date(vipUntil).getTime() > Date.now();
 }
 
 /** The display name (a.k.a. username) can only be changed this often. */
@@ -30,8 +39,6 @@ export interface Photo {
   caption: string | null;
   created_at: string;
 }
-
-const STORAGE_BUCKET = 'media';
 
 function requireClient() {
   if (!supabase) {
@@ -149,20 +156,56 @@ export async function unfollow(followerId: string, followingId: string): Promise
   }
 }
 
-/** Upload a File to Storage and return its public URL. */
-export async function uploadMedia(userId: string, file: File): Promise<string> {
-  const client = requireClient();
-  const ext = file.name.split('.').pop() || 'jpg';
-  const path = `${userId}/${Date.now()}.${ext}`;
-  const { error } = await client.storage.from(STORAGE_BUCKET).upload(path, file, {
-    cacheControl: '3600',
-    upsert: false,
+/**
+ * Turn a picked image File into a compressed data URL — stored directly in
+ * the DB (profiles.avatar_url / photos.image_url). This means uploads work
+ * with ZERO Supabase Storage setup (no "media" bucket needed). Images are
+ * downscaled + JPEG-compressed on the client so the strings stay small.
+ */
+export async function uploadMedia(
+  userId: string,
+  file: File,
+  maxSize = 1280,
+  quality = 0.72,
+): Promise<string> {
+  return compressImageToDataUrl(file, maxSize, quality);
+}
+
+function compressImageToDataUrl(file: File, maxSize: number, quality: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('El archivo debe ser una imagen.'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo leer la imagen.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width >= height && width > maxSize) {
+          height = Math.round((height * maxSize) / width);
+          width = maxSize;
+        } else if (height > width && height > maxSize) {
+          width = Math.round((width * maxSize) / height);
+          height = maxSize;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas no disponible.'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('Imagen inválida.'));
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
   });
-  if (error) {
-    throw new Error(error.message);
-  }
-  const { data } = client.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-  return data.publicUrl;
 }
 
 export async function listPhotos(userId: string): Promise<Photo[]> {
@@ -197,4 +240,45 @@ export async function deletePhoto(photoId: string): Promise<void> {
   if (error) {
     throw new Error(error.message);
   }
+}
+
+/** A photo plus its author, for the global Reels feed. */
+export interface FeedPhoto extends Photo {
+  author: Pick<Profile, 'id' | 'display_name' | 'username' | 'avatar_url'> | null;
+}
+
+/** All recent photos across users (newest first) with author info. */
+export async function listFeedPhotos(limit = 60): Promise<FeedPhoto[]> {
+  const client = requireClient();
+  const { data, error } = await client
+    .from('photos')
+    .select('*, author:profiles(id, display_name, username, avatar_url)')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.warn('[profiles] listFeedPhotos failed:', error.message);
+    return [];
+  }
+  return (data || []) as FeedPhoto[];
+}
+
+/**
+ * Activate (or extend) a VIP subscription. Simulated purchase — no real
+ * payment gateway is wired yet, so this just extends vip_until by the
+ * chosen number of days from now (or from the current expiry if still
+ * active).
+ */
+export async function activateVip(userId: string, days: number): Promise<string> {
+  const client = requireClient();
+  const current = await getProfile(userId);
+  const base =
+    current?.vip_until && new Date(current.vip_until).getTime() > Date.now()
+      ? new Date(current.vip_until).getTime()
+      : Date.now();
+  const until = new Date(base + days * 86400000).toISOString();
+  const { error } = await client.from('profiles').update({ vip_until: until }).eq('id', userId);
+  if (error) {
+    throw new Error(error.message);
+  }
+  return until;
 }

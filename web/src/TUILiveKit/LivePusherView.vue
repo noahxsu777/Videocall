@@ -127,7 +127,7 @@
         TikTok-style over the lower part of the video.
       -->
       <div v-if="isMobile && isInLive" class="mobile-barrage">
-        <BarrageList />
+        <LiveChat :is-host="true" @open-user="onOpenChatUser" />
       </div>
       <div class="main-center-bottom">
         <div class="main-center-bottom-content">
@@ -202,6 +202,7 @@
       </div>
     </div>
     <LivePusherNotification />
+    <UserActionSheet v-model="chatUserSheet" :target="chatUserTarget" />
     </template>
     <TUIDialog
       v-model:visible="exitLiveDialogVisible"
@@ -292,6 +293,8 @@ import OrientationSwitch from './component/OrientationSwitch.vue';
 import SettingButton from './component/SettingButton.vue';
 import SpeakerVolumeSetting from './component/SpeakerVolumeSetting.vue';
 import LivePusherNotification from './component/LivePusherNotification.vue';
+import LiveChat from '../components/LiveChat.vue';
+import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
 import { copyToClipboard, isSvgCoverUrl } from './utils/utils';
 import { errorHandler } from './utils/errorHandler';
 import { initRoomEngineLanguage } from '../utils/utils';
@@ -344,6 +347,14 @@ const isInLive = computed(() => !!currentLive.value?.liveId);
 // Battle / co-host connected: on mobile we lift the two camera tiles up
 // and open a viewer-message area beneath them (see .is-battle CSS).
 const isBattle = computed(() => coHostStatus.value === CoHostStatus.Connected);
+
+// Tapping a chat author opens the follow/message sheet.
+const chatUserSheet = ref(false);
+const chatUserTarget = ref<SheetTarget | null>(null);
+const onOpenChatUser = (target: SheetTarget) => {
+  chatUserTarget.value = target;
+  chatUserSheet.value = true;
+};
 // Back to the pre-live state (live ended) → bring the preview back.
 watch(isInLive, (inLive) => {
   if (!inLive && !isCameraOff.value) {
@@ -1513,51 +1524,17 @@ onUnmounted(() => {
     display: none !important;
   }
 
-  // Viewer messages overlay. Sits above the bottom controls, messages
-  // anchored to the bottom of the band and scrolling up. Non-interactive
-  // so taps pass through to the video underneath.
+  // Live chat overlay (our custom LiveChat with VIP silent messages).
+  // Sits above the bottom controls; the component manages its own look
+  // and re-enables pointer events on its list + input.
   .mobile-barrage {
     position: absolute !important;
-    left: 8px !important;
-    right: 8px !important;
+    left: 10px !important;
+    right: 10px !important;
     bottom: 150px !important;
     height: 34vh !important;
     z-index: 3 !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: flex-end !important;
-    overflow: hidden !important;
     pointer-events: none !important;
-    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 22%) !important;
-    mask-image: linear-gradient(180deg, transparent 0, #000 22%) !important;
-
-    // Let the embedded list breathe and stay transparent so it reads as
-    // floating chat rather than the desktop side card.
-    :deep(*) {
-      background: transparent !important;
-      border: none !important;
-      box-shadow: none !important;
-      color: #fff !important;
-      max-width: 100% !important;
-    }
-    :deep(.barrage-list),
-    :deep([class*='barrage']),
-    :deep([class*='message-list']) {
-      height: 100% !important;
-      overflow: hidden !important;
-    }
-    // Each message pill: subtle dark bubble like TikTok/Bigo.
-    :deep([class*='item']) {
-      background: rgba(0, 0, 0, 0.32) !important;
-      border-radius: 14px !important;
-      padding: 5px 10px !important;
-      margin: 4px 0 !important;
-      width: fit-content !important;
-      max-width: 88% !important;
-      font-size: 13px !important;
-      line-height: 1.35 !important;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6) !important;
-    }
   }
 
   // Battle / co-host: lift both camera tiles into the top half so the
@@ -1571,9 +1548,7 @@ onUnmounted(() => {
     .mobile-barrage {
       bottom: 150px !important;
       height: calc(100% - 54% - 10px - 156px) !important;
-      min-height: 120px !important;
-      -webkit-mask-image: none !important;
-      mask-image: none !important;
+      min-height: 140px !important;
     }
   }
 }

@@ -78,17 +78,14 @@ const go = (path: string) => {
   align-items: center;
   justify-content: space-around;
   padding: 0 6px;
-  border-radius: 30px;
-  /* Frosted translucent glass */
-  background: rgba(28, 28, 32, 0.62);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  backdrop-filter: blur(28px) saturate(180%);
-  /* Top inner highlight + soft depth shadow (liquid-glass vibrancy) */
-  border: 0.5px solid rgba(255, 255, 255, 0.14);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.25),
-    0 10px 30px rgba(0, 0, 0, 0.45);
+  border-radius: 28px;
+  /* Mostly-opaque dark glass so it reads cleanly on a near-black page
+     instead of turning into a bright gray blob. */
+  background: rgba(22, 22, 26, 0.9);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.55);
 }
 
 .tab {

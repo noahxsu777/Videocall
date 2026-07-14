@@ -32,7 +32,10 @@
     </section>
 
     <div class="profile-meta">
-      <div class="name">{{ profile?.display_name || '—' }}</div>
+      <div class="name">
+        {{ profile?.display_name || '—' }}
+        <span v-if="isVip" class="vip-badge">⭐ VIP</span>
+      </div>
       <div v-if="profile?.username" class="username">@{{ profile.username }}</div>
       <p v-if="profile?.bio" class="bio">{{ profile.bio }}</p>
     </div>
@@ -88,6 +91,7 @@ import {
   listPhotos,
   addPhoto,
   deletePhoto,
+  isVipActive,
   type Profile,
   type Photo,
 } from '../data/profiles';
@@ -111,6 +115,7 @@ const targetUserId = computed(() => routeUserId.value || user.value?.id || '');
 const isOwnProfile = computed(() => !!user.value && targetUserId.value === user.value.id);
 const initial = computed(() =>
   (profile.value?.display_name || displayName.value || '?').charAt(0).toUpperCase());
+const isVip = computed(() => isVipActive(profile.value?.vip_until));
 
 async function load() {
   loadError.value = '';
@@ -170,7 +175,7 @@ async function onAvatarSelected(e: Event) {
     return;
   }
   try {
-    const url = await uploadMedia(user.value.id, file);
+    const url = await uploadMedia(user.value.id, file, 256, 0.85);
     await updateProfile(user.value.id, { avatar_url: url });
     if (profile.value) {
       profile.value.avatar_url = url;
@@ -310,6 +315,17 @@ watch(() => route.fullPath, load);
 .name {
   font-size: 16px;
   font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vip-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 8px;
+  color: #1a1400;
+  background: linear-gradient(135deg, #ffd75e, #ff9d2f);
 }
 .username {
   font-size: 13px;
