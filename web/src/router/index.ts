@@ -28,7 +28,15 @@ const routes = [
   },
   {
     path: '/profile',
-    component: () => import('@/views/placeholder.vue'),
+    component: () => import('@/views/profile.vue'),
+  },
+  {
+    path: '/profile/:id',
+    component: () => import('@/views/profile.vue'),
+  },
+  {
+    path: '/settings',
+    component: () => import('@/views/settings.vue'),
   },
   {
     path: '/live-player',
