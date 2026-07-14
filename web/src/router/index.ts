@@ -29,7 +29,7 @@ const routes = [
   },
   {
     path: '/messages',
-    component: () => import('@/views/placeholder.vue'),
+    component: () => import('@/views/messages.vue'),
   },
   {
     path: '/profile',
@@ -119,15 +119,6 @@ async function restoreLoginIfNeeded(): Promise<void> {
         userName,
         testEnv: localStorage.getItem('tuikit-live-env') === 'TestEnv',
       });
-      // Persist the display name on the Tencent user profile so seat
-      // labels, PK titles, etc. show the real name instead of the raw
-      // userId. Best-effort — never block login on it.
-      try {
-        const avatarUrl = (supaSession.user.user_metadata?.avatar_url as string) || '';
-        await TUIRoomEngine.setSelfInfo({ userName, avatarUrl });
-      } catch (error) {
-        console.warn('[router] setSelfInfo failed:', error);
-      }
     } catch (error) {
       console.error('[router] Failed to log into Tencent SDK:', error);
     } finally {
@@ -135,6 +126,35 @@ async function restoreLoginIfNeeded(): Promise<void> {
     }
   })();
   return restoreLoginPromise;
+}
+
+// Push the real display name (and avatar) onto the Tencent user profile
+// so seat labels, PK titles, chat senders, etc. show the name instead of
+// the raw u_xxx userId. Runs once per app session, EVEN when the Tencent
+// login was restored from storage (the old code only did this on fresh
+// logins, so persisted sessions kept showing the raw id).
+let selfInfoSynced = false;
+async function syncSelfInfoIfNeeded(): Promise<void> {
+  if (selfInfoSynced) {
+    return;
+  }
+  const supaSession = currentSession();
+  if (!supaSession?.user) {
+    return;
+  }
+  const { loginUserInfo } = useLoginState();
+  if (!loginUserInfo.value?.userId) {
+    return;
+  }
+  try {
+    await TUIRoomEngine.setSelfInfo({
+      userName: displayNameFor(supaSession.user),
+      avatarUrl: (supaSession.user.user_metadata?.avatar_url as string) || '',
+    });
+    selfInfoSynced = true;
+  } catch (error) {
+    console.warn('[router] setSelfInfo failed:', error);
+  }
 }
 
 router.beforeEach(async (to, _from, next) => {
@@ -162,6 +182,7 @@ router.beforeEach(async (to, _from, next) => {
     next({ path: '/login', query: { from: to.path } });
     return;
   }
+  await syncSelfInfoIfNeeded();
 
   if (isH5) {
     if (to.path === '/business/live-player' || to.path === '/education/live-player') {

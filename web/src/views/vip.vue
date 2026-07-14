@@ -1,12 +1,9 @@
 <template>
   <div class="vip">
     <header class="nav">
-      <button class="nav-back" @click="router.back()">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>
-        <span>Atrás</span>
-      </button>
+      <GlassBackButton @click="router.back()" />
       <span class="nav-title">VIP</span>
-      <span class="nav-back nav-spacer" />
+      <span class="nav-spacer" />
     </header>
 
     <div class="hero">
@@ -53,6 +50,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import GlassBackButton from '../components/GlassBackButton.vue';
 import { useAuth } from '../auth/useAuth';
 import { getProfile, activateVip, isVipActive } from '../data/profiles';
 
@@ -121,18 +119,7 @@ async function buy() {
   height: 50px;
   padding: 0 8px;
 }
-.nav-back {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-  min-width: 78px;
-  background: none;
-  border: none;
-  color: #ffcf5e;
-  font-size: 16px;
-  cursor: pointer;
-}
-.nav-spacer { min-width: 78px; }
+.nav-spacer { min-width: 44px; }
 .nav-title { font-size: 17px; font-weight: 700; }
 
 .hero {

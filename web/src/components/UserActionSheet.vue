@@ -135,8 +135,9 @@ async function toggleFollow() {
 }
 
 function message() {
+  const id = props.target?.id;
   close();
-  router.push({ path: '/messages' });
+  router.push({ path: '/messages', query: id ? { user: id } : {} });
 }
 function viewProfile() {
   if (!props.target) {

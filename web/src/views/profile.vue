@@ -2,7 +2,7 @@
   <div class="profile">
     <header class="profile-top">
       <button v-if="isOwnProfile" class="top-btn" @click="goSettings">⚙️</button>
-      <button v-else class="top-btn" @click="router.back()">‹</button>
+      <GlassBackButton v-else @click="router.back()" />
       <span class="top-title">{{ profile?.display_name || profile?.username || 'Perfil' }}</span>
       <button v-if="isOwnProfile" class="top-btn" @click="handleLogout">Salir</button>
       <span v-else class="top-btn" />
@@ -78,6 +78,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import GlassBackButton from '../components/GlassBackButton.vue';
 import { useAuth } from '../auth/useAuth';
 import {
   getProfile,
@@ -212,7 +213,7 @@ function goSettings() {
   router.push({ path: '/settings' });
 }
 function messageUser() {
-  router.push({ path: '/messages' });
+  router.push({ path: '/messages', query: { user: targetUserId.value } });
 }
 async function handleLogout() {
   await logout();

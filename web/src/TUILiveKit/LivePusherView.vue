@@ -295,6 +295,7 @@ import SpeakerVolumeSetting from './component/SpeakerVolumeSetting.vue';
 import LivePusherNotification from './component/LivePusherNotification.vue';
 import LiveChat from '../components/LiveChat.vue';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
+import { useAuth } from '../auth/useAuth';
 import { copyToClipboard, isSvgCoverUrl } from './utils/utils';
 import { errorHandler } from './utils/errorHandler';
 import { initRoomEngineLanguage } from '../utils/utils';
@@ -329,6 +330,10 @@ let autoStartCameraFallbackTimer: number | null = null;
 const isToolsExpanded = ref(true);
 const exitLiveDialogVisible = ref(false);
 const { loginUserInfo } = useLoginState();
+// Real display name from the Supabase account — used for the live title
+// so the screen never shows the raw Tencent u_xxx id, even when the
+// Tencent-side profile hasn't synced yet.
+const { displayName: authDisplayName } = useAuth();
 const { currentLive, startLive, endLive, joinLive, subscribeEvent: subscribeLiveListEvent, unsubscribeEvent: unsubscribeLiveListEvent, updateLiveInfo } = useLiveListState();
 const roomEngine = useRoomEngine();
 const { audienceCount } = useLiveAudienceState();
@@ -452,6 +457,7 @@ const liveParams = computed(() => ({
   liveName:
     liveParamsEditForm.value.liveName
     || props.liveName
+    || authDisplayName.value
     || loginUserInfo.value?.userName
     || loginUserInfo.value?.userId
     || '',
@@ -974,6 +980,18 @@ onUnmounted(() => {
 <style lang="scss" scoped>
 @import './style/index.scss';
 
+// iOS 26 "liquid glass" treatment for the floating circular buttons on
+// the mobile broadcast screen (back arrow, camera flip/off, add-source).
+@mixin liquid-glass {
+  background: rgba(255, 255, 255, 0.12) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.35),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.1),
+    0 6px 16px rgba(0, 0, 0, 0.3) !important;
+}
+
 .live-pusher-main {
   width: 100%;
   height: 100%;
@@ -1352,15 +1370,15 @@ onUnmounted(() => {
         width: 40px;
         height: 40px;
         border-radius: 50%;
-        background: rgba(0, 0, 0, 0.4);
         display: flex;
         align-items: center;
         justify-content: center;
         color: #fff;
         cursor: pointer;
+        @include liquid-glass;
 
         &.is-off {
-          background: rgba(220, 53, 69, 0.75);
+          background: rgba(220, 53, 69, 0.65) !important;
         }
       }
     }
@@ -1467,9 +1485,9 @@ onUnmounted(() => {
 
         .icon-back {
           display: inline-flex !important;
-          padding: 8px !important;
-          background: rgba(0, 0, 0, 0.4) !important;
+          padding: 10px !important;
           border-radius: 50% !important;
+          @include liquid-glass;
         }
       }
 
@@ -1493,7 +1511,7 @@ onUnmounted(() => {
         width: 40px !important;
         height: 40px !important;
         border-radius: 50% !important;
-        background: rgba(0, 0, 0, 0.4) !important;
+        @include liquid-glass;
 
         // Icon-only: hide the text label under each icon.
         span {
@@ -1507,8 +1525,8 @@ onUnmounted(() => {
         width: 40px !important;
         height: 40px !important;
         border-radius: 50% !important;
-        background: rgba(0, 0, 0, 0.4) !important;
         pointer-events: auto !important;
+        @include liquid-glass;
       }
     }
 
