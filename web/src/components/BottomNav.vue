@@ -127,6 +127,8 @@ const go = (path: string) => {
   flex: 0 0 auto;
 }
 .tab-create {
+  position: relative;
+  overflow: hidden;
   width: 50px;
   height: 38px;
   margin-top: -2px;
@@ -140,6 +142,35 @@ const go = (path: string) => {
     inset 0 1px 0 rgba(255, 255, 255, 0.4),
     0 6px 16px rgba(10, 132, 255, 0.5);
   transition: transform 0.12s ease;
+  animation: tab-create-glow 2.6s ease-in-out infinite;
+}
+@keyframes tab-create-glow {
+  0%, 100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      0 6px 16px rgba(10, 132, 255, 0.5);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      0 6px 22px rgba(94, 92, 230, 0.75);
+  }
+}
+.tab-create::after {
+  content: '';
+  position: absolute;
+  top: -80%;
+  left: -60%;
+  width: 35%;
+  height: 260%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  transform: rotate(18deg);
+  animation: tab-create-shine 3.4s ease-in-out infinite;
+}
+@keyframes tab-create-shine {
+  0% { left: -60%; }
+  55% { left: 140%; }
+  100% { left: 140%; }
 }
 .tab.center:active .tab-create {
   transform: scale(0.92);

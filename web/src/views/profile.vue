@@ -323,12 +323,30 @@ watch(() => route.fullPath, load);
   gap: 8px;
 }
 .vip-badge {
+  position: relative;
+  overflow: hidden;
   font-size: 11px;
   font-weight: 800;
   padding: 2px 8px;
   border-radius: 8px;
   color: #1a1400;
   background: linear-gradient(135deg, #ffd75e, #ff9d2f);
+}
+.vip-badge::after {
+  content: '';
+  position: absolute;
+  top: -60%;
+  left: -60%;
+  width: 40%;
+  height: 220%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  transform: rotate(18deg);
+  animation: vip-badge-shine 3.2s ease-in-out infinite;
+}
+@keyframes vip-badge-shine {
+  0% { left: -60%; }
+  55% { left: 140%; }
+  100% { left: 140%; }
 }
 .username {
   font-size: 13px;

@@ -209,12 +209,30 @@ function viewProfile() {
   gap: 8px;
 }
 .su-vip {
+  position: relative;
+  overflow: hidden;
   font-size: 10px;
   font-weight: 800;
   padding: 2px 7px;
   border-radius: 7px;
   color: #1a1400;
   background: linear-gradient(135deg, #ffd75e, #ff9d2f);
+}
+.su-vip::after {
+  content: '';
+  position: absolute;
+  top: -60%;
+  left: -60%;
+  width: 40%;
+  height: 220%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  transform: rotate(18deg);
+  animation: su-vip-shine 3.2s ease-in-out infinite;
+}
+@keyframes su-vip-shine {
+  0% { left: -60%; }
+  55% { left: 140%; }
+  100% { left: 140%; }
 }
 .su-counts {
   margin-top: 3px;

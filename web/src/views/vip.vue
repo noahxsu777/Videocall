@@ -129,8 +129,14 @@ async function buy() {
   padding: 14px 20px 6px;
 }
 .crown {
+  display: inline-block;
   font-size: 56px;
   filter: drop-shadow(0 6px 18px rgba(255, 180, 40, 0.5));
+  animation: crown-float 3.4s ease-in-out infinite;
+}
+@keyframes crown-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-7px) rotate(-4deg); }
 }
 .hero h1 {
   margin: 8px 0 4px;
@@ -189,6 +195,7 @@ async function buy() {
 .plan-tag {
   position: absolute;
   top: -9px;
+  overflow: hidden;
   font-size: 9px;
   font-weight: 800;
   padding: 2px 7px;
@@ -196,6 +203,22 @@ async function buy() {
   color: #1a1400;
   background: linear-gradient(135deg, #ffd75e, #ff9d2f);
   white-space: nowrap;
+}
+.plan-tag::after {
+  content: '';
+  position: absolute;
+  top: -60%;
+  left: -60%;
+  width: 45%;
+  height: 220%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  transform: rotate(18deg);
+  animation: plan-tag-shine 3s ease-in-out infinite;
+}
+@keyframes plan-tag-shine {
+  0% { left: -60%; }
+  55% { left: 140%; }
+  100% { left: 140%; }
 }
 .plan-name { font-size: 13px; color: #c9bfa0; }
 .plan-price { font-size: 19px; font-weight: 800; }
@@ -206,6 +229,8 @@ async function buy() {
 .msg.err { color: #ff6f8b; }
 
 .buy {
+  position: relative;
+  overflow: hidden;
   display: block;
   width: calc(100% - 32px);
   margin: 16px 16px 0;
@@ -222,7 +247,24 @@ async function buy() {
   justify-content: center;
   box-shadow: 0 10px 26px rgba(255, 157, 47, 0.4);
 }
+.buy::after {
+  content: '';
+  position: absolute;
+  top: -80%;
+  left: -50%;
+  width: 35%;
+  height: 260%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: rotate(18deg);
+  animation: buy-shine 3.6s ease-in-out infinite;
+}
+@keyframes buy-shine {
+  0% { left: -50%; }
+  55% { left: 140%; }
+  100% { left: 140%; }
+}
 .buy:disabled { opacity: 0.7; }
+.buy:disabled::after { animation-play-state: paused; }
 .spinner {
   width: 20px;
   height: 20px;

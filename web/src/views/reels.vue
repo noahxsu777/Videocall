@@ -23,7 +23,12 @@
         <!-- Vertical action rail (like / comment), TikTok style -->
         <div class="rail">
           <button class="rail-btn" @click="toggleLike(item)">
-            <svg viewBox="0 0 24 24" width="30" height="30" :fill="liked.has(item.id) ? '#fe2c55' : 'rgba(255,255,255,0.95)'"><path d="M12 21s-7.5-4.7-10-9.3C.6 8.9 2.3 5.6 5.3 5.1c1.8-.3 3.6.5 4.7 2 .5.7 1.5.7 2 0 1.1-1.5 2.9-2.3 4.7-2 3 .5 4.7 3.8 3.3 6.6C19.5 16.3 12 21 12 21Z"/></svg>
+            <svg
+              class="heart-icon"
+              :class="{ 'heart-pop': popped.has(item.id) }"
+              viewBox="0 0 24 24" width="30" height="30"
+              :fill="liked.has(item.id) ? '#fe2c55' : 'rgba(255,255,255,0.95)'"
+            ><path d="M12 21s-7.5-4.7-10-9.3C.6 8.9 2.3 5.6 5.3 5.1c1.8-.3 3.6.5 4.7 2 .5.7 1.5.7 2 0 1.1-1.5 2.9-2.3 4.7-2 3 .5 4.7 3.8 3.3 6.6C19.5 16.3 12 21 12 21Z"/></svg>
             <span class="rail-count">{{ stats[item.id]?.likes || 0 }}</span>
           </button>
           <button class="rail-btn" @click="openComments(item)">
@@ -114,6 +119,7 @@ const sheetTarget = ref<SheetTarget | null>(null);
 
 const stats = ref<Record<string, { likes: number; comments: number }>>({});
 const liked = ref<Set<string>>(new Set());
+const popped = ref<Set<string>>(new Set());
 
 const commentsFor = ref<FeedPhoto | null>(null);
 const comments = ref<PhotoComment[]>([]);
@@ -163,6 +169,12 @@ async function toggleLike(item: FeedPhoto) {
       liked.value.add(item.id);
       entry.likes += 1;
       liked.value = new Set(liked.value);
+      popped.value.add(item.id);
+      popped.value = new Set(popped.value);
+      window.setTimeout(() => {
+        popped.value.delete(item.id);
+        popped.value = new Set(popped.value);
+      }, 450);
       await likePhoto(user.value.id, item.id);
     }
   } catch (error: any) {
@@ -351,6 +363,18 @@ onMounted(load);
 .rail-count {
   font-size: 12.5px;
   font-weight: 700;
+}
+.heart-icon {
+  transform-origin: center;
+}
+.heart-pop {
+  animation: heart-pop-anim 0.45s ease-out;
+}
+@keyframes heart-pop-anim {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.5); }
+  55% { transform: scale(0.9); }
+  100% { transform: scale(1); }
 }
 
 /* Author + caption */

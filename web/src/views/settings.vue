@@ -382,6 +382,8 @@ textarea.row-field {
 
 /* Colored rounded icon tiles (iOS Settings look) */
 .ic {
+  position: relative;
+  overflow: hidden;
   flex-shrink: 0;
   width: 28px;
   height: 28px;
@@ -394,6 +396,22 @@ textarea.row-field {
 .ic-lock { background: #34c759; }
 .ic-moon { background: #5e5ce6; }
 .ic-vip { background: linear-gradient(135deg, #ffd75e, #ff9d2f); }
+.ic-vip::after {
+  content: '';
+  position: absolute;
+  top: -60%;
+  left: -60%;
+  width: 45%;
+  height: 220%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  transform: rotate(18deg);
+  animation: ic-vip-shine 3.2s ease-in-out infinite;
+}
+@keyframes ic-vip-shine {
+  0% { left: -60%; }
+  55% { left: 140%; }
+  100% { left: 140%; }
+}
 .vip-val { color: #ffcf5e; }
 
 .chev {
