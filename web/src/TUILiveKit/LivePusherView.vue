@@ -549,7 +549,10 @@ const isCameraOff = ref(false);
 // asked for a size the sensor doesn't natively have may satisfy it by
 // CROPPING the frame — which is exactly the "demasiado cerca" zoom.
 const PREVIEW_SIZE_CANDIDATES: MediaTrackConstraints[] = [
-  { width: { ideal: 1080 }, height: { ideal: 1920 } },
+  // aspectRatio 9/16 is the key: many Android front cameras honor it
+  // and return a genuinely PORTRAIT stream (no 16:9 to crop/letterbox).
+  { width: { ideal: 1080 }, height: { ideal: 1920 }, aspectRatio: { ideal: 9 / 16 } },
+  { width: { ideal: 720 }, height: { ideal: 1280 }, aspectRatio: { ideal: 9 / 16 } },
   { width: { ideal: 720 }, height: { ideal: 1280 } },
   {},
 ];
@@ -576,11 +579,11 @@ const acquirePreviewStream = async (): Promise<MediaStream> => {
 // (portrait) frame can cover-fill the screen with a negligible crop;
 // anything squarer/landscape gets contain so it can never zoom in.
 const applyPreviewFit = (videoEl: HTMLVideoElement) => {
-  const settings = previewStream?.getVideoTracks()[0]?.getSettings();
-  const width = settings?.width || videoEl.videoWidth;
-  const height = settings?.height || videoEl.videoHeight;
-  const isTall = !!width && !!height && height / width >= 1.5;
-  videoEl.style.objectFit = isTall ? 'cover' : 'contain';
+  // Full-bleed, no black bars (the Instagram/TikTok look). If the
+  // camera honored the portrait request the crop is negligible; if it
+  // only gave landscape, cover shows the centered vertical slice —
+  // still better received than letterbox bars.
+  videoEl.style.objectFit = 'cover';
   // Mirror only the selfie camera.
   videoEl.style.transform = isFrontCameraActive.value ? 'scaleX(-1)' : 'none';
 };
@@ -597,7 +600,9 @@ const applyLocalRenderFit = async () => {
     const trtcCloud = (roomEngine.instance as any)?.getTRTCCloud?.();
     await trtcCloud?.setLocalRenderParams({
       rotation: TRTCVideoRotation.TRTCVideoRotation0,
-      fillMode: TRTCVideoFillMode.TRTCVideoFillMode_Fit,
+      // Fill = full-bleed cover, consistent with the preview. Fit
+      // (contain) produced black bars, which the user rejected.
+      fillMode: TRTCVideoFillMode.TRTCVideoFillMode_Fill,
       mirrorType: isFrontCameraActive.value
         ? TRTCVideoMirrorType.TRTCVideoMirrorType_Enable
         : TRTCVideoMirrorType.TRTCVideoMirrorType_Disable,
