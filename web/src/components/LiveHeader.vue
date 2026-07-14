@@ -137,8 +137,8 @@ watch(
   user-select: none;
 
   @media (max-width: 768px) {
-    padding: 8px 12px;
-    box-sizing: border-box;
+    padding: 8px 12px !important;
+    box-sizing: border-box !important;
   }
 
   .header-left {

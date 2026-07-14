@@ -788,120 +788,195 @@ onUnmounted(() => {
 // camera, so the user still needs it), and a bottom control bar with a
 // large "Start live" button. The viewers list and side chat panel are
 // hidden to keep the broadcast screen clean, just like Bigo.
+// NOTE: every override below carries !important. Without it, several
+// rules here silently lost to the desktop rules of equal selector
+// specificity after this component's SCSS went through the production
+// build (Vite/PostCSS chunked several components' scoped styles
+// together and the cascade order that came out was not the source
+// order) — verified by rendering the actual compiled CSS in a headless
+// browser and inspecting computed styles. !important sidesteps that
+// build-order dependency entirely.
 @media (max-width: 768px) {
   .live-pusher-main {
-    position: relative;
-    display: block;
-    height: 100%;
-    gap: 0;
-    overflow: hidden;
-    background-color: #000;
+    position: relative !important;
+    display: block !important;
+    height: 100% !important;
+    gap: 0 !important;
+    overflow: hidden !important;
+    background-color: #000 !important;
   }
 
   // Video preview = full-screen base layer.
   .main-center {
-    position: absolute;
-    inset: 0;
-    flex: none;
-    display: flex;
-    flex-direction: column;
+    position: absolute !important;
+    inset: 0 !important;
+    flex: none !important;
+    display: flex !important;
+    flex-direction: column !important;
 
     .main-center-center {
-      position: absolute;
-      inset: 0;
-      z-index: 1;
-      min-height: 0;
+      position: absolute !important;
+      inset: 0 !important;
+      z-index: 1 !important;
+      min-height: 0 !important;
     }
 
-    // Title + viewer count → translucent overlay pinned to the top.
+    // Title + viewer count → translucent overlay pinned to the top,
+    // shifted right so it doesn't collide with the back arrow (now
+    // floating top-left, see .main-left below).
     .main-center-top {
-      position: relative;
-      z-index: 3;
-      height: 52px;
-      background: linear-gradient(180deg, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0));
+      position: relative !important;
+      z-index: 3 !important;
+      height: 52px !important;
+      padding-left: 56px !important;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0)) !important;
       &::after {
-        display: none;
+        display: none !important;
       }
     }
 
     // Controls + Start live → translucent overlay pinned to the bottom.
     .main-center-bottom {
-      position: relative;
-      z-index: 3;
-      margin-top: auto;
-      background: linear-gradient(0deg, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0));
+      position: relative !important;
+      z-index: 3 !important;
+      margin-top: auto !important;
+      background: linear-gradient(0deg, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0)) !important;
       &::before {
-        display: none;
+        display: none !important;
       }
 
       .main-center-bottom-content {
-        height: auto;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 12px;
-        padding: 12px 0 20px;
+        height: auto !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 12px !important;
+        padding: 12px 0 20px !important;
 
         .main-center-bottom-left {
-          width: 100%;
-          justify-content: center;
-          flex-wrap: wrap;
-          gap: 12px;
+          width: 100% !important;
+          justify-content: center !important;
+          flex-wrap: wrap !important;
+          gap: 12px !important;
         }
 
         .main-center-bottom-right {
-          width: 100%;
+          width: 100% !important;
 
           :deep(button) {
-            width: 70%;
-            max-width: 320px;
-            height: 48px;
-            margin: 0 auto;
-            border-radius: 24px;
-            font-size: 16px;
+            width: 70% !important;
+            max-width: 320px !important;
+            height: 48px !important;
+            margin: 0 auto !important;
+            border-radius: 24px !important;
+            font-size: 16px !important;
           }
         }
       }
     }
   }
 
-  // Source / "Add Camera" panel → floating translucent card over the video.
+  // Source / "Add Camera" controls → no card, just small floating
+  // circular icon buttons over the video (Tango/Bigo style), with the
+  // back arrow pinned to the top-left corner on its own.
   .main-left {
-    position: absolute;
-    top: 64px;
-    left: 12px;
-    right: 12px;
-    z-index: 2;
-    width: auto;
-    max-width: none;
-    min-width: 0;
-    height: auto;
-    gap: 0;
-    pointer-events: none;
+    position: absolute !important;
+    top: 12px !important;
+    right: 12px !important;
+    left: auto !important;
+    z-index: 2 !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: auto !important;
+    gap: 0 !important;
+    pointer-events: none !important;
 
     .main-left-top {
-      flex: none;
-      pointer-events: auto;
-      background: rgba(20, 22, 30, 0.72);
-      backdrop-filter: blur(6px);
-      border-radius: 12px;
+      flex: none !important;
+      pointer-events: none !important;
+      background: transparent !important;
+      padding: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: flex-end !important;
+      gap: 10px !important;
+
+      .main-left-top-title {
+        // Fixed relative to the viewport (not .main-left, which is
+        // anchored top-right) so the back arrow can sit at the opposite
+        // corner. Offset top by the LiveHeader's height (~52px) plus a
+        // little breathing room, otherwise it renders underneath it.
+        position: fixed !important;
+        top: 64px !important;
+        left: 8px !important;
+        height: auto !important;
+        margin-bottom: 0 !important;
+        pointer-events: auto !important;
+
+        // Hide the "Video Source" label text but keep the back-arrow
+        // icon at its normal size (it's an SVG sized via width/height,
+        // not affected by font-size).
+        .title-text {
+          font-size: 0 !important;
+        }
+
+        .icon-back {
+          display: inline-flex !important;
+          padding: 8px !important;
+          background: rgba(0, 0, 0, 0.4) !important;
+          border-radius: 50% !important;
+        }
+      }
 
       // The long "We support you to add rich sources" blurb is desktop
-      // filler — hide it on mobile so the card stays compact.
+      // filler — hide it, keep only the icon buttons themselves.
       :deep(.live-scene-placeholder-content) {
-        display: none;
+        display: none !important;
+      }
+
+      :deep(.add-material-list) {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        pointer-events: auto !important;
+      }
+
+      :deep(.add-material-item) {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 40px !important;
+        height: 40px !important;
+        border-radius: 50% !important;
+        background: rgba(0, 0, 0, 0.4) !important;
+
+        // Icon-only: hide the text label under each icon.
+        span {
+          display: none !important;
+        }
+      }
+
+      // Once a camera/source is added, this panel collapses on its own
+      // into Tencent's compact "add more" button — keep it small too.
+      :deep(.live-scene-button) {
+        width: 40px !important;
+        height: 40px !important;
+        border-radius: 50% !important;
+        background: rgba(0, 0, 0, 0.4) !important;
+        pointer-events: auto !important;
       }
     }
 
     // "Live tool" (CoGuest / CoHost) fold is not needed for a basic
     // solo broadcast — hide it on mobile.
     .main-left-bottom {
-      display: none;
+      display: none !important;
     }
   }
 
   // Viewers list + side barrage/chat panel → hidden for a clean screen.
   .main-right {
-    display: none;
+    display: none !important;
   }
 }
 </style>
