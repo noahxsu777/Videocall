@@ -548,12 +548,16 @@ const isCameraOff = ref(false);
 // vertical-video mode on most phones (full field of view); browsers
 // asked for a size the sensor doesn't natively have may satisfy it by
 // CROPPING the frame — which is exactly the "demasiado cerca" zoom.
+// NO aspectRatio constraint on purpose. Asking for a 9/16 aspect made
+// the browser fabricate a portrait frame by CENTER-CROPPING the
+// landscape sensor — that crop was the extreme zoom-in. Instead we ask
+// for the sensor's full field of view (resizeMode 'none' = don't
+// crop/scale to satisfy other constraints) and let object-fit: cover
+// on the <video> fill the 9:16 screen, cropping only the sides. That
+// shows the whole vertical framing zoomed out, no bars.
 const PREVIEW_SIZE_CANDIDATES: MediaTrackConstraints[] = [
-  // aspectRatio 9/16 is the key: many Android front cameras honor it
-  // and return a genuinely PORTRAIT stream (no 16:9 to crop/letterbox).
-  { width: { ideal: 1080 }, height: { ideal: 1920 }, aspectRatio: { ideal: 9 / 16 } },
-  { width: { ideal: 720 }, height: { ideal: 1280 }, aspectRatio: { ideal: 9 / 16 } },
-  { width: { ideal: 720 }, height: { ideal: 1280 } },
+  { resizeMode: 'none' } as MediaTrackConstraints,
+  { width: { ideal: 1280 }, height: { ideal: 720 } },
   {},
 ];
 
