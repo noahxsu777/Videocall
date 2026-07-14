@@ -1,7 +1,9 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import { useLoginState } from 'tuikit-atomicx-vue3';
-import Login from '@/views/login.vue';
+import Auth from '@/views/auth.vue';
 import { isH5 } from '@/TUILiveKit/utils/environment';
+import { authReady, currentSession, tencentUserIdFor, displayNameFor } from '@/auth/useAuth';
+import { SDKAPPID, genTestUserSig } from '@/config/basic-info-config';
 
 const routes = [
   {
@@ -10,7 +12,7 @@ const routes = [
   },
   {
     path: '/login',
-    component: Login,
+    component: Auth,
   },
   {
     path: '/live-list',
@@ -64,6 +66,10 @@ function getActiveStylePreset(routeQuery: Record<string, any>): StylePreset {
 
 let restoreLoginPromise: Promise<void> | null = null;
 
+// Log into the Tencent live/chat SDK using the authenticated Supabase
+// user (its id becomes the Tencent userID, its display name the
+// userName). userSig is still generated client-side from the SDK secret
+// key for now (dev/demo) — see basic-info-config.js.
 async function restoreLoginIfNeeded(): Promise<void> {
   const { loginUserInfo, login } = useLoginState();
   if (loginUserInfo.value?.userId) {
@@ -72,26 +78,23 @@ async function restoreLoginIfNeeded(): Promise<void> {
   if (restoreLoginPromise) {
     return restoreLoginPromise;
   }
-  const stored = sessionStorage.getItem('tuiLive-userInfo');
-  if (!stored) {
+  const supaSession = currentSession();
+  if (!supaSession?.user) {
     return;
   }
   restoreLoginPromise = (async () => {
     try {
-      const liveUserInfo = JSON.parse(stored);
-      if (!liveUserInfo?.userID || !liveUserInfo?.userSig || !liveUserInfo?.SDKAppID) {
-        sessionStorage.removeItem('tuiLive-userInfo');
-        return;
-      }
+      const userId = tencentUserIdFor(supaSession.user);
+      const userSig = genTestUserSig(userId) as string;
       await login({
-        userId: liveUserInfo.userID,
-        userSig: liveUserInfo.userSig,
-        sdkAppId: liveUserInfo.SDKAppID,
+        userId,
+        userSig,
+        sdkAppId: SDKAPPID,
+        userName: displayNameFor(supaSession.user),
         testEnv: localStorage.getItem('tuikit-live-env') === 'TestEnv',
       });
     } catch (error) {
-      console.error('[router] Failed to restore login state:', error);
-      sessionStorage.removeItem('tuiLive-userInfo');
+      console.error('[router] Failed to log into Tencent SDK:', error);
     } finally {
       restoreLoginPromise = null;
     }
@@ -100,19 +103,28 @@ async function restoreLoginIfNeeded(): Promise<void> {
 }
 
 router.beforeEach(async (to, _from, next) => {
+  // Gate every route on a real Supabase session.
+  await authReady();
+  const supaSession = currentSession();
+
   if (to.path === '/login') {
-    next();
+    // Already logged in? Skip the auth screen.
+    if (supaSession) {
+      next({ path: (to.query.from as string) || '/live-list' });
+    } else {
+      next();
+    }
     return;
   }
-  const userInfo = sessionStorage.getItem('tuiLive-userInfo');
-  if (!userInfo) {
-    next({ path: '/login', query: { ...to.query, from: to.path } });
+
+  if (!supaSession) {
+    next({ path: '/login', query: { from: to.path } });
     return;
   }
 
   await restoreLoginIfNeeded();
   if (!useLoginState().loginUserInfo.value?.userId) {
-    next({ path: '/login', query: { ...to.query, from: to.path } });
+    next({ path: '/login', query: { from: to.path } });
     return;
   }
 

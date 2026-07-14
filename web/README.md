@@ -24,6 +24,23 @@ Este proyecto es una copia adaptada del demo oficial de Tencent ([Tencent-RTC/TU
 
 > El `userSig` se genera directamente en el navegador con `SDKSECRETKEY` — es válido solo para pruebas/demo. Antes de producción real, mueve ese cálculo a tu backend (ver el comentario en `src/config/basic-info-config.js`) para no exponer tu clave secreta a quien inspeccione el código del navegador.
 
+## 1.b Configura Supabase (cuentas de usuario reales)
+
+La app usa **Supabase** para el registro/login real (email + contraseña, sesión persistente). El usuario autenticado en Supabase se usa como identidad para las transmisiones y llamadas de Tencent.
+
+1. Crea un proyecto gratis en [supabase.com](https://supabase.com).
+2. En **Project Settings → API**, copia el **Project URL** y la **anon public key**.
+3. Ponlas en variables de entorno (igual que Tencent):
+   - **Local** (`.env.local`):
+     ```
+     VITE_SUPABASE_URL=https://xxxx.supabase.co
+     VITE_SUPABASE_ANON_KEY=eyJhbGciOi...
+     ```
+   - **Vercel**: mismas dos variables en "Environment Variables".
+4. (Opcional) En **Authentication → Providers → Email**, puedes desactivar "Confirm email" mientras pruebas, para no tener que confirmar el correo antes de entrar.
+
+La `anon key` es pública y segura de exponer en el navegador; lo que protege tus datos es el Row Level Security de Supabase.
+
 ## 2. Instala dependencias
 
 ```bash

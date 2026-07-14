@@ -25,6 +25,10 @@ import { useRouter, useRoute } from 'vue-router';
 import { TUIButton, TUIMessageBox, TUIToast, TOAST_TYPE, useUIKit } from '@tencentcloud/uikit-base-component-vue3';
 import { useLoginState, useLiveListState, Avatar, UIKitModal } from 'tuikit-atomicx-vue3';
 import { errorHandler } from '../TUILiveKit/utils/errorHandler';
+import { useAuth, tencentUserIdFor, displayNameFor } from '../auth/useAuth';
+import { SDKAPPID, genTestUserSig } from '../config/basic-info-config';
+
+const { user: authUser, logout: authLogout } = useAuth();
 
 const props = defineProps({
   loginButtonVisible: {
@@ -47,12 +51,16 @@ function gotoPusher() {
 async function handleLogin() {
   try {
     loginLoading.value = true;
-    const storedData = sessionStorage.getItem('tuiLive-userInfo') || '{}';
-    const liveUserInfo = JSON.parse(storedData);
+    if (!authUser.value) {
+      router.push({ path: '/login', query: { from: router.currentRoute.value.path } });
+      return;
+    }
+    const userId = tencentUserIdFor(authUser.value);
     await login({
-      userId: liveUserInfo.userID,
-      userSig: liveUserInfo.userSig,
-      sdkAppId: liveUserInfo.SDKAppID,
+      userId,
+      userSig: genTestUserSig(userId) as string,
+      sdkAppId: SDKAPPID,
+      userName: displayNameFor(authUser.value),
       testEnv: localStorage.getItem('tuikit-live-env') === 'TestEnv',
     });
   } catch (error) {
@@ -70,10 +78,11 @@ async function handleLogin() {
   }
 };
 
-function proceedLogout() {
+async function proceedLogout() {
   logout();
   sessionStorage.removeItem('tuiLive-userInfo');
-  router.push({ path: '/login', query: { from: router.currentRoute.value.path, ...route.query } });
+  await authLogout();
+  router.push({ path: '/login' });
 };
 
 function handleLogout() {
