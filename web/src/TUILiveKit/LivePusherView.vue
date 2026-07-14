@@ -26,7 +26,7 @@
         </div>
         <!--
           On mobile the camera starts automatically (see
-          autoStartMobileCamera), so the manual source picker
+          startMobileCameraPreview / publishMobileCamera), so the manual source picker
           (Add Camera / Screen / Image) is desktop-only.
         -->
         <LiveScenePanel v-if="!isMobile" />
@@ -85,6 +85,18 @@
         -->
         <LiveCoreView v-if="isMobile" />
         <StreamMixer v-else />
+        <!--
+          Pre-live camera preview target (mobile only). startCameraTest
+          renders the local camera here before any room exists, so the
+          broadcaster sees themselves immediately on entering the
+          screen. Hidden (v-show keeps the element mounted for the SDK)
+          once live starts and the published feed takes over.
+        -->
+        <div
+          v-show="isMobile && !isInLive"
+          :id="MOBILE_PREVIEW_VIEW_ID"
+          class="mobile-camera-preview"
+        />
       </div>
       <div class="main-center-bottom">
         <div class="main-center-bottom-content">
@@ -195,7 +207,12 @@
 
 <script lang="ts" setup>
 import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue';
-import TUIRoomEngine, { TUISeatMode } from '@tencentcloud/tuiroom-engine-js';
+import TUIRoomEngine, {
+  TUISeatMode,
+  TUIVideoStreamType,
+  TUIResolutionMode,
+  TUIVideoQuality,
+} from '@tencentcloud/tuiroom-engine-js';
 import {
   IconArrowStrokeBack,
   TUIDialog,
@@ -278,7 +295,14 @@ const { loginUserInfo } = useLoginState();
 const { currentLive, startLive, endLive, joinLive, subscribeEvent: subscribeLiveListEvent, unsubscribeEvent: unsubscribeLiveListEvent, updateLiveInfo } = useLiveListState();
 const roomEngine = useRoomEngine();
 const { audienceCount } = useLiveAudienceState();
-const { openLocalMicrophone, openLocalCamera, switchCamera } = useDeviceState();
+const {
+  openLocalMicrophone,
+  openLocalCamera,
+  switchCamera,
+  startCameraTest,
+  stopCameraTest,
+  updateVideoQuality,
+} = useDeviceState();
 const { coHostStatus, exitHostConnection } = useCoHostState();
 const { currentBattleInfo } = useBattleState();
 const { connected: coGuestConnected } = useCoGuestState();
@@ -395,32 +419,83 @@ const handleCopyLiveID = async () => {
   }
 };
 
-// Auto-start the phone's camera on mobile so the broadcaster sees
-// themselves full-screen immediately, without having to tap anything
-// (matches Tango/Bigo — no manual source picker).
-//
-// IMPORTANT: this deliberately does NOT go through the video mixer.
+// Mobile camera handling. Two phases, both bypassing the video mixer —
 // TRTC's VideoMixer plugin hard-throws ENV_NOT_SUPPORTED on mobile
-// browsers ("VideoMixer is not supported on mobile devices currently"
-// — the exact on-device failure we kept hitting), so the desktop
-// StreamMixer pipeline can never work on a phone. Instead we publish
-// through the plain device path (openLocalCamera + LiveCoreView),
-// which is exactly how mobile co-hosts/co-guests already publish.
+// browsers, so the desktop StreamMixer pipeline can never work on a
+// phone. We use the plain device path instead (the same one mobile
+// co-hosts/co-guests publish through):
 //
-// Deduped as a shared promise so concurrent callers (mount attempt,
-// post-Start-live safety net) await the in-flight attempt instead of
-// double-starting.
-let autoStartCameraPromise: Promise<void> | null = null;
-let mobileCameraStarted = false;
-const autoStartMobileCamera = (options?: { silent?: boolean; force?: boolean }): Promise<void> => {
-  if (!isMobile || (mobileCameraStarted && !options?.force)) {
+//  1. Pre-live preview (mount): startCameraTest into our own overlay
+//     div — the device-test API works before joining any room, so the
+//     broadcaster sees themselves as soon as the screen opens.
+//  2. Publish (Start live, after joinLive): stop the test, then
+//     openLocalCamera() so the feed is actually published in-room.
+//
+// Both phases set portrait resolution mode first: the default capture
+// is landscape, and rendering a landscape frame cover-fit into a
+// vertical phone screen produces the massive crop/zoom the user saw.
+const MOBILE_PREVIEW_VIEW_ID = 'mobile-camera-preview';
+let cameraTestRunning = false;
+
+const applyMobilePortraitProfile = async () => {
+  try {
+    await roomEngine.instance?.setVideoResolutionMode({
+      streamType: TUIVideoStreamType.kCameraStream,
+      resolutionMode: TUIResolutionMode.kResolutionMode_Portrait,
+    });
+    await updateVideoQuality({ quality: TUIVideoQuality.kVideoQuality_720p });
+  } catch (error) {
+    console.warn('[LivePusherView] applying portrait video profile failed:', error);
+  }
+};
+
+const startMobileCameraPreview = async () => {
+  if (!isMobile || cameraTestRunning || isInLive.value) {
+    return;
+  }
+  cameraTestRunning = true;
+  try {
+    await applyMobilePortraitProfile();
+    await startCameraTest({ view: MOBILE_PREVIEW_VIEW_ID });
+    try {
+      await switchCamera({ isFrontCamera: true });
+    } catch (switchError) {
+      console.warn('[LivePusherView] switch to front camera failed:', switchError);
+    }
+  } catch (error) {
+    cameraTestRunning = false;
+    // Silent: this is only the preview; the decisive (toasting)
+    // attempt happens on Start live.
+    console.error('[LivePusherView] camera preview failed:', error);
+  }
+};
+
+const stopMobileCameraPreview = async () => {
+  if (!cameraTestRunning) {
+    return;
+  }
+  cameraTestRunning = false;
+  try {
+    await stopCameraTest();
+  } catch (error) {
+    console.warn('[LivePusherView] stopping camera preview failed:', error);
+  }
+};
+
+// Deduped as a shared promise so concurrent callers await the
+// in-flight attempt instead of double-starting.
+let publishCameraPromise: Promise<void> | null = null;
+const publishMobileCamera = (): Promise<void> => {
+  if (!isMobile) {
     return Promise.resolve();
   }
-  if (autoStartCameraPromise) {
-    return autoStartCameraPromise;
+  if (publishCameraPromise) {
+    return publishCameraPromise;
   }
-  autoStartCameraPromise = (async () => {
+  publishCameraPromise = (async () => {
     try {
+      await stopMobileCameraPreview();
+      await applyMobilePortraitProfile();
       // The engine finishes its own async init after engine-ready;
       // retry with backoff instead of giving up on the first race.
       let lastError: unknown;
@@ -430,7 +505,6 @@ const autoStartMobileCamera = (options?: { silent?: boolean; force?: boolean }):
         }
         try {
           await openLocalCamera();
-          mobileCameraStarted = true;
           // Selfie framing by default; not fatal if unavailable.
           try {
             await switchCamera({ isFrontCamera: true });
@@ -440,26 +514,24 @@ const autoStartMobileCamera = (options?: { silent?: boolean; force?: boolean }):
           return;
         } catch (error) {
           lastError = error;
-          console.error('[LivePusherView] auto-start camera attempt failed, retrying:', error);
+          console.error('[LivePusherView] camera publish attempt failed, retrying:', error);
         }
       }
       throw lastError;
     } catch (error) {
-      console.error('[LivePusherView] Failed to auto-start camera:', error);
-      if (!options?.silent) {
-        // Include the underlying reason so on-device failures are
-        // diagnosable from the toast alone (the console isn't
-        // reachable on a phone).
-        const reason = (error as Error)?.message || String(error);
-        TUIToast.error({
-          message: `${t('Please check the current browser camera permission')} (${reason})`,
-        });
-      }
+      console.error('[LivePusherView] Failed to publish camera:', error);
+      // Include the underlying reason so on-device failures are
+      // diagnosable from the toast alone (the console isn't reachable
+      // on a phone).
+      const reason = (error as Error)?.message || String(error);
+      TUIToast.error({
+        message: `${t('Please check the current browser camera permission')} (${reason})`,
+      });
     } finally {
-      autoStartCameraPromise = null;
+      publishCameraPromise = null;
     }
   })();
-  return autoStartCameraPromise;
+  return publishCameraPromise;
 };
 
 const handleStartLive = async () => {
@@ -500,7 +572,7 @@ const handleStartLive = async () => {
     // Re-open the camera now that we're inside the room so the local
     // feed is actually published to viewers (the pre-live preview
     // started before joining doesn't guarantee in-room publishing).
-    autoStartMobileCamera({ force: true });
+    publishMobileCamera();
   } catch (error: any) {
     loading.value = false;
     if (typeof error.message === 'string'
@@ -509,7 +581,7 @@ const handleStartLive = async () => {
         liveId: liveParams.value.liveId,
       });
       await openLocalMicrophone();
-      autoStartMobileCamera({ force: true });
+      publishMobileCamera();
       return;
     }
     const errorInfo = errorHandler.parseError(error);
@@ -612,13 +684,13 @@ onMounted(async () => {
   // handleStartLive.
   await nextTick();
   TUIRoomEngine.once('ready', () => {
-    autoStartMobileCamera({ silent: true });
+    startMobileCameraPreview();
   });
   // Defensive fallback in case the 'ready' event above never fires for
-  // this listener (e.g. some edge case in event timing) — autoStartMobileCamera
-  // is a no-op once the camera has started, so this is safe to also run.
+  // this listener (e.g. some edge case in event timing) — the preview
+  // starter is a no-op once running, so this is safe to also run.
   autoStartCameraFallbackTimer = window.setTimeout(() => {
-    autoStartMobileCamera({ silent: true });
+    startMobileCameraPreview();
   }, 2000);
 });
 
@@ -626,6 +698,7 @@ onUnmounted(() => {
   if (autoStartCameraFallbackTimer !== null) {
     window.clearTimeout(autoStartCameraFallbackTimer);
   }
+  stopMobileCameraPreview();
   unsubscribeLiveListEvent(LiveListEvent.onLiveEnded, handleLiveEnded);
   unsubscribeBarrageEvent(BarrageEvent.onCustomMessageReceived, handleCustomMessageReceived);
   updateLiveInfo({ layoutTemplate: 0 });
@@ -914,7 +987,7 @@ onUnmounted(() => {
 // video preview into a full-screen background and overlay only the
 // essentials on top of it: a translucent top bar (title + viewer count)
 // and a bottom control bar with a large "Start live" button. The camera
-// auto-starts (see autoStartMobileCamera) so the manual source picker is
+// auto-starts (see startMobileCameraPreview / publishMobileCamera) so the manual source picker is
 // desktop-only, and the viewers list and side chat panel are hidden to
 // keep the broadcast screen clean, just like Bigo.
 //
@@ -966,6 +1039,22 @@ onUnmounted(() => {
       :deep(.live-core-view-container) {
         width: 100% !important;
         height: 100% !important;
+      }
+
+      // Pre-live camera preview overlay (startCameraTest target) —
+      // sits above LiveCoreView's "No video" placeholder until the
+      // published feed takes over on Start live.
+      .mobile-camera-preview {
+        position: absolute !important;
+        inset: 0 !important;
+        z-index: 2 !important;
+        background: #000;
+
+        :deep(video) {
+          width: 100% !important;
+          height: 100% !important;
+          object-fit: cover !important;
+        }
       }
     }
 
