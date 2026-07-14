@@ -5,7 +5,7 @@
     missed phones held in landscape, which fell back to the desktop
     3-column studio layout.
   -->
-  <div id="live-pusher-view" class="live-pusher-main" :class="{ 'is-mobile': isMobile }">
+  <div id="live-pusher-view" class="live-pusher-main" :class="{ 'is-mobile': isMobile, 'is-battle': isMobile && isBattle }">
     <!--
       Defer mounting the entire pusher subtree until the WebRTC
       capability probe has passed. Without this gate, an unsupported
@@ -119,6 +119,15 @@
           <IconCameraOn v-if="!isCameraOff" size="22" />
           <IconCameraOff v-else size="22" />
         </div>
+      </div>
+      <!--
+        Mobile-only viewer messages. In battle/co-host mode the camera
+        tiles are lifted to the top (see .is-battle CSS) and these
+        messages fill the space beneath them; in solo mode they float
+        TikTok-style over the lower part of the video.
+      -->
+      <div v-if="isMobile && isInLive" class="mobile-barrage">
+        <BarrageList />
       </div>
       <div class="main-center-bottom">
         <div class="main-center-bottom-content">
@@ -332,6 +341,9 @@ const { connected: coGuestConnected } = useCoGuestState();
 const { subscribeEvent: subscribeBarrageEvent, unsubscribeEvent: unsubscribeBarrageEvent} = useBarrageState();
 
 const isInLive = computed(() => !!currentLive.value?.liveId);
+// Battle / co-host connected: on mobile we lift the two camera tiles up
+// and open a viewer-message area beneath them (see .is-battle CSS).
+const isBattle = computed(() => coHostStatus.value === CoHostStatus.Connected);
 // Back to the pre-live state (live ended) → bring the preview back.
 watch(isInLive, (inLive) => {
   if (!inLive && !isCameraOff.value) {
@@ -1499,6 +1511,70 @@ onUnmounted(() => {
   // Viewers list + side barrage/chat panel → hidden for a clean screen.
   .main-right {
     display: none !important;
+  }
+
+  // Viewer messages overlay. Sits above the bottom controls, messages
+  // anchored to the bottom of the band and scrolling up. Non-interactive
+  // so taps pass through to the video underneath.
+  .mobile-barrage {
+    position: absolute !important;
+    left: 8px !important;
+    right: 8px !important;
+    bottom: 150px !important;
+    height: 34vh !important;
+    z-index: 3 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-end !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+    -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 22%) !important;
+    mask-image: linear-gradient(180deg, transparent 0, #000 22%) !important;
+
+    // Let the embedded list breathe and stay transparent so it reads as
+    // floating chat rather than the desktop side card.
+    :deep(*) {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      color: #fff !important;
+      max-width: 100% !important;
+    }
+    :deep(.barrage-list),
+    :deep([class*='barrage']),
+    :deep([class*='message-list']) {
+      height: 100% !important;
+      overflow: hidden !important;
+    }
+    // Each message pill: subtle dark bubble like TikTok/Bigo.
+    :deep([class*='item']) {
+      background: rgba(0, 0, 0, 0.32) !important;
+      border-radius: 14px !important;
+      padding: 5px 10px !important;
+      margin: 4px 0 !important;
+      width: fit-content !important;
+      max-width: 88% !important;
+      font-size: 13px !important;
+      line-height: 1.35 !important;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6) !important;
+    }
+  }
+
+  // Battle / co-host: lift both camera tiles into the top half so the
+  // viewer messages below them are visible (instead of dead space).
+  &.is-battle {
+    .main-center-center {
+      inset: 44px 0 auto 0 !important;
+      height: 50% !important;
+    }
+    // Give the messages more room: start them right under the tiles.
+    .mobile-barrage {
+      bottom: 150px !important;
+      height: calc(100% - 50% - 44px - 156px) !important;
+      min-height: 120px !important;
+      -webkit-mask-image: none !important;
+      mask-image: none !important;
+    }
   }
 }
 </style>

@@ -22,6 +22,7 @@
 <script lang="ts" setup>
 import { onMounted, ref, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import TUIRoomEngine from '@tencentcloud/tuiroom-engine-js';
 import { TUIButton, TUIMessageBox, TUIToast, TOAST_TYPE, useUIKit } from '@tencentcloud/uikit-base-component-vue3';
 import { useLoginState, useLiveListState, Avatar, UIKitModal } from 'tuikit-atomicx-vue3';
 import { errorHandler } from '../TUILiveKit/utils/errorHandler';
@@ -56,13 +57,20 @@ async function handleLogin() {
       return;
     }
     const userId = tencentUserIdFor(authUser.value);
+    const userName = displayNameFor(authUser.value);
     await login({
       userId,
       userSig: genTestUserSig(userId) as string,
       sdkAppId: SDKAPPID,
-      userName: displayNameFor(authUser.value),
+      userName,
       testEnv: localStorage.getItem('tuikit-live-env') === 'TestEnv',
     });
+    try {
+      const avatarUrl = (authUser.value.user_metadata?.avatar_url as string) || '';
+      await TUIRoomEngine.setSelfInfo({ userName, avatarUrl });
+    } catch (error) {
+      console.warn('[LiveHeader] setSelfInfo failed:', error);
+    }
   } catch (error) {
     console.error(error);
     const errorInfo = errorHandler.parseError(error);

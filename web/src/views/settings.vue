@@ -10,11 +10,23 @@
     <section class="card">
       <h3 class="card-title">Editar perfil</h3>
 
-      <label class="lbl">Nombre para mostrar</label>
-      <input v-model.trim="displayNameField" class="inp" type="text" maxlength="30" placeholder="Tu nombre" />
-
       <label class="lbl">Usuario</label>
-      <input v-model.trim="username" class="inp" type="text" maxlength="24" placeholder="@usuario" />
+      <input
+        v-model.trim="username"
+        class="inp"
+        type="text"
+        maxlength="24"
+        placeholder="tunombre"
+        :disabled="!canChangeName"
+      />
+      <p class="hint" :class="{ locked: !canChangeName }">
+        <template v-if="canChangeName">
+          Este es el nombre que se ve en tus lives y perfil. Solo puedes cambiarlo cada 30 días.
+        </template>
+        <template v-else>
+          🔒 Podrás cambiar tu usuario en {{ daysLeft }} {{ daysLeft === 1 ? 'día' : 'días' }}.
+        </template>
+      </p>
 
       <label class="lbl">Bio</label>
       <textarea v-model.trim="bio" class="inp inp-area" maxlength="160" rows="3" placeholder="Cuéntanos sobre ti" />
@@ -75,21 +87,32 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import TUIRoomEngine from '@tencentcloud/tuiroom-engine-js';
 import { useAuth } from '../auth/useAuth';
-import { getProfile, ensureProfile, updateProfile } from '../data/profiles';
+import { supabase } from '../auth/supabase';
+import {
+  getProfile,
+  ensureProfile,
+  updateProfile,
+  updateDisplayName,
+  daysUntilNameChange,
+} from '../data/profiles';
 
 const router = useRouter();
 const { user, displayName, logout } = useAuth();
 
-const displayNameField = ref('');
 const username = ref('');
 const bio = ref('');
+const originalName = ref('');
+const nameUpdatedAt = ref<string | null>(null);
 const saving = ref(false);
 const saveMsg = ref('');
 const saveOk = ref(false);
 const infoMsg = ref('');
 
 const shortId = computed(() => (user.value?.id || '').slice(0, 8) || '—');
+const daysLeft = computed(() => daysUntilNameChange(nameUpdatedAt.value));
+const canChangeName = computed(() => daysLeft.value === 0);
 
 onMounted(async () => {
   if (!user.value) {
@@ -98,16 +121,15 @@ onMounted(async () => {
   try {
     await ensureProfile(user.value.id, displayName.value);
     const p = await getProfile(user.value.id);
-    if (p) {
-      displayNameField.value = p.display_name || displayName.value;
-      username.value = p.username || '';
-      bio.value = p.bio || '';
-    } else {
-      displayNameField.value = displayName.value;
-    }
+    const name = p?.display_name || p?.username || displayName.value;
+    username.value = name;
+    originalName.value = name;
+    bio.value = p?.bio || '';
+    nameUpdatedAt.value = p?.name_updated_at || null;
   } catch (error) {
     console.error('[settings] load failed:', error);
-    displayNameField.value = displayName.value;
+    username.value = displayName.value;
+    originalName.value = displayName.value;
   }
 });
 
@@ -116,20 +138,39 @@ async function save() {
     return;
   }
   saveMsg.value = '';
+  const newName = username.value.trim();
+  const nameChanged = newName && newName !== originalName.value;
+
+  if (nameChanged && !canChangeName.value) {
+    saveOk.value = false;
+    saveMsg.value = `Solo puedes cambiar tu usuario cada 30 días. Espera ${daysLeft.value} días.`;
+    return;
+  }
+
   saving.value = true;
   try {
-    await updateProfile(user.value.id, {
-      display_name: displayNameField.value || null,
-      username: username.value || null,
-      bio: bio.value || '',
-    });
+    // Bio can change any time.
+    await updateProfile(user.value.id, { bio: bio.value || '' });
+
+    if (nameChanged) {
+      await updateDisplayName(user.value.id, newName);
+      // Mirror to the auth metadata so future logins + the greeting use it.
+      await supabase?.auth.updateUser({ data: { display_name: newName } });
+      // Update the live/chat SDK immediately so open sessions reflect it.
+      try {
+        await TUIRoomEngine.setSelfInfo({ userName: newName, avatarUrl: '' });
+      } catch (error) {
+        console.warn('[settings] setSelfInfo failed:', error);
+      }
+      originalName.value = newName;
+      nameUpdatedAt.value = new Date().toISOString();
+    }
+
     saveOk.value = true;
     saveMsg.value = 'Guardado ✓';
   } catch (error: any) {
     saveOk.value = false;
-    saveMsg.value = error?.message?.includes('duplicate')
-      ? 'Ese usuario ya está en uso.'
-      : `No se pudo guardar: ${error?.message || 'error'}`;
+    saveMsg.value = `No se pudo guardar: ${error?.message || 'error'}`;
   } finally {
     saving.value = false;
   }
@@ -214,10 +255,24 @@ async function handleLogout() {
 .inp:focus {
   border-color: #b14dff;
 }
+.inp:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
 .inp-area {
   resize: none;
   font-family: inherit;
   line-height: 1.5;
+}
+
+.hint {
+  margin: 8px 2px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #8a8fb0;
+}
+.hint.locked {
+  color: #ffb454;
 }
 
 .save-msg {

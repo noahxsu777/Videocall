@@ -6,7 +6,21 @@ export interface Profile {
   display_name: string | null;
   bio: string | null;
   avatar_url: string | null;
+  name_updated_at?: string | null;
   created_at?: string;
+}
+
+/** The display name (a.k.a. username) can only be changed this often. */
+export const NAME_CHANGE_DAYS = 30;
+
+/** Days remaining before the name can be changed again (0 = allowed now). */
+export function daysUntilNameChange(nameUpdatedAt?: string | null): number {
+  if (!nameUpdatedAt) {
+    return 0;
+  }
+  const nextAllowed = new Date(nameUpdatedAt).getTime() + NAME_CHANGE_DAYS * 86400000;
+  const diff = nextAllowed - Date.now();
+  return diff <= 0 ? 0 : Math.ceil(diff / 86400000);
 }
 
 export interface Photo {
@@ -71,6 +85,25 @@ export async function updateProfile(
   if (error) {
     throw new Error(error.message);
   }
+}
+
+/**
+ * Change the user's shown name (the "username" that appears in lives and
+ * on the profile). Stamps name_updated_at so the 30-day limit can be
+ * enforced, and best-effort keeps the unique @handle in sync.
+ */
+export async function updateDisplayName(userId: string, name: string): Promise<void> {
+  const client = requireClient();
+  const { error } = await client
+    .from('profiles')
+    .update({ display_name: name, name_updated_at: new Date().toISOString() })
+    .eq('id', userId);
+  if (error) {
+    throw new Error(error.message);
+  }
+  // Keep the unique @handle aligned when possible; ignore clashes so a
+  // taken handle never blocks the visible name from updating.
+  await client.from('profiles').update({ username: name }).eq('id', userId);
 }
 
 export async function getFollowCounts(userId: string): Promise<{ followers: number; following: number }> {

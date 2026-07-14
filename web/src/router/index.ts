@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
+import TUIRoomEngine from '@tencentcloud/tuiroom-engine-js';
 import { useLoginState } from 'tuikit-atomicx-vue3';
 import Auth from '@/views/auth.vue';
 import { isH5 } from '@/TUILiveKit/utils/environment';
@@ -106,13 +107,23 @@ async function restoreLoginIfNeeded(): Promise<void> {
     try {
       const userId = tencentUserIdFor(supaSession.user);
       const userSig = genTestUserSig(userId) as string;
+      const userName = displayNameFor(supaSession.user);
       await login({
         userId,
         userSig,
         sdkAppId: SDKAPPID,
-        userName: displayNameFor(supaSession.user),
+        userName,
         testEnv: localStorage.getItem('tuikit-live-env') === 'TestEnv',
       });
+      // Persist the display name on the Tencent user profile so seat
+      // labels, PK titles, etc. show the real name instead of the raw
+      // userId. Best-effort — never block login on it.
+      try {
+        const avatarUrl = (supaSession.user.user_metadata?.avatar_url as string) || '';
+        await TUIRoomEngine.setSelfInfo({ userName, avatarUrl });
+      } catch (error) {
+        console.warn('[router] setSelfInfo failed:', error);
+      }
     } catch (error) {
       console.error('[router] Failed to log into Tencent SDK:', error);
     } finally {

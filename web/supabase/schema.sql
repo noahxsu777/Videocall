@@ -8,13 +8,18 @@
 -- ---------- profiles ----------
 -- One row per user (mirrors auth.users). Holds the public profile.
 create table if not exists public.profiles (
-  id           uuid primary key references auth.users(id) on delete cascade,
-  username     text unique,
-  display_name text,
-  bio          text default '',
-  avatar_url   text,
-  created_at   timestamptz not null default now()
+  id              uuid primary key references auth.users(id) on delete cascade,
+  username        text unique,
+  display_name    text,
+  bio             text default '',
+  avatar_url      text,
+  name_updated_at timestamptz,
+  created_at      timestamptz not null default now()
 );
+
+-- Safe for existing projects: add the column if the table already existed.
+alter table public.profiles
+  add column if not exists name_updated_at timestamptz;
 
 alter table public.profiles enable row level security;
 
