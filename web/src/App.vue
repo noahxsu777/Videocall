@@ -42,7 +42,7 @@ TUIRoomEngine.once('ready', () => {
 // Leave room for the fixed bottom nav so page content isn't hidden
 // behind it on the tabbed pages.
 .app-shell.has-bottom-nav {
-  padding-bottom: 58px;
+  padding-bottom: 84px;
   box-sizing: border-box;
 }
 </style>

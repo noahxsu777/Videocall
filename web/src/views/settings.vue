@@ -1,86 +1,112 @@
 <template>
   <div class="settings">
-    <header class="s-top">
-      <button class="s-back" @click="router.back()">‹</button>
-      <span class="s-title">Ajustes</span>
-      <span class="s-back" />
+    <header class="nav">
+      <button class="nav-back" @click="router.back()">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>
+        <span>Atrás</span>
+      </button>
+      <span class="nav-title">Ajustes</span>
+      <span class="nav-back nav-spacer" />
     </header>
 
-    <!-- Edit profile -->
-    <section class="card">
-      <h3 class="card-title">Editar perfil</h3>
-
-      <label class="lbl">Usuario</label>
-      <input
-        v-model.trim="username"
-        class="inp"
-        type="text"
-        maxlength="24"
-        placeholder="tunombre"
-        :disabled="!canChangeName"
-      />
-      <p class="hint" :class="{ locked: !canChangeName }">
+    <div class="content">
+      <!-- Editar perfil -->
+      <p class="group-header">Editar perfil</p>
+      <section class="group">
+        <div class="row row-input">
+          <span class="row-key">Usuario</span>
+          <input
+            v-model.trim="username"
+            class="row-field"
+            type="text"
+            maxlength="24"
+            placeholder="tunombre"
+            :disabled="!canChangeName"
+          />
+        </div>
+        <div class="row row-input row-textarea">
+          <span class="row-key">Bio</span>
+          <textarea v-model.trim="bio" class="row-field" maxlength="160" rows="2" placeholder="Cuéntanos sobre ti" />
+        </div>
+      </section>
+      <p class="group-footer" :class="{ locked: !canChangeName }">
         <template v-if="canChangeName">
-          Este es el nombre que se ve en tus lives y perfil. Solo puedes cambiarlo cada 30 días.
+          Tu usuario se ve en tus lives y perfil. Solo puedes cambiarlo cada 30 días.
         </template>
         <template v-else>
           🔒 Podrás cambiar tu usuario en {{ daysLeft }} {{ daysLeft === 1 ? 'día' : 'días' }}.
         </template>
       </p>
 
-      <label class="lbl">Bio</label>
-      <textarea v-model.trim="bio" class="inp inp-area" maxlength="160" rows="3" placeholder="Cuéntanos sobre ti" />
-
       <p v-if="saveMsg" class="save-msg" :class="saveOk ? 'ok' : 'err'">{{ saveMsg }}</p>
-
-      <button class="btn-primary" :disabled="saving" @click="save">
+      <button class="save-btn" :disabled="saving" @click="save">
         <span v-if="saving" class="spinner" />
         <span v-else>Guardar cambios</span>
       </button>
-    </section>
 
-    <!-- Account -->
-    <section class="card">
-      <h3 class="card-title">Cuenta</h3>
-      <div class="row">
-        <span class="row-label">Correo</span>
-        <span class="row-value">{{ user?.email || '—' }}</span>
-      </div>
-      <div class="row">
-        <span class="row-label">ID de usuario</span>
-        <span class="row-value mono">{{ shortId }}</span>
-      </div>
-    </section>
+      <!-- Cuenta -->
+      <p class="group-header">Cuenta</p>
+      <section class="group">
+        <div class="row">
+          <span class="row-key">Correo</span>
+          <span class="row-val">{{ user?.email || '—' }}</span>
+        </div>
+        <div class="row">
+          <span class="row-key">ID de usuario</span>
+          <span class="row-val mono">{{ shortId }}</span>
+        </div>
+      </section>
 
-    <!-- Preferences -->
-    <section class="card">
-      <h3 class="card-title">Preferencias</h3>
-      <button class="list-row" @click="notImplemented">
-        <span>🔔 Notificaciones</span><span class="chev">›</span>
-      </button>
-      <button class="list-row" @click="notImplemented">
-        <span>🔒 Privacidad</span><span class="chev">›</span>
-      </button>
-      <button class="list-row" @click="notImplemented">
-        <span>🌙 Tema oscuro</span><span class="chev">Activado</span>
-      </button>
-    </section>
+      <!-- Preferencias -->
+      <p class="group-header">Preferencias</p>
+      <section class="group">
+        <button class="row row-tap" @click="notImplemented">
+          <span class="ic ic-bell">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6-1.6-1.6V10a5.4 5.4 0 0 0-4-5.2V4a1.4 1.4 0 1 0-2.8 0v.8A5.4 5.4 0 0 0 6.6 10v4.4L5 16a1 1 0 0 0 .7 1.7h12.6A1 1 0 0 0 19 16Z"/></svg>
+          </span>
+          <span class="row-key">Notificaciones</span>
+          <span class="chev" v-html="CHEV" />
+        </button>
+        <button class="row row-tap" @click="notImplemented">
+          <span class="ic ic-lock">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M17 9V7a5 5 0 0 0-10 0v2a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2ZM9 7a3 3 0 0 1 6 0v2H9Z"/></svg>
+          </span>
+          <span class="row-key">Privacidad</span>
+          <span class="chev" v-html="CHEV" />
+        </button>
+        <div class="row">
+          <span class="ic ic-moon">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+          </span>
+          <span class="row-key">Tema oscuro</span>
+          <button class="switch" :class="{ on: darkTheme }" @click="darkTheme = !darkTheme">
+            <span class="knob" />
+          </button>
+        </div>
+      </section>
 
-    <!-- About -->
-    <section class="card">
-      <h3 class="card-title">Acerca de</h3>
-      <div class="row">
-        <span class="row-label">Versión</span>
-        <span class="row-value">1.0.0</span>
-      </div>
-      <button class="list-row" @click="notImplemented">
-        <span>📄 Términos y privacidad</span><span class="chev">›</span>
-      </button>
-    </section>
+      <!-- Acerca de -->
+      <p class="group-header">Acerca de</p>
+      <section class="group">
+        <div class="row">
+          <span class="row-key">Versión</span>
+          <span class="row-val">1.0.0</span>
+        </div>
+        <button class="row row-tap" @click="notImplemented">
+          <span class="row-key">Términos y privacidad</span>
+          <span class="chev" v-html="CHEV" />
+        </button>
+      </section>
 
-    <p v-if="infoMsg" class="info-msg">{{ infoMsg }}</p>
+      <p v-if="infoMsg" class="info-msg">{{ infoMsg }}</p>
 
-    <button class="btn-logout" @click="handleLogout">Cerrar sesión</button>
+      <!-- Cerrar sesión -->
+      <section class="group">
+        <button class="row row-tap row-danger" @click="handleLogout">
+          <span class="row-key">Cerrar sesión</span>
+        </button>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -101,6 +127,9 @@ import {
 const router = useRouter();
 const { user, displayName, logout } = useAuth();
 
+const CHEV =
+  '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
+
 const username = ref('');
 const bio = ref('');
 const originalName = ref('');
@@ -109,6 +138,7 @@ const saving = ref(false);
 const saveMsg = ref('');
 const saveOk = ref(false);
 const infoMsg = ref('');
+const darkTheme = ref(true);
 
 const shortId = computed(() => (user.value?.id || '').slice(0, 8) || '—');
 const daysLeft = computed(() => daysUntilNameChange(nameUpdatedAt.value));
@@ -149,14 +179,11 @@ async function save() {
 
   saving.value = true;
   try {
-    // Bio can change any time.
     await updateProfile(user.value.id, { bio: bio.value || '' });
 
     if (nameChanged) {
       await updateDisplayName(user.value.id, newName);
-      // Mirror to the auth metadata so future logins + the greeting use it.
       await supabase?.auth.updateUser({ data: { display_name: newName } });
-      // Update the live/chat SDK immediately so open sessions reflect it.
       try {
         await TUIRoomEngine.setSelfInfo({ userName: newName, avatarUrl: '' });
       } catch (error) {
@@ -189,125 +216,250 @@ async function handleLogout() {
 <style scoped>
 .settings {
   min-height: 100vh;
-  background: #050308;
+  background: #000;
   color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
   padding-bottom: 40px;
 }
-.s-top {
+
+/* iOS nav bar */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 52px;
+  height: 50px;
   padding: 0 8px;
-  position: sticky;
-  top: 0;
-  background: #050308;
-  z-index: 5;
+  background: rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.1);
 }
-.s-back {
-  min-width: 44px;
-  height: 44px;
+.nav-back {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  min-width: 78px;
   background: none;
   border: none;
-  color: #fff;
-  font-size: 26px;
+  color: #0a84ff;
+  font-size: 16px;
   cursor: pointer;
 }
-.s-title {
+.nav-spacer {
+  min-width: 78px;
+}
+.nav-title {
   font-size: 17px;
   font-weight: 700;
 }
 
-.card {
-  margin: 12px 14px;
-  padding: 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-}
-.card-title {
-  margin: 0 0 12px;
-  font-size: 14px;
-  font-weight: 700;
-  color: #c9bfe0;
+.content {
+  padding: 8px 16px;
 }
 
-.lbl {
-  display: block;
-  margin: 12px 0 6px;
-  font-size: 12.5px;
-  color: #9a8fbf;
-}
-.lbl:first-of-type {
-  margin-top: 0;
-}
-.inp {
-  width: 100%;
-  box-sizing: border-box;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
-  padding: 12px 14px;
-  font-size: 15px;
-  outline: none;
-}
-.inp:focus {
-  border-color: #b14dff;
-}
-.inp:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-.inp-area {
-  resize: none;
-  font-family: inherit;
-  line-height: 1.5;
-}
-
-.hint {
-  margin: 8px 2px 0;
+/* Grouped inset list */
+.group-header {
+  margin: 22px 4px 7px;
   font-size: 12px;
-  line-height: 1.5;
-  color: #8a8fb0;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #8e8e93;
 }
-.hint.locked {
-  color: #ffb454;
+.group-footer {
+  margin: 7px 4px 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #8e8e93;
 }
-
-.save-msg {
-  margin: 12px 0 0;
-  font-size: 13px;
-}
-.save-msg.ok {
-  color: #7fe0a8;
-}
-.save-msg.err {
-  color: #ff6f8b;
+.group-footer.locked {
+  color: #ff9f0a;
 }
 
-.btn-primary {
+.group {
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(30, 30, 34, 0.55);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
-  height: 46px;
-  margin-top: 14px;
+  min-height: 48px;
+  padding: 10px 16px;
+  box-sizing: border-box;
+  background: none;
   border: none;
-  border-radius: 14px;
-  background: linear-gradient(90deg, #8b3dff 0%, #ff2e74 100%);
   color: #fff;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 16px;
+  text-align: left;
+}
+/* Hairline separators between rows (inset past the icon) */
+.row + .row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 0;
+  height: 0.5px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.row-tap {
   cursor: pointer;
+}
+.row-tap:active {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.row-key {
+  flex-shrink: 0;
+}
+.row-val {
+  margin-left: auto;
+  color: #8e8e93;
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mono {
+  font-family: ui-monospace, 'SF Mono', monospace;
+}
+
+/* Editable rows */
+.row-input .row-key {
+  min-width: 74px;
+  color: #fff;
+}
+.row-field {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 16px;
+  font-family: inherit;
+  text-align: right;
+}
+.row-field::placeholder {
+  color: #6a6a70;
+}
+.row-field:disabled {
+  color: #8e8e93;
+}
+.row-textarea {
+  align-items: flex-start;
+}
+.row-textarea .row-key {
+  padding-top: 2px;
+}
+textarea.row-field {
+  resize: none;
+  text-align: right;
+  line-height: 1.45;
+}
+
+/* Colored rounded icon tiles (iOS Settings look) */
+.ic {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.btn-primary:disabled {
+.ic-bell { background: #ff3b30; }
+.ic-lock { background: #34c759; }
+.ic-moon { background: #5e5ce6; }
+
+.chev {
+  margin-left: auto;
+  display: flex;
+  color: #55555b;
+}
+
+/* iOS toggle switch */
+.switch {
+  margin-left: auto;
+  width: 51px;
+  height: 31px;
+  border-radius: 16px;
+  border: none;
+  background: #39393d;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.25s ease;
+  flex-shrink: 0;
+}
+.switch.on {
+  background: #34c759;
+}
+.knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 0.25s ease;
+}
+.switch.on .knob {
+  transform: translateX(20px);
+}
+
+.row-danger {
+  justify-content: center;
+}
+.row-danger .row-key {
+  color: #ff453a;
+  font-weight: 500;
+}
+
+/* Save */
+.save-msg {
+  margin: 12px 4px 0;
+  font-size: 13px;
+}
+.save-msg.ok { color: #34c759; }
+.save-msg.err { color: #ff453a; }
+
+.save-btn {
+  width: 100%;
+  height: 50px;
+  margin-top: 14px;
+  border: none;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #0a84ff 0%, #5e5ce6 100%);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px rgba(10, 132, 255, 0.35);
+}
+.save-btn:disabled {
   opacity: 0.6;
 }
 .spinner {
   width: 18px;
   height: 18px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
+  border: 2px solid rgba(255, 255, 255, 0.4);
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
@@ -316,69 +468,10 @@ async function handleLogout() {
   to { transform: rotate(360deg); }
 }
 
-.row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-.row:last-child {
-  border-bottom: none;
-}
-.row-label {
-  font-size: 14px;
-  color: #b3a9cf;
-}
-.row-value {
-  font-size: 14px;
-  color: #fff;
-}
-.mono {
-  font-family: ui-monospace, monospace;
-  color: #9a8fbf;
-}
-
-.list-row {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 13px 0;
-  background: none;
-  border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  color: #fff;
-  font-size: 14px;
-  cursor: pointer;
-  text-align: left;
-}
-.list-row:last-child {
-  border-bottom: none;
-}
-.chev {
-  color: #7d7397;
-  font-size: 14px;
-}
-
 .info-msg {
-  margin: 4px 20px;
+  margin: 14px 4px 0;
   text-align: center;
   font-size: 13px;
-  color: #c48bff;
-}
-
-.btn-logout {
-  display: block;
-  width: calc(100% - 28px);
-  margin: 8px 14px 0;
-  height: 48px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 79, 112, 0.4);
-  background: rgba(255, 46, 116, 0.1);
-  color: #ff6f8b;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
+  color: #0a84ff;
 }
 </style>

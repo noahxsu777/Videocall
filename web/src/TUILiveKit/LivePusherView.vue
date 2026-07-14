@@ -1564,13 +1564,13 @@ onUnmounted(() => {
   // viewer messages below them are visible (instead of dead space).
   &.is-battle {
     .main-center-center {
-      inset: 44px 0 auto 0 !important;
-      height: 50% !important;
+      inset: 10px 0 auto 0 !important;
+      height: 54% !important;
     }
     // Give the messages more room: start them right under the tiles.
     .mobile-barrage {
       bottom: 150px !important;
-      height: calc(100% - 50% - 44px - 156px) !important;
+      height: calc(100% - 54% - 10px - 156px) !important;
       min-height: 120px !important;
       -webkit-mask-image: none !important;
       mask-image: none !important;
