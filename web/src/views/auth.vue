@@ -1,69 +1,89 @@
 <template>
-  <div class="auth-container">
-    <div class="auth-card">
-      <div class="auth-logo">
-        <span class="auth-logo-emoji">🔴</span>
-        <h1 class="auth-title">LiveStream</h1>
-        <p class="auth-subtitle">
-          {{ mode === 'login' ? 'Inicia sesión para continuar' : 'Crea tu cuenta' }}
-        </p>
+  <div class="auth-screen">
+    <!-- Ambient brand glow, TikTok-style -->
+    <div class="glow glow-cyan" />
+    <div class="glow glow-pink" />
+
+    <div class="auth-inner">
+      <div class="brand">
+        <div class="brand-mark">
+          <span class="brand-note">♪</span>
+        </div>
+        <h1 class="brand-name">LiveStream</h1>
+        <p class="brand-tagline">Transmite, conecta y comparte en vivo</p>
       </div>
 
-      <div v-if="!isSupabaseConfigured" class="auth-warning">
+      <div v-if="!isSupabaseConfigured" class="config-note">
         Falta configurar Supabase. Agrega <code>VITE_SUPABASE_URL</code> y
-        <code>VITE_SUPABASE_ANON_KEY</code> en las variables de entorno.
+        <code>VITE_SUPABASE_ANON_KEY</code> en las variables de entorno de Vercel.
       </div>
 
-      <form v-else class="auth-form" @submit.prevent="handleSubmit">
-        <div v-if="mode === 'register'" class="auth-field">
-          <label>Nombre</label>
-          <input
-            v-model.trim="displayName"
-            type="text"
-            placeholder="Tu nombre"
-            autocomplete="nickname"
-            maxlength="30"
-          />
+      <template v-else>
+        <div class="tabs">
+          <button
+            type="button"
+            class="tab"
+            :class="{ active: mode === 'login' }"
+            @click="switchMode('login')"
+          >
+            Iniciar sesión
+          </button>
+          <button
+            type="button"
+            class="tab"
+            :class="{ active: mode === 'register' }"
+            @click="switchMode('register')"
+          >
+            Registrarse
+          </button>
+          <span class="tab-underline" :class="mode" />
         </div>
 
-        <div class="auth-field">
-          <label>Correo</label>
-          <input
-            v-model.trim="email"
-            type="email"
-            placeholder="tucorreo@ejemplo.com"
-            autocomplete="email"
-          />
-        </div>
+        <form class="form" @submit.prevent="handleSubmit">
+          <div v-if="mode === 'register'" class="field">
+            <input
+              v-model.trim="displayName"
+              type="text"
+              placeholder="Nombre de usuario"
+              autocomplete="nickname"
+              maxlength="30"
+            />
+          </div>
 
-        <div class="auth-field">
-          <label>Contraseña</label>
-          <input
-            v-model="password"
-            type="password"
-            placeholder="Mínimo 6 caracteres"
-            :autocomplete="mode === 'login' ? 'current-password' : 'new-password'"
-          />
-        </div>
+          <div class="field">
+            <input
+              v-model.trim="email"
+              type="email"
+              placeholder="Correo electrónico"
+              autocomplete="email"
+            />
+          </div>
 
-        <p v-if="errorMessage" class="auth-error">{{ errorMessage }}</p>
-        <p v-if="infoMessage" class="auth-info">{{ infoMessage }}</p>
+          <div class="field field-password">
+            <input
+              v-model="password"
+              :type="showPassword ? 'text' : 'password'"
+              placeholder="Contraseña"
+              :autocomplete="mode === 'login' ? 'current-password' : 'new-password'"
+            />
+            <button type="button" class="reveal" @click="showPassword = !showPassword">
+              {{ showPassword ? 'Ocultar' : 'Ver' }}
+            </button>
+          </div>
 
-        <button type="submit" class="auth-submit" :disabled="loading">
-          {{ loading ? 'Un momento…' : (mode === 'login' ? 'Entrar' : 'Registrarme') }}
-        </button>
-      </form>
+          <p v-if="errorMessage" class="msg error">{{ errorMessage }}</p>
+          <p v-if="infoMessage" class="msg info">{{ infoMessage }}</p>
 
-      <p class="auth-switch">
-        <template v-if="mode === 'login'">
-          ¿No tienes cuenta?
-          <button type="button" class="auth-link" @click="switchMode('register')">Regístrate</button>
-        </template>
-        <template v-else>
-          ¿Ya tienes cuenta?
-          <button type="button" class="auth-link" @click="switchMode('login')">Inicia sesión</button>
-        </template>
-      </p>
+          <button type="submit" class="submit" :disabled="loading">
+            <span v-if="loading" class="spinner" />
+            <span v-else>{{ mode === 'login' ? 'Entrar' : 'Crear cuenta' }}</span>
+          </button>
+        </form>
+
+        <p class="legal">
+          Al continuar aceptas los Términos y la Política de privacidad.
+        </p>
+      </template>
     </div>
   </div>
 </template>
@@ -81,6 +101,7 @@ const mode = ref<'login' | 'register'>('login');
 const displayName = ref('');
 const email = ref('');
 const password = ref('');
+const showPassword = ref(false);
 const loading = ref(false);
 const errorMessage = ref('');
 const infoMessage = ref('');
@@ -105,7 +126,7 @@ const handleSubmit = async () => {
     return;
   }
   if (mode.value === 'register' && !displayName.value) {
-    errorMessage.value = 'Ingresa tu nombre.';
+    errorMessage.value = 'Ingresa un nombre de usuario.';
     return;
   }
   if (password.value.length < 6) {
@@ -121,7 +142,6 @@ const handleSubmit = async () => {
         password: password.value,
         displayName: displayName.value,
       });
-      // If email confirmation is required, there's no session yet.
       if (!result.session) {
         infoMessage.value = 'Cuenta creada. Revisa tu correo para confirmarla y luego inicia sesión.';
         mode.value = 'login';
@@ -150,138 +170,223 @@ function translateError(message: string): string {
 </script>
 
 <style scoped>
-.auth-container {
+.auth-screen {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 100%;
-  min-height: 100vh;
   padding: 24px;
   box-sizing: border-box;
-  background: radial-gradient(circle at 30% 20%, #1c1130, #0e0e14 60%);
+  background: #010101;
+  overflow: hidden;
 }
 
-.auth-card {
+/* Ambient brand glows (TikTok cyan/pink) */
+.glow {
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.glow-cyan {
+  top: -80px;
+  left: -60px;
+  background: #25f4ee;
+}
+.glow-pink {
+  bottom: -90px;
+  right: -70px;
+  background: #fe2c55;
+}
+
+.auth-inner {
+  position: relative;
+  z-index: 1;
   width: 100%;
-  max-width: 380px;
-  background: #16161f;
-  border: 1px solid #262633;
-  border-radius: 16px;
-  padding: 28px 24px 24px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  max-width: 360px;
 }
 
-.auth-logo {
+.brand {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 34px;
 }
-
-.auth-logo-emoji {
+.brand-mark {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 16px;
+  border-radius: 22px;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow:
+    3px 0 0 #fe2c55,
+    -3px 0 0 #25f4ee;
+}
+.brand-note {
   font-size: 34px;
-}
-
-.auth-title {
-  margin: 10px 0 4px;
-  font-size: 24px;
-  font-weight: 700;
   color: #fff;
 }
-
-.auth-subtitle {
+.brand-name {
   margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: #fff;
+}
+.brand-tagline {
+  margin: 6px 0 0;
   font-size: 14px;
-  color: #9a9aab;
+  color: #a1a1aa;
 }
 
-.auth-warning {
-  background: #3a2a12;
+.config-note {
+  background: #2a1e0c;
   color: #ffcf8f;
-  border-radius: 10px;
-  padding: 12px;
+  border: 1px solid #4a3410;
+  border-radius: 12px;
+  padding: 14px;
   font-size: 13px;
-  line-height: 1.5;
+  line-height: 1.6;
+  text-align: center;
 }
-
-.auth-warning code {
+.config-note code {
   color: #ffe4b5;
 }
 
-.auth-form {
+/* Tabs */
+.tabs {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  gap: 14px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid #1f1f23;
 }
-
-.auth-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.tab {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 12px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #71717a;
+  cursor: pointer;
+  transition: color 0.2s;
 }
-
-.auth-field label {
-  font-size: 13px;
-  color: #c7c7d1;
-}
-
-.auth-field input {
-  height: 46px;
-  border-radius: 10px;
-  border: 1px solid #2c2c3a;
-  background: #1e1e29;
+.tab.active {
   color: #fff;
-  padding: 0 14px;
+}
+.tab-underline {
+  position: absolute;
+  bottom: -1px;
+  height: 2px;
+  width: 50%;
+  background: #fe2c55;
+  border-radius: 2px;
+  transition: transform 0.25s ease;
+}
+.tab-underline.login {
+  transform: translateX(0);
+}
+.tab-underline.register {
+  transform: translateX(100%);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.field {
+  position: relative;
+}
+.field input {
+  width: 100%;
+  height: 50px;
+  border-radius: 10px;
+  border: 1px solid #26262b;
+  background: #121215;
+  color: #fff;
+  padding: 0 16px;
   font-size: 15px;
   outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
 }
-
-.auth-field input:focus {
+.field input::placeholder {
+  color: #6b6b74;
+}
+.field input:focus {
   border-color: #fe2c55;
 }
-
-.auth-error {
-  margin: 0;
-  color: #ff5470;
-  font-size: 13px;
+.field-password input {
+  padding-right: 64px;
 }
-
-.auth-info {
-  margin: 0;
-  color: #6ad19a;
-  font-size: 13px;
-}
-
-.auth-submit {
-  height: 48px;
+.reveal {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
   border: none;
-  border-radius: 24px;
+  color: #a1a1aa;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.msg {
+  margin: 2px 2px 0;
+  font-size: 13px;
+}
+.msg.error {
+  color: #ff5470;
+}
+.msg.info {
+  color: #4ade80;
+}
+
+.submit {
+  height: 50px;
+  margin-top: 6px;
+  border: none;
+  border-radius: 10px;
   background: #fe2c55;
   color: #fff;
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
-  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s;
 }
-
-.auth-submit:disabled {
+.submit:disabled {
   opacity: 0.6;
   cursor: default;
 }
-
-.auth-switch {
-  text-align: center;
-  margin: 18px 0 0;
-  font-size: 14px;
-  color: #9a9aab;
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-.auth-link {
-  background: none;
-  border: none;
-  color: #fe2c55;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0 4px;
+.legal {
+  margin: 22px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: #6b6b74;
+  line-height: 1.6;
 }
 </style>

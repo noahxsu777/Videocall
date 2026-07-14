@@ -19,6 +19,18 @@ const routes = [
     component: () => import('@/views/live-list.vue'),
   },
   {
+    path: '/reels',
+    component: () => import('@/views/placeholder.vue'),
+  },
+  {
+    path: '/messages',
+    component: () => import('@/views/placeholder.vue'),
+  },
+  {
+    path: '/profile',
+    component: () => import('@/views/placeholder.vue'),
+  },
+  {
     path: '/live-player',
     component: () => import('@/views/live-player.vue'),
   },
