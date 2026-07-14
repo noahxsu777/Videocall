@@ -1,5 +1,5 @@
 <template>
-  <div class="live-pusher-container">
+  <div class="live-pusher-container" :class="{ 'is-mobile': isMobile }">
     <LiveHeader v-if="!isMobile" />
     <LivePusherView v-if="loginUserInfo?.userId" @leave-live="onLeaveLive" />
   </div>
@@ -87,7 +87,9 @@ watch(loginUserInfo, (newVal) => {
   padding: 16px;
   box-sizing: border-box;
 
-  @media (max-width: 768px) {
+  // UA-based (orientation-independent) — a width media query missed
+  // phones held in landscape. See LivePusherView.vue for details.
+  &.is-mobile {
     padding: 0 !important;
     overflow: hidden !important;
   }

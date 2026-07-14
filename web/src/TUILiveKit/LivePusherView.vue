@@ -1,5 +1,11 @@
 <template>
-  <div id="live-pusher-view" class="live-pusher-main">
+  <!--
+    The is-mobile class (user-agent based, orientation-independent)
+    gates the full-screen mobile styling — a width media query alone
+    missed phones held in landscape, which fell back to the desktop
+    3-column studio layout.
+  -->
+  <div id="live-pusher-view" class="live-pusher-main" :class="{ 'is-mobile': isMobile }">
     <!--
       Defer mounting the entire pusher subtree until the WebRTC
       capability probe has passed. Without this gate, an unsupported
@@ -18,7 +24,12 @@
             {{ t('Video Source') }}
           </div>
         </div>
-        <LiveScenePanel />
+        <!--
+          On mobile the camera starts automatically (see
+          autoStartMobileCamera), so the manual source picker
+          (Add Camera / Screen / Image) is desktop-only.
+        -->
+        <LiveScenePanel v-if="!isMobile" />
       </div>
       <div class="main-left-bottom">
         <div class="main-left-bottom-header">
@@ -441,6 +452,10 @@ const handleStartLive = async () => {
       return;
     }
     loading.value = true;
+    // Safety net: if the on-mount camera auto-start failed or hasn't
+    // completed (e.g. the user only just granted permission), make sure
+    // the camera is up before going live. No-ops when a source exists.
+    await autoStartMobileCamera();
     await initRoomEngineLanguage();
     await startLive({
       liveId: liveParams.value.liveId,
@@ -871,11 +886,16 @@ onUnmounted(() => {
 // The desktop layout is a fixed 3-column studio (source panel | video |
 // viewers+chat) that makes no sense on a phone. On mobile we turn the
 // video preview into a full-screen background and overlay only the
-// essentials on top of it: a translucent top bar (title + viewer count),
-// the source/"Add Camera" card (the web SDK does not auto-start the
-// camera, so the user still needs it), and a bottom control bar with a
-// large "Start live" button. The viewers list and side chat panel are
-// hidden to keep the broadcast screen clean, just like Bigo.
+// essentials on top of it: a translucent top bar (title + viewer count)
+// and a bottom control bar with a large "Start live" button. The camera
+// auto-starts (see autoStartMobileCamera) so the manual source picker is
+// desktop-only, and the viewers list and side chat panel are hidden to
+// keep the broadcast screen clean, just like Bigo.
+//
+// Gated on the .is-mobile class (user-agent based, set in the template)
+// instead of a width media query: a phone held in landscape exceeds any
+// sane width breakpoint and was falling back to the desktop layout.
+//
 // NOTE: every override below carries !important. Without it, several
 // rules here silently lost to the desktop rules of equal selector
 // specificity after this component's SCSS went through the production
@@ -884,15 +904,13 @@ onUnmounted(() => {
 // order) — verified by rendering the actual compiled CSS in a headless
 // browser and inspecting computed styles. !important sidesteps that
 // build-order dependency entirely.
-@media (max-width: 768px) {
-  .live-pusher-main {
-    position: relative !important;
-    display: block !important;
-    height: 100% !important;
-    gap: 0 !important;
-    overflow: hidden !important;
-    background-color: #000 !important;
-  }
+.live-pusher-main.is-mobile {
+  position: relative !important;
+  display: block !important;
+  height: 100% !important;
+  gap: 0 !important;
+  overflow: hidden !important;
+  background-color: #000 !important;
 
   // Video preview = full-screen base layer.
   .main-center {
