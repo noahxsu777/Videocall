@@ -12,7 +12,22 @@ app.mount('#app');
 
 // PWA: register the service worker (makes the app installable and fast
 // on repeat visits). Relative path so it works with the './' prod base.
+//
+// Auto-update: whenever a NEW service worker version activates and takes
+// control of an already-open tab (common with a PWA icon that's kept
+// "open" in the background), reload once so the tab picks up the fresh
+// JS/CSS instead of continuing to run whatever was loaded in memory —
+// without this, users can be stuck on old app behavior indefinitely even
+// though every new deploy is live on the server.
 if ('serviceWorker' in navigator) {
+  let reloadedForNewWorker = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloadedForNewWorker) {
+      return;
+    }
+    reloadedForNewWorker = true;
+    window.location.reload();
+  });
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch((error) => {
       console.warn('[pwa] service worker registration failed:', error);
