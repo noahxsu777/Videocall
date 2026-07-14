@@ -327,7 +327,7 @@ const {
   switchCamera,
   updateVideoQuality,
 } = useDeviceState();
-const { coHostStatus, exitHostConnection } = useCoHostState();
+const { coHostStatus, connected: coHostConnectedUsers, exitHostConnection } = useCoHostState();
 const { currentBattleInfo } = useBattleState();
 const { connected: coGuestConnected } = useCoGuestState();
 const { subscribeEvent: subscribeBarrageEvent, unsubscribeEvent: unsubscribeBarrageEvent} = useBarrageState();
@@ -339,6 +339,82 @@ watch(isInLive, (inLive) => {
     startMobileCameraPreview();
   }
 });
+
+// TikTok-style battle/co-host layout on mobile. When a host connection
+// forms, the engine switches the room to its landscape 2-seat template
+// (400) — on a phone that renders as a short letterboxed strip in the
+// middle of the screen. Override it with a CUSTOM layout (LayoutMode
+// 1000): portrait canvas with both feeds as tall half-width tiles
+// pinned to the top of the screen, right under the top bar.
+const applyMobileBattleLayout = async () => {
+  const liveId = currentLive.value?.liveId;
+  if (!isMobile || !liveId) {
+    return;
+  }
+  const selfId = loginUserInfo.value?.userId;
+  const members: { userId: string; liveId?: string }[] =
+    (coHostConnectedUsers.value || []).map((user: any) => ({
+      userId: user.userId,
+      liveId: user.liveId || user.roomId,
+    }));
+  if (selfId && !members.some(member => member.userId === selfId)) {
+    members.unshift({ userId: selfId, liveId });
+  } else if (selfId) {
+    // Self on the left, like TikTok.
+    members.sort((a, b) => (a.userId === selfId ? -1 : b.userId === selfId ? 1 : 0));
+  }
+  if (members.length < 2) {
+    return;
+  }
+  const canvasWidth = 720;
+  const canvasHeight = 1280;
+  const tileWidth = canvasWidth / 2;
+  const tileHeight = 640; // 9:16 halves side by side
+  const layout = {
+    VideoEncode: { Width: canvasWidth, Height: canvasHeight },
+    LayoutMode: 1000,
+    LayoutInfo: {
+      LayoutList: members.slice(0, 2).map((member, index) => ({
+        LocationX: index * tileWidth,
+        LocationY: 0,
+        ImageWidth: tileWidth,
+        ImageHeight: tileHeight,
+        ZOrder: 1,
+        StreamType: 0,
+        Member_Account: member.userId,
+        RoomId: member.liveId || liveId,
+        BackgroundColor: '0x000000',
+      })),
+    },
+  };
+  try {
+    await (roomEngine.instance as any)?.getLiveLayoutManager?.()?.setLiveStreamLayoutInfo(
+      liveId,
+      JSON.stringify(layout),
+    );
+  } catch (error) {
+    console.warn('[LivePusherView] custom battle layout failed:', error);
+  }
+};
+
+watch(
+  [coHostStatus, () => (coHostConnectedUsers.value || []).length],
+  ([status], [prevStatus]) => {
+    if (!isMobile) {
+      return;
+    }
+    if (status === CoHostStatus.Connected) {
+      // The engine applies its own landscape template when the
+      // connection forms; apply ours after it (twice, in case of a
+      // slow server echo overwriting the first).
+      setTimeout(() => applyMobileBattleLayout(), 500);
+      setTimeout(() => applyMobileBattleLayout(), 2000);
+    } else if (prevStatus === CoHostStatus.Connected && status === CoHostStatus.Disconnected) {
+      // Back to solo: restore the portrait grid template.
+      updateLiveInfo({ layoutTemplate: TUISeatLayoutTemplate.PortraitDynamic_Grid9 });
+    }
+  },
+);
 const loading = ref(false);
 const liveParamsEditForm = ref({
   liveName: '',
