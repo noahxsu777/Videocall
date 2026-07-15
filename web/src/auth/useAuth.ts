@@ -33,17 +33,41 @@ export function displayNameFor(user: User | null): string {
 
 let initPromise: Promise<void> | null = null;
 
-/** Signs the current session out (silently) if the account has been
- *  banned from the admin panel. Used both on session restore and right
- *  after a fresh login. */
+// Set right before signOutIfBanned() clears the session during the
+// silent session-restore check (app boot), so the router guard can
+// redirect to /login with a visible reason instead of the user just
+// landing back on the login screen with zero explanation.
+let wasBanned = false;
+
+/** Consumes (reads + resets) the "was just banned" flag — call this
+ *  once, right when deciding whether to show the suspended-account
+ *  message, so it doesn't leak into unrelated future redirects. */
+export function consumeBannedFlag(): boolean {
+  const value = wasBanned;
+  wasBanned = false;
+  return value;
+}
+
+/**
+ * Signs the current session out if the account has been banned from the
+ * admin panel. Any query error (e.g. network hiccup, or the `banned`
+ * column not existing yet because supabase/schema.sql hasn't been
+ * re-run) is treated as "not banned" — this must never sign someone out
+ * on anything less than a confirmed `banned = true`.
+ */
 async function signOutIfBanned(userId: string): Promise<boolean> {
   if (!supabase) {
     return false;
   }
-  const { data } = await supabase.from('profiles').select('banned').eq('id', userId).maybeSingle();
-  if (data?.banned) {
+  const { data, error } = await supabase.from('profiles').select('banned').eq('id', userId).maybeSingle();
+  if (error) {
+    console.warn('[auth] banned check failed (treating as not banned):', error.message);
+    return false;
+  }
+  if (data?.banned === true) {
     await supabase.auth.signOut();
     session.value = null;
+    wasBanned = true;
     return true;
   }
   return false;

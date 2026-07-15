@@ -137,7 +137,7 @@ const email = ref('');
 const password = ref('');
 const showPassword = ref(false);
 const loading = ref(false);
-const errorMessage = ref('');
+const errorMessage = ref(route.query.banned === '1' ? 'Tu cuenta ha sido suspendida.' : '');
 const infoMessage = ref('');
 
 // Inline monochrome SVG icons (CSP-safe — no external assets).

@@ -3,7 +3,7 @@ import TUIRoomEngine from '@tencentcloud/tuiroom-engine-js';
 import { useLoginState } from 'tuikit-atomicx-vue3';
 import Auth from '@/views/auth.vue';
 import { isH5 } from '@/TUILiveKit/utils/environment';
-import { authReady, currentSession, tencentUserIdFor, displayNameFor } from '@/auth/useAuth';
+import { authReady, currentSession, consumeBannedFlag, tencentUserIdFor, displayNameFor } from '@/auth/useAuth';
 import { SDKAPPID, genTestUserSig } from '@/config/basic-info-config';
 import { isAdmin } from '@/data/admin';
 
@@ -190,7 +190,14 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   if (!supaSession) {
-    next({ path: '/login', query: { from: to.path } });
+    // A banned account gets silently signed out during the session-restore
+    // check in useAuth.ts — surface that here with a visible reason
+    // instead of just dropping the user back on a blank login screen.
+    const query: Record<string, string> = { from: to.path };
+    if (consumeBannedFlag()) {
+      query.banned = '1';
+    }
+    next({ path: '/login', query });
     return;
   }
 
