@@ -11,10 +11,20 @@ export interface Profile {
   coins?: number;
   call_rate?: number;
   /** Twitter-style checkmark. Can't be set via updateProfile() — the
-   *  protect_verified_column trigger blocks direct writes to it. The only
-   *  legitimate way to grant it (besides you editing it by hand in
+   *  protect_privileged_columns trigger blocks direct writes to it. The
+   *  only legitimate way to grant it (besides you editing it by hand in
    *  Supabase) is purchaseVerification() below. */
   verified?: boolean;
+  /** Purely cosmetic "Creator" badge — see becomeCreator() below. Doesn't
+   *  gate anything: any account can already start a live without it. */
+  is_creator?: boolean;
+  /** Grants access to /admin. Same self-service block as `verified` —
+   *  only settable by hand in Supabase (there's no purchase path for
+   *  this one, on purpose). */
+  is_admin?: boolean;
+  /** Blocks login when true (enforced in auth/useAuth.ts). Only settable
+   *  through the admin_set_banned() RPC — see data/admin.ts. */
+  banned?: boolean;
   created_at?: string;
 }
 
@@ -442,4 +452,19 @@ export async function purchaseVerification(): Promise<number> {
     throw new Error(error.message);
   }
   return data as number;
+}
+
+/**
+ * Turns on the (purely cosmetic) Creator badge for this account. Unlike
+ * `verified`/`is_admin`, `is_creator` isn't a protected column and isn't
+ * gating anything today — every account can already open /live-pusher
+ * and go live with zero approval. This just flips a flag so the badge
+ * can show up on the profile later.
+ */
+export async function becomeCreator(userId: string): Promise<void> {
+  const client = requireClient();
+  const { error } = await client.from('profiles').update({ is_creator: true }).eq('id', userId);
+  if (error) {
+    throw new Error(error.message);
+  }
 }

@@ -33,6 +33,22 @@ export function displayNameFor(user: User | null): string {
 
 let initPromise: Promise<void> | null = null;
 
+/** Signs the current session out (silently) if the account has been
+ *  banned from the admin panel. Used both on session restore and right
+ *  after a fresh login. */
+async function signOutIfBanned(userId: string): Promise<boolean> {
+  if (!supabase) {
+    return false;
+  }
+  const { data } = await supabase.from('profiles').select('banned').eq('id', userId).maybeSingle();
+  if (data?.banned) {
+    await supabase.auth.signOut();
+    session.value = null;
+    return true;
+  }
+  return false;
+}
+
 function ensureInitialized(): Promise<void> {
   if (initialized || !supabase) {
     initializing.value = false;
@@ -45,6 +61,9 @@ function ensureInitialized(): Promise<void> {
   initPromise = (async () => {
     const { data } = await supabase!.auth.getSession();
     session.value = data.session;
+    if (session.value?.user) {
+      await signOutIfBanned(session.value.user.id);
+    }
     supabase!.auth.onAuthStateChange((_event, newSession) => {
       session.value = newSession;
     });
@@ -100,6 +119,9 @@ export function useAuth() {
     });
     if (error) {
       throw error;
+    }
+    if (data.user && (await signOutIfBanned(data.user.id))) {
+      throw new Error('Tu cuenta ha sido suspendida.');
     }
     return data;
   };

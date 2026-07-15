@@ -5,6 +5,7 @@ import Auth from '@/views/auth.vue';
 import { isH5 } from '@/TUILiveKit/utils/environment';
 import { authReady, currentSession, tencentUserIdFor, displayNameFor } from '@/auth/useAuth';
 import { SDKAPPID, genTestUserSig } from '@/config/basic-info-config';
+import { isAdmin } from '@/data/admin';
 
 const routes = [
   {
@@ -30,6 +31,14 @@ const routes = [
   {
     path: '/verified',
     component: () => import('@/views/verified.vue'),
+  },
+  {
+    path: '/become-creator',
+    component: () => import('@/views/become-creator.vue'),
+  },
+  {
+    path: '/admin',
+    component: () => import('@/views/admin.vue'),
   },
   {
     path: '/messages',
@@ -182,6 +191,14 @@ router.beforeEach(async (to, _from, next) => {
 
   if (!supaSession) {
     next({ path: '/login', query: { from: to.path } });
+    return;
+  }
+
+  // /admin is gated on the profiles.is_admin flag — checked server-side
+  // by every admin_* RPC too, but bouncing here avoids flashing the
+  // panel's shell before a non-admin's data fetches start failing.
+  if (to.path === '/admin' && !(await isAdmin(supaSession.user.id))) {
+    next({ path: '/live-list' });
     return;
   }
 

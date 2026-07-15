@@ -73,7 +73,29 @@
           <span class="row-val verified-val">{{ verified ? '✓' : '🪙' }}</span>
           <span class="chev" v-html="CHEV" />
         </button>
+        <button class="row row-tap" @click="router.push('/become-creator')">
+          <span class="ic ic-creator">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4Z"/></svg>
+          </span>
+          <span class="row-key">{{ isCreator ? 'Eres Creador' : 'Conviértete en Creador' }}</span>
+          <span class="row-val creator-val">{{ isCreator ? '✓' : '🎥' }}</span>
+          <span class="chev" v-html="CHEV" />
+        </button>
       </section>
+
+      <!-- Administración (solo visible para cuentas admin) -->
+      <template v-if="isAdminUser">
+        <p class="group-header">Administración</p>
+        <section class="group">
+          <button class="row row-tap" @click="router.push('/admin')">
+            <span class="ic ic-admin">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M12 2 4 5v6c0 5 3.4 9.3 8 11 4.6-1.7 8-6 8-11V5l-8-3Z"/></svg>
+            </span>
+            <span class="row-key">Panel de administración</span>
+            <span class="chev" v-html="CHEV" />
+          </button>
+        </section>
+      </template>
 
       <!-- Preferencias -->
       <p class="group-header">Preferencias</p>
@@ -162,6 +184,8 @@ const infoMsg = ref('');
 const darkTheme = ref(true);
 const vipUntil = ref<string | null>(null);
 const verified = ref(false);
+const isCreator = ref(false);
+const isAdminUser = ref(false);
 
 const shortId = computed(() => (user.value?.id || '').slice(0, 8) || '—');
 const daysLeft = computed(() => daysUntilNameChange(nameUpdatedAt.value));
@@ -184,6 +208,8 @@ onMounted(async () => {
     nameUpdatedAt.value = p?.name_updated_at || null;
     vipUntil.value = p?.vip_until || null;
     verified.value = !!p?.verified;
+    isCreator.value = !!p?.is_creator;
+    isAdminUser.value = !!p?.is_admin;
   } catch (error) {
     console.error('[settings] load failed:', error);
     username.value = displayName.value;
@@ -426,6 +452,9 @@ textarea.row-field {
 .vip-val { color: #ffcf5e; }
 .ic-verified { background: transparent; }
 .verified-val { color: #1d9bf0; }
+.ic-creator { background: linear-gradient(135deg, #ff5ec4, #7b2ff7); }
+.creator-val { color: #d68bff; }
+.ic-admin { background: linear-gradient(135deg, #34c759, #0a8f3f); }
 
 .chev {
   margin-left: auto;

@@ -18,6 +18,9 @@ create table if not exists public.profiles (
   coins           integer not null default 500,
   call_rate       integer not null default 100,
   verified        boolean not null default false,
+  is_creator      boolean not null default false,
+  is_admin        boolean not null default false,
+  banned          boolean not null default false,
   created_at      timestamptz not null default now()
 );
 
@@ -32,32 +35,50 @@ alter table public.profiles
   add column if not exists call_rate integer not null default 100;
 alter table public.profiles
   add column if not exists verified boolean not null default false;
+alter table public.profiles
+  add column if not exists is_creator boolean not null default false;
+alter table public.profiles
+  add column if not exists is_admin boolean not null default false;
+alter table public.profiles
+  add column if not exists banned boolean not null default false;
 
 alter table public.profiles enable row level security;
 
--- "verified" (Twitter-style checkmark) can't be set by a direct table
--- update from the app — this trigger silently reverts it — EXCEPT when
--- the update comes from purchase_verification() below, which flips a
--- transaction-local flag right before writing. That keeps the badge
--- un-gameable via the REST API while still letting users self-purchase
--- it the normal way (or you can still grant it for free from the
--- Table Editor / SQL Editor, which has no auth.uid() context either).
-create or replace function public.protect_verified_column()
+-- "verified", "is_admin" and "banned" can't be set by a direct table
+-- update from the app — this trigger silently reverts them — EXCEPT
+-- when the update comes from purchase_verification() or one of the
+-- admin_* functions below, which flip a transaction-local flag right
+-- before writing. That keeps all three un-gameable via the REST API
+-- while still letting the legitimate paths (self-purchase, or an
+-- admin's action) through. (There's no self-service path to become an
+-- admin — the FIRST admin has to be granted by you, the project owner,
+-- straight from the Table Editor / SQL Editor, which has no auth.uid()
+-- context either. From then on, that admin can use the panel — nothing
+-- more is needed by hand.)
+create or replace function public.protect_privileged_columns()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  if new.verified is distinct from old.verified
-     and auth.uid() is not null
-     and coalesce(current_setting('app.bypass_verified_protect', true), '') <> 'on' then
-    new.verified := old.verified;
+  if auth.uid() is not null
+     and coalesce(current_setting('app.bypass_protected_columns', true), '') <> 'on' then
+    if new.verified is distinct from old.verified then
+      new.verified := old.verified;
+    end if;
+    if new.is_admin is distinct from old.is_admin then
+      new.is_admin := old.is_admin;
+    end if;
+    if new.banned is distinct from old.banned then
+      new.banned := old.banned;
+    end if;
   end if;
   return new;
 end;
 $$;
 
 drop trigger if exists protect_verified on public.profiles;
-create trigger protect_verified
+drop trigger if exists protect_privileged_columns on public.profiles;
+create trigger protect_privileged_columns
   before update on public.profiles
-  for each row execute function public.protect_verified_column();
+  for each row execute function public.protect_privileged_columns();
 
 -- Self-purchase the verified badge with coins. Runs as a single locked
 -- read-modify-write so two concurrent purchases can't both succeed off
@@ -86,7 +107,7 @@ begin
     raise exception 'insufficient_coins';
   end if;
 
-  perform set_config('app.bypass_verified_protect', 'on', true);
+  perform set_config('app.bypass_protected_columns', 'on', true);
   update public.profiles set coins = coins - price, verified = true where id = uid;
 
   return current_coins - price;
@@ -94,6 +115,125 @@ end;
 $$;
 
 grant execute on function public.purchase_verification(integer) to authenticated;
+
+-- =====================================================================
+-- ADMIN PANEL — everything below powers /admin (Settings → "Panel de
+-- administración", only shown to accounts with is_admin = true). Every
+-- admin_* function re-checks is_current_user_admin() itself — never
+-- rely on the client to have hidden the button.
+-- =====================================================================
+
+create or replace function public.is_current_user_admin()
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select is_admin from public.profiles where id = auth.uid()), false);
+$$;
+
+grant execute on function public.is_current_user_admin() to authenticated;
+
+-- Full account list for the admin panel's "Usuarios" tab, email included
+-- (email lives in auth.users, which client code can never query
+-- directly — this security-definer function is the only legitimate way
+-- to surface it in the UI).
+create or replace function public.admin_list_users()
+returns table (
+  id           uuid,
+  email        text,
+  username     text,
+  display_name text,
+  avatar_url   text,
+  coins        integer,
+  call_rate    integer,
+  vip_until    timestamptz,
+  verified     boolean,
+  is_creator   boolean,
+  is_admin     boolean,
+  banned       boolean,
+  created_at   timestamptz
+)
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_current_user_admin() then
+    raise exception 'not_authorized';
+  end if;
+  return query
+    select p.id, u.email::text, p.username, p.display_name, p.avatar_url, p.coins,
+           p.call_rate, p.vip_until, p.verified, p.is_creator, p.is_admin, p.banned, p.created_at
+    from public.profiles p
+    join auth.users u on u.id = p.id
+    order by p.created_at desc;
+end;
+$$;
+
+grant execute on function public.admin_list_users() to authenticated;
+
+-- Ban / unban an account. Banned accounts are blocked at login by the
+-- app (see useAuth.ts) — this function only flips the flag.
+create or replace function public.admin_set_banned(target_id uuid, is_banned boolean)
+returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_current_user_admin() then
+    raise exception 'not_authorized';
+  end if;
+  if target_id = auth.uid() and is_banned then
+    raise exception 'cannot_ban_self';
+  end if;
+  perform set_config('app.bypass_protected_columns', 'on', true);
+  update public.profiles set banned = is_banned where id = target_id;
+end;
+$$;
+
+grant execute on function public.admin_set_banned(uuid, boolean) to authenticated;
+
+-- Wallet center: credit or debit any account's coin balance (negative
+-- amount = debit). Balance is clamped at 0. Returns the new balance.
+create or replace function public.admin_add_coins(target_id uuid, amount integer)
+returns integer
+language plpgsql security definer set search_path = public as $$
+declare
+  new_balance integer;
+begin
+  if not public.is_current_user_admin() then
+    raise exception 'not_authorized';
+  end if;
+  update public.profiles set coins = greatest(0, coins + amount) where id = target_id
+    returning coins into new_balance;
+  if new_balance is null then
+    raise exception 'user_not_found';
+  end if;
+  return new_balance;
+end;
+$$;
+
+grant execute on function public.admin_add_coins(uuid, integer) to authenticated;
+
+-- Edit any account's profile fields from the admin panel. Pass null for
+-- any field you don't want to touch.
+create or replace function public.admin_update_profile(
+  target_id uuid,
+  new_display_name text default null,
+  new_username text default null,
+  new_bio text default null,
+  new_verified boolean default null
+)
+returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_current_user_admin() then
+    raise exception 'not_authorized';
+  end if;
+  perform set_config('app.bypass_protected_columns', 'on', true);
+  update public.profiles set
+    display_name = coalesce(new_display_name, display_name),
+    username = coalesce(new_username, username),
+    bio = coalesce(new_bio, bio),
+    verified = coalesce(new_verified, verified)
+  where id = target_id;
+end;
+$$;
+
+grant execute on function public.admin_update_profile(uuid, text, text, text, boolean) to authenticated;
 
 -- Everyone can read profiles; you can only write your own.
 drop policy if exists "profiles are viewable by everyone" on public.profiles;
