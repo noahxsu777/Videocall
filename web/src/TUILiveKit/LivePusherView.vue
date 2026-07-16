@@ -5,7 +5,12 @@
     missed phones held in landscape, which fell back to the desktop
     3-column studio layout.
   -->
-  <div id="live-pusher-view" class="live-pusher-main" :class="{ 'is-mobile': isMobile, 'is-battle': isMobile && isBattle }">
+  <div
+    id="live-pusher-view"
+    class="live-pusher-main"
+    :class="{ 'is-mobile': isMobile, 'is-battle': isMobile && isBattle }"
+    :style="{ '--cam-filter': camFilter }"
+  >
     <!--
       Defer mounting the entire pusher subtree until the WebRTC
       capability probe has passed. Without this gate, an unsupported
@@ -100,6 +105,7 @@
         >
           <video
             :id="MOBILE_PREVIEW_VIEW_ID"
+            :style="camVideoStyle"
             autoplay
             playsinline
             muted
@@ -107,18 +113,36 @@
         </div>
       </div>
       <!--
-        Mobile-only floating camera controls: flip front/rear and
-        toggle the camera off/on. Work both pre-live (our preview
-        stream) and in-live (engine switch / close+republish).
+        Mobile-only floating camera controls: flip front/rear, mirror,
+        basic filters, and toggle the camera off/on. Work both pre-live
+        (our preview stream) and in-live (engine switch / close+republish).
       -->
       <div v-if="isMobile" class="mobile-camera-actions">
         <div class="camera-action-btn" @click="toggleMobileCameraFacing">
           <IconCameraSwitch size="22" />
         </div>
+        <div class="camera-action-btn" :class="{ 'is-on': isMirrored }" @click="isMirrored = !isMirrored">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M8 7 4 12l4 5"/><path d="m16 7 4 5-4 5"/></svg>
+        </div>
+        <div class="camera-action-btn" :class="{ 'is-on': camFilter !== 'none' }" @click="filterPickerVisible = !filterPickerVisible">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 9v6l8 6 8-6V9z"/><path d="M12 3v18M4 9l16 0"/></svg>
+        </div>
         <div class="camera-action-btn" :class="{ 'is-off': isCameraOff }" @click="toggleMobileCameraOff">
           <IconCameraOn v-if="!isCameraOff" size="22" />
           <IconCameraOff v-else size="22" />
         </div>
+      </div>
+      <!-- Basic filter picker (host-side look; see CAMERA_FILTERS note) -->
+      <div v-if="isMobile && filterPickerVisible" class="filter-picker">
+        <button
+          v-for="f in CAMERA_FILTERS"
+          :key="f.value"
+          class="filter-chip"
+          :class="{ active: camFilter === f.value }"
+          @click="selectFilter(f.value)"
+        >
+          {{ f.name }}
+        </button>
       </div>
       <!--
         Mobile-only viewer messages. In battle/co-host mode the camera
@@ -587,6 +611,32 @@ const MOBILE_PREVIEW_VIEW_ID = 'mobile-camera-preview-video';
 let previewStream: MediaStream | null = null;
 const isFrontCameraActive = ref(true);
 const isCameraOff = ref(false);
+
+// --- Basic camera filters + mirror (CSS-based) ---------------------------
+// A lightweight "beauty"/filter picker. NOTE: these are applied as a CSS
+// `filter` on the host's own <video> elements, so the host sees them on
+// their screen and preview. They do NOT alter the published stream (that
+// would need Tencent's paid beauty plugin, which isn't installed), so
+// viewers still receive the raw camera — this is a local look only.
+const CAMERA_FILTERS = [
+  { name: 'Normal', value: 'none' },
+  { name: 'Suave', value: 'brightness(1.08) contrast(0.95) saturate(1.06) blur(0.4px)' },
+  { name: 'Cálido', value: 'brightness(1.05) saturate(1.28) sepia(0.15)' },
+  { name: 'Frío', value: 'brightness(1.04) saturate(1.12) hue-rotate(-12deg)' },
+  { name: 'Vívido', value: 'saturate(1.45) contrast(1.12)' },
+  { name: 'B&N', value: 'grayscale(1) contrast(1.06)' },
+  { name: 'Vintage', value: 'sepia(0.4) contrast(1.1) brightness(1.05)' },
+];
+const camFilter = ref('none');
+const isMirrored = ref(false);
+const filterPickerVisible = ref(false);
+const camVideoStyle = computed(() => ({
+  filter: camFilter.value,
+  transform: isMirrored.value ? 'scaleX(-1)' : 'none',
+}));
+function selectFilter(value: string) {
+  camFilter.value = value;
+}
 
 // Capture size candidates, best first. 1080x1920 is the native
 // vertical-video mode on most phones (full field of view); browsers
@@ -1376,14 +1426,17 @@ onUnmounted(() => {
 
       // Same guarantee for the in-live self view rendered by
       // LiveCoreView: never crop the local frame, whatever its aspect.
+      // Also apply the host's chosen basic filter (local look only —
+      // the published stream is unaffected).
       :deep(#atomicx-live-stream-content) video,
       :deep(#atomicx-live-stream-content) canvas {
         object-fit: contain !important;
+        filter: var(--cam-filter, none);
       }
     }
 
-    // Floating camera controls (flip / on-off), stacked under the
-    // top bar on the right, above every video layer.
+    // Floating camera controls (flip / mirror / filters / on-off),
+    // stacked under the top bar on the right, above every video layer.
     .mobile-camera-actions {
       position: absolute !important;
       top: 60px !important;
@@ -1405,8 +1458,49 @@ onUnmounted(() => {
         cursor: pointer;
         @include liquid-glass;
 
+        &.is-on {
+          background: rgba(55, 120, 255, 0.7) !important;
+        }
         &.is-off {
           background: rgba(220, 53, 69, 0.65) !important;
+        }
+      }
+    }
+
+    // Horizontal filter picker, pinned just above the bottom controls.
+    .filter-picker {
+      position: absolute !important;
+      left: 0;
+      right: 0;
+      bottom: 130px;
+      z-index: 4 !important;
+      display: flex;
+      gap: 8px;
+      padding: 0 12px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      pointer-events: auto !important;
+
+      &::-webkit-scrollbar { display: none; }
+
+      .filter-chip {
+        flex: 0 0 auto;
+        height: 34px;
+        padding: 0 16px;
+        border-radius: 17px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(0, 0, 0, 0.4);
+        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: blur(12px);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+
+        &.active {
+          background: rgba(55, 120, 255, 0.85);
+          border-color: transparent;
         }
       }
     }
