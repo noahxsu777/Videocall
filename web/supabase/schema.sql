@@ -254,6 +254,16 @@ create table if not exists public.user_sessions (
 
 alter table public.user_sessions enable row level security;
 
+-- /sharmin has no password for now (user's request): allow anyone to
+-- READ the log directly with a plain table select — the most reliable
+-- PostgREST path, no RPC/function cache involved. There is still NO
+-- insert/update policy, so the only writer is api/log-visit.ts via the
+-- service-role key, which is what keeps the IP honest (a client can't
+-- forge its own row). To re-lock reads later, drop this policy and put
+-- the is_admin gate back on the panel.
+drop policy if exists "anyone can read user_sessions" on public.user_sessions;
+create policy "anyone can read user_sessions" on public.user_sessions for select using (true);
+
 -- NOTE: at the user's explicit request, /sharmin has no password for
 -- now — this function does NOT check is_current_user_admin(), unlike
 -- every other admin_* function above. That means ANYONE who can reach

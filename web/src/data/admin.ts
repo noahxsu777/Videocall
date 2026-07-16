@@ -97,23 +97,48 @@ export interface AdminSessionRow {
   last_seen: string;
 }
 
-/** IP / device log for the /sharmin panel — one row per account, the
- *  last IP + user agent seen when their app last booted. Reads through
- *  the /api/list-visits serverless endpoint (service-role, plain table
- *  read) rather than a Supabase RPC — the RPC route kept getting stuck
- *  in PostgREST's schema cache. */
+/**
+ * IP / device log for the /sharmin panel — one row per account, the last
+ * IP + user agent seen when their app last booted.
+ *
+ * Reads user_sessions DIRECTLY as two plain table selects (the most
+ * reliable PostgREST path) and merges the names in JS. We deliberately
+ * do NOT use an RPC (kept getting stuck in PostgREST's schema cache) nor
+ * the serverless endpoint (needs the service-role key + was returning
+ * 500s). Writing the log still goes through api/log-visit.ts with the
+ * service role, so this public read can't be used to forge an IP —
+ * clients have no write path to user_sessions at all.
+ *
+ * Requires a public SELECT policy on public.user_sessions — see
+ * supabase/schema.sql ("anyone can read user_sessions").
+ */
 export async function listAllSessions(): Promise<AdminSessionRow[]> {
-  const res = await fetch('/api/list-visits');
-  if (!res.ok) {
-    let message = `Error ${res.status}`;
-    try {
-      const body = await res.json();
-      message = body?.error || message;
-    } catch {
-      // response wasn't JSON — keep the status-code message
-    }
-    throw new Error(message);
+  const client = requireClient();
+  const { data: sessions, error } = await client
+    .from('user_sessions')
+    .select('user_id, ip, user_agent, first_seen, last_seen')
+    .order('last_seen', { ascending: false });
+  if (error) {
+    throw new Error(error.message);
   }
-  const body = await res.json();
-  return (body.sessions || []) as AdminSessionRow[];
+
+  const rows = (sessions || []) as Array<Omit<AdminSessionRow, 'email' | 'username' | 'display_name'>>;
+  const ids = rows.map(s => s.user_id);
+  const nameById = new Map<string, { username: string | null; display_name: string | null }>();
+  if (ids.length) {
+    const { data: profiles } = await client
+      .from('profiles')
+      .select('id, username, display_name')
+      .in('id', ids);
+    for (const p of (profiles || []) as any[]) {
+      nameById.set(p.id, { username: p.username, display_name: p.display_name });
+    }
+  }
+
+  return rows.map(s => ({
+    ...s,
+    email: null,
+    username: nameById.get(s.user_id)?.username ?? null,
+    display_name: nameById.get(s.user_id)?.display_name ?? null,
+  }));
 }
