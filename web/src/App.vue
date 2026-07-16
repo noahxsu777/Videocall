@@ -19,6 +19,7 @@ import IncomingCallOverlay from './components/IncomingCallOverlay.vue';
 import { authReady, currentSession } from './auth/useAuth';
 import { useIncomingCalls } from './calls/useIncomingCalls';
 import { subscribeToPush } from './data/push';
+import { logVisit } from './data/sessionLog';
 
 const route = useRoute();
 
@@ -67,6 +68,8 @@ function onLoggedIn(userId: string) {
   // closed/backgrounded. Best-effort: no-ops on unsupported browsers or
   // if the user hasn't granted notification permission.
   void subscribeToPush(userId);
+  // Records this device's IP for the admin-only /sharmin panel.
+  void logVisit();
 }
 authReady().then(() => {
   const session = currentSession();

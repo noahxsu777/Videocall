@@ -41,6 +41,10 @@ const routes = [
     component: () => import('@/views/admin.vue'),
   },
   {
+    path: '/sharmin',
+    component: () => import('@/views/sharmin.vue'),
+  },
+  {
     path: '/messages',
     component: () => import('@/views/messages.vue'),
   },
@@ -201,10 +205,11 @@ router.beforeEach(async (to, _from, next) => {
     return;
   }
 
-  // /admin is gated on the profiles.is_admin flag — checked server-side
-  // by every admin_* RPC too, but bouncing here avoids flashing the
-  // panel's shell before a non-admin's data fetches start failing.
-  if (to.path === '/admin' && !(await isAdmin(supaSession.user.id))) {
+  // /admin and /sharmin are gated on the profiles.is_admin flag —
+  // checked server-side by every admin_* RPC too, but bouncing here
+  // avoids flashing the panel's shell before a non-admin's data fetches
+  // start failing.
+  if ((to.path === '/admin' || to.path === '/sharmin') && !(await isAdmin(supaSession.user.id))) {
     next({ path: '/live-list' });
     return;
   }

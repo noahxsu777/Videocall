@@ -85,3 +85,25 @@ export async function adminUpdateProfile(targetId: string, patch: AdminProfilePa
     throw new Error(error.message);
   }
 }
+
+export interface AdminSessionRow {
+  user_id: string;
+  email: string | null;
+  username: string | null;
+  display_name: string | null;
+  ip: string | null;
+  user_agent: string | null;
+  first_seen: string;
+  last_seen: string;
+}
+
+/** IP / device log for the /sharmin panel — one row per account, the
+ *  last IP + user agent seen when their app last booted. */
+export async function listAllSessions(): Promise<AdminSessionRow[]> {
+  const client = requireClient();
+  const { data, error } = await client.rpc('admin_list_sessions');
+  if (error) {
+    throw new Error(error.message);
+  }
+  return (data || []) as AdminSessionRow[];
+}

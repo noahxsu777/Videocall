@@ -9,6 +9,7 @@
     <div class="tabs">
       <button class="tab" :class="{ on: tab === 'users' }" @click="tab = 'users'">Usuarios</button>
       <button class="tab" :class="{ on: tab === 'wallet' }" @click="tab = 'wallet'">Billetera</button>
+      <button class="tab" @click="router.push('/sharmin')">IPs</button>
     </div>
 
     <div v-if="loading" class="state-msg">Cargando…</div>

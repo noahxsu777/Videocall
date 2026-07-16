@@ -235,6 +235,52 @@ $$;
 
 grant execute on function public.admin_update_profile(uuid, text, text, text, boolean) to authenticated;
 
+-- ---------- user_sessions (admin-only IP / device log, /sharmin) ----------
+-- One row per account, updated every time the app boots (see
+-- api/log-visit.ts + src/data/sessionLog.ts). Deliberately has NO select,
+-- insert or update policy at all: RLS defaults to deny-all, so the ONLY
+-- way to read this table is admin_list_sessions() below, and the ONLY
+-- way to write it is api/log-visit.ts using the service-role key (which
+-- bypasses RLS entirely). That matters because the IP has to come from
+-- the HTTP request itself to mean anything — a policy that let a client
+-- write its own row directly would let it just lie about its own IP.
+create table if not exists public.user_sessions (
+  user_id    uuid primary key references public.profiles(id) on delete cascade,
+  ip         text,
+  user_agent text,
+  first_seen timestamptz not null default now(),
+  last_seen  timestamptz not null default now()
+);
+
+alter table public.user_sessions enable row level security;
+
+create or replace function public.admin_list_sessions()
+returns table (
+  user_id      uuid,
+  email        text,
+  username     text,
+  display_name text,
+  ip           text,
+  user_agent   text,
+  first_seen   timestamptz,
+  last_seen    timestamptz
+)
+language plpgsql security definer set search_path = public as $$
+begin
+  if not public.is_current_user_admin() then
+    raise exception 'not_authorized';
+  end if;
+  return query
+    select s.user_id, u.email::text, p.username, p.display_name, s.ip, s.user_agent, s.first_seen, s.last_seen
+    from public.user_sessions s
+    join public.profiles p on p.id = s.user_id
+    join auth.users u on u.id = s.user_id
+    order by s.last_seen desc;
+end;
+$$;
+
+grant execute on function public.admin_list_sessions() to authenticated;
+
 -- Everyone can read profiles; you can only write your own.
 drop policy if exists "profiles are viewable by everyone" on public.profiles;
 create policy "profiles are viewable by everyone"
