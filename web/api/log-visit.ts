@@ -1,23 +1,30 @@
 // Vercel serverless function (Node runtime). Records a visitor's real IP
 // + device into Upstash Redis, for the /sharmin panel. Pure Vercel — no
-// Supabase. The IP is read straight off the request headers (which
-// Vercel's edge network sets and a browser can't spoof), so a client
-// can never lie about its own IP.
+// Supabase, and NO external SDK: we talk to Upstash's REST API with the
+// built-in fetch, so nothing can fail at module load. The IP is read
+// straight off the request headers (which Vercel's edge network sets and
+// a browser can't spoof), so a client can never lie about its own IP.
 //
-// The Redis client is built lazily and reads whichever env-var names the
-// storage integration injected (KV_* or UPSTASH_*), so it works no
-// matter how the Upstash/Redis store was connected in Vercel → Storage.
-import { Redis } from '@upstash/redis';
-
+// Reads whichever env-var names the storage integration injected (KV_* or
+// UPSTASH_*), so it works no matter how the store was connected.
 const VISITORS_KEY = 'hypecall_visitors';
 
-function getRedis(): Redis {
+async function redisCommand(cmd: (string | number)[]): Promise<any> {
   const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) {
     throw new Error('Falta conectar el almacenamiento Redis/Upstash a este proyecto y hacer Redeploy.');
   }
-  return new Redis({ url, token });
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(cmd),
+  });
+  const json: any = await r.json();
+  if (json?.error) {
+    throw new Error(json.error);
+  }
+  return json?.result;
 }
 
 export default async function handler(req: any, res: any) {
@@ -35,10 +42,17 @@ export default async function handler(req: any, res: any) {
     const name = typeof body.name === 'string' && body.name ? body.name.slice(0, 120) : null;
     const path = typeof body.path === 'string' ? body.path.slice(0, 200) : null;
 
-    const redis = getRedis();
-    const now = new Date().toISOString();
-    const existing = (await redis.hget(VISITORS_KEY, ip)) as any;
+    const existingRaw = await redisCommand(['HGET', VISITORS_KEY, ip]);
+    let existing: any = null;
+    if (existingRaw) {
+      try {
+        existing = typeof existingRaw === 'string' ? JSON.parse(existingRaw) : existingRaw;
+      } catch {
+        existing = null;
+      }
+    }
 
+    const now = new Date().toISOString();
     const record = {
       ip,
       user_agent: userAgent,
@@ -49,7 +63,7 @@ export default async function handler(req: any, res: any) {
       last_seen: now,
     };
 
-    await redis.hset(VISITORS_KEY, { [ip]: record });
+    await redisCommand(['HSET', VISITORS_KEY, ip, JSON.stringify(record)]);
     res.status(200).json({ ok: true });
   } catch (err: any) {
     res.status(500).json({ error: `Registro falló: ${err?.message || String(err)}` });
