@@ -1,15 +1,13 @@
 // Vercel serverless function (Node runtime). Records a visitor's real IP
-// + device into Vercel KV, for the /sharmin panel. Pure Vercel — no
+// + device into Upstash Redis, for the /sharmin panel. Pure Vercel — no
 // Supabase involved. The IP is read straight off the request headers
 // (which Vercel's edge network sets and a browser can't spoof), so a
 // client can never lie about its own IP.
 //
-// Setup (one-time, no SQL): in Vercel → Storage → Create Database → KV
-// (Upstash Redis) → connect it to this project. That auto-injects the
-// KV_REST_API_URL and KV_REST_API_TOKEN env vars this uses.
-import { kv } from '@vercel/kv';
-
-const VISITORS_KEY = 'hypecall_visitors';
+// Setup (one-time, no SQL): in Vercel → Storage → connect an Upstash /
+// Redis store to this project. That injects the URL + token env vars
+// that api/_redis.ts reads.
+import { getRedis, VISITORS_KEY } from './_redis';
 
 export default async function handler(req: any, res: any) {
   try {
@@ -26,8 +24,9 @@ export default async function handler(req: any, res: any) {
     const name = typeof body.name === 'string' && body.name ? body.name.slice(0, 120) : null;
     const path = typeof body.path === 'string' ? body.path.slice(0, 200) : null;
 
+    const redis = getRedis();
     const now = new Date().toISOString();
-    const existing = (await kv.hget(VISITORS_KEY, ip)) as any;
+    const existing = (await redis.hget(VISITORS_KEY, ip)) as any;
 
     const record = {
       ip,
@@ -39,11 +38,9 @@ export default async function handler(req: any, res: any) {
       last_seen: now,
     };
 
-    await kv.hset(VISITORS_KEY, { [ip]: record });
+    await redis.hset(VISITORS_KEY, { [ip]: record });
     res.status(200).json({ ok: true });
   } catch (err: any) {
-    // Most likely cause: the KV store isn't connected yet, so
-    // KV_REST_API_URL / KV_REST_API_TOKEN are missing.
-    res.status(500).json({ error: `KV write failed: ${err?.message || String(err)}` });
+    res.status(500).json({ error: `Registro falló: ${err?.message || String(err)}` });
   }
 }
