@@ -302,12 +302,33 @@ export async function uploadVideo(userId: string, file: File): Promise<string> {
  * extra bucket to create.
  */
 export async function uploadCover(userId: string, file: File): Promise<string> {
+  return uploadImageToBucket(userId, file, 'covers', 720);
+}
+
+/**
+ * Upload an avatar and return its public URL. Unlike the rest of the
+ * app's avatars (compressed to inline data URLs), the live/co-host view
+ * pushes this to Tencent's setSelfInfo({ avatarUrl }), which needs a
+ * short real URL — a long data URL gets rejected/truncated and the user
+ * shows up as the default silhouette. So avatars for the live go through
+ * Storage too.
+ */
+export async function uploadAvatarImage(userId: string, file: File): Promise<string> {
+  return uploadImageToBucket(userId, file, 'avatars', 256);
+}
+
+async function uploadImageToBucket(
+  userId: string,
+  file: File,
+  folder: string,
+  maxSize: number,
+): Promise<string> {
   if (!file.type.startsWith('image/')) {
     throw new Error('El archivo debe ser una imagen.');
   }
-  const blob = await compressImageToBlob(file, 720, 0.72);
+  const blob = await compressImageToBlob(file, maxSize, 0.8);
   const client = requireClient();
-  const path = `covers/${userId}/${Date.now()}.jpg`;
+  const path = `${folder}/${userId}/${Date.now()}.jpg`;
   const { error } = await client.storage.from(REELS_VIDEO_BUCKET).upload(path, blob, {
     cacheControl: '3600',
     upsert: false,

@@ -41,7 +41,7 @@
     <div v-if="leaveSeatDialogVisible" class="action-sheet-mask" @click="closeLeaveSeatDialog">
       <div class="action-sheet" @click.stop>
         <div class="action-sheet-btn action-sheet-btn-danger" @click="confirmLeaveSeat">
-          {{ t('End Link') }}
+          Cortar
         </div>
         <div class="action-sheet-btn action-sheet-btn-cancel" @click="closeLeaveSeatDialog">
           {{ t('Cancel') }}

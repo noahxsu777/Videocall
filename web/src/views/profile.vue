@@ -81,9 +81,11 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import TUIRoomEngine from '@tencentcloud/tuiroom-engine-js';
 import GlassBackButton from '../components/GlassBackButton.vue';
 import VerifiedBadge from '../components/VerifiedBadge.vue';
 import { useAuth } from '../auth/useAuth';
+import { supabase } from '../auth/supabase';
 import {
   getProfile,
   ensureProfile,
@@ -93,6 +95,7 @@ import {
   follow,
   unfollow,
   uploadMedia,
+  uploadAvatarImage,
   uploadVideo,
   listPhotos,
   addPhoto,
@@ -181,8 +184,20 @@ async function onAvatarSelected(e: Event) {
     return;
   }
   try {
-    const url = await uploadMedia(user.value.id, file, 256, 0.85);
+    // Upload to Storage (short public URL) so the SAME avatar works both
+    // in-app AND in the live — Tencent's setSelfInfo needs a real URL,
+    // not a long data URL.
+    const url = await uploadAvatarImage(user.value.id, file);
     await updateProfile(user.value.id, { avatar_url: url });
+    // Mirror onto the auth user metadata (what the router reads to sync
+    // the Tencent profile on every app start) and push to the live SDK
+    // right now so it updates without needing a reload.
+    await supabase?.auth.updateUser({ data: { avatar_url: url } });
+    try {
+      await TUIRoomEngine.setSelfInfo({ userName: displayName.value || '', avatarUrl: url });
+    } catch (error) {
+      console.warn('[profile] setSelfInfo avatar failed:', error);
+    }
     if (profile.value) {
       profile.value.avatar_url = url;
     }

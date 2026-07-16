@@ -43,20 +43,6 @@
       />
       <span class="pending-approval-text">{{ t('Pending approval') }}<span class="dots" /></span>
     </div>
-    <!--
-      Viewer action rail: replaces Tencent's built-in tap-to-reveal
-      PlayerControl bar (plain-looking Play/Resolution/Volume/PiP/
-      Fullscreen strip, hidden via hideBuiltinPlayerControls below) with
-      two always-visible, app-styled buttons stacked above the chat bar.
-    -->
-    <div class="viewer-rail">
-      <button class="rail-btn" @click="shareSheetVisible = true">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-3.9M8.6 13.5l6.8 3.9"/></svg>
-      </button>
-      <button class="rail-btn" @click="qualitySheetVisible = true">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.36.4.66.73.85.32.19.7.27 1.07.24H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
-      </button>
-    </div>
     <ShareLiveSheet
       v-model="shareSheetVisible"
       :live-id="props.liveId"
@@ -80,18 +66,16 @@
     </div>
     <UserActionSheet v-model="chatUserSheet" :target="chatUserTarget" />
     <div ref="bottomBarRef" class="bottom">
-      <div class="message-input">
-        <LiveChat
-          :is-host="false"
-          hide-list
-          :disabled="!isInLive"
-          :disabled-placeholder="t('Live not started')"
-          @focus="handleBarrageInputFocus"
-          @blur="handleBarrageInputBlur"
-        />
-      </div>
-      <div class="bottom-operate-button">
+      <!-- All viewer actions in one tidy right-aligned row above the
+           message box, so nothing overflows off-screen. -->
+      <div class="bottom-actions">
         <LiveGift class="bottom-operate-button-icon bottom-operate-item" />
+        <button class="rail-btn bottom-operate-item" @click="shareSheetVisible = true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-3.9M8.6 13.5l6.8 3.9"/></svg>
+        </button>
+        <button class="rail-btn bottom-operate-item" @click="qualitySheetVisible = true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.36.4.66.73.85.32.19.7.27 1.07.24H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+        </button>
         <!--
           Wrap SeatApplicationButtonH5 because it is a multi-root component
           whose extra roots are full-screen fixed masks. Adding the spacing
@@ -104,6 +88,16 @@
         <div v-if="giftInfoList.length > 0" class="like-button bottom-operate-item" @click="handleSendLikes">
           <IconLike :size="20" />
         </div>
+      </div>
+      <div class="message-input">
+        <LiveChat
+          :is-host="false"
+          hide-list
+          :disabled="!isInLive"
+          :disabled-placeholder="t('Live not started')"
+          @focus="handleBarrageInputFocus"
+          @blur="handleBarrageInputBlur"
+        />
       </div>
       <!-- Like animation component -->
       <LikeAnimation ref="likeAnimationRef" />
@@ -793,20 +787,40 @@ function handleBarrageInputBlur() {
   }
 }
 
-.bottom-operate-button {
+.bottom-actions {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  flex: 1 0 auto;
-  padding: 0 8px;
+  width: 100%;
   // Note: flex `gap` is not supported on iOS Safari < 14.5 (and on older
   // WeChat web-views). Use sibling-margin on a dedicated class so the
   // spacing only applies to the visible icon buttons and never leaks to
   // the fixed masks rendered by SeatApplicationButtonH5's extra roots.
   > .bottom-operate-item + .bottom-operate-item {
-    margin-left: 8px;
+    margin-left: 14px;
   }
   -webkit-tap-highlight-color: transparent;
+
+  // Share / quality buttons, sized to match the other 36px action circles.
+  .rail-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.14);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-tap-highlight-color: transparent;
+    flex-shrink: 0;
+
+    &:active {
+      transform: scale(0.92);
+    }
+  }
 
   .bottom-operate-button-icon {
     width: 32px;
@@ -871,19 +885,21 @@ function handleBarrageInputBlur() {
   .bottom {
     position: absolute;
     display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
     width: 100%;
-    height: 48px;
     // Single source of truth for the bar's resting offset: 10px design
     // baseline + an optional `--keyboard-offset` (px) published by
     // LivePlayerH5's iOS keyboard handler. The `0px` fallback keeps
     // the bar at its baseline whenever the variable is unset (initial
     // render, blur, non-iOS browsers).
     bottom: calc(10px + var(--keyboard-offset, 0px));
-    align-items: center;
-    justify-content: space-between;
+    box-sizing: border-box;
+    padding: 0 12px;
 
     .message-input {
-      margin-left: 10px;
+      width: 100%;
     }
   }
 }
@@ -899,26 +915,26 @@ function handleBarrageInputBlur() {
     width: 260px;
     height: 180px;
     left: 0px;
-    bottom: 60px;
+    bottom: 96px;
     z-index: 99;
   }
 
   .bottom {
     position: absolute;
     display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
     width: 100%;
-    height: 48px;
     // See landscape variant above: 10px baseline + dynamic
     // `--keyboard-offset` published from JS during iOS keyboard
     // animation, with a `0px` fallback for the resting state.
     bottom: calc(10px + var(--keyboard-offset, 0px));
-    align-items: center;
-    justify-content: space-between;
     box-sizing: border-box;
-    padding: 0 20px;
+    padding: 0 16px;
 
-    .bottom-operate-button {
-      padding: 0;
+    .message-input {
+      width: 100%;
     }
   }
 }
@@ -980,38 +996,4 @@ function handleBarrageInputBlur() {
   75% { content: '...'; }
 }
 
-// Share + quality/PiP action rail — fixed to the bottom-right corner,
-// stacked above the chat/co-guest bar so it never overlaps the phone
-// (co-guest apply) button that sits in `.bottom-operate-button`.
-.viewer-rail {
-  position: fixed;
-  right: 12px;
-  bottom: 78px;
-  z-index: 90;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.rail-btn {
-  width: 42px;
-  height: 42px;
-  border-radius: 21px;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.12);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  backdrop-filter: blur(16px) saturate(180%);
-  box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.35),
-    inset 0 -1px 1px rgba(255, 255, 255, 0.1),
-    0 6px 16px rgba(0, 0, 0, 0.3);
-  -webkit-tap-highlight-color: transparent;
-}
-.rail-btn:active {
-  transform: scale(0.92);
-}
 </style>

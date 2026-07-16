@@ -186,6 +186,7 @@ const vipUntil = ref<string | null>(null);
 const verified = ref(false);
 const isCreator = ref(false);
 const isAdminUser = ref(false);
+const avatarUrl = ref('');
 
 const shortId = computed(() => (user.value?.id || '').slice(0, 8) || '—');
 const daysLeft = computed(() => daysUntilNameChange(nameUpdatedAt.value));
@@ -210,6 +211,7 @@ onMounted(async () => {
     verified.value = !!p?.verified;
     isCreator.value = !!p?.is_creator;
     isAdminUser.value = !!p?.is_admin;
+    avatarUrl.value = p?.avatar_url || '';
   } catch (error) {
     console.error('[settings] load failed:', error);
     username.value = displayName.value;
@@ -239,7 +241,10 @@ async function save() {
       await updateDisplayName(user.value.id, newName);
       await supabase?.auth.updateUser({ data: { display_name: newName } });
       try {
-        await TUIRoomEngine.setSelfInfo({ userName: newName, avatarUrl: '' });
+        // Keep the current avatar — passing '' here used to wipe it, so
+        // after any name change the user showed up as the default
+        // silhouette in lives.
+        await TUIRoomEngine.setSelfInfo({ userName: newName, avatarUrl: avatarUrl.value || '' });
       } catch (error) {
         console.warn('[settings] setSelfInfo failed:', error);
       }

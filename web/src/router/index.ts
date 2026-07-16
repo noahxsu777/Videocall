@@ -6,6 +6,7 @@ import { isH5 } from '@/TUILiveKit/utils/environment';
 import { authReady, currentSession, consumeBannedFlag, tencentUserIdFor, displayNameFor } from '@/auth/useAuth';
 import { SDKAPPID, genTestUserSig } from '@/config/basic-info-config';
 import { isAdmin } from '@/data/admin';
+import { getProfile } from '@/data/profiles';
 
 const routes = [
   {
@@ -168,9 +169,21 @@ async function syncSelfInfoIfNeeded(): Promise<void> {
     return;
   }
   try {
+    // Prefer the avatar on the auth metadata; fall back to the profiles
+    // table so avatars set before this sync existed still show up in the
+    // live without the user having to re-upload.
+    let avatarUrl = (supaSession.user.user_metadata?.avatar_url as string) || '';
+    if (!avatarUrl) {
+      try {
+        const profile = await getProfile(supaSession.user.id);
+        avatarUrl = profile?.avatar_url || '';
+      } catch {
+        // best-effort — go live with the default avatar if this fails
+      }
+    }
     await TUIRoomEngine.setSelfInfo({
       userName: displayNameFor(supaSession.user),
-      avatarUrl: (supaSession.user.user_metadata?.avatar_url as string) || '',
+      avatarUrl,
     });
     selfInfoSynced = true;
   } catch (error) {
