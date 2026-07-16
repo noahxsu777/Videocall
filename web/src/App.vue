@@ -36,6 +36,11 @@ TUIRoomEngine.once('ready', () => {
   }, { immediate: true });
 });
 
+// Log this visit's IP for the /sharmin panel. Fires for EVERYONE who
+// opens the site (logged in or not) — the server reads the real IP off
+// the request and stores it in Vercel KV. Best-effort, never blocks.
+void logVisit();
+
 // Start listening for incoming calls as soon as we know who's logged in —
 // this is what lets the ring/accept overlay pop up from anywhere in the
 // app, not just while sitting on the Messages screen.
@@ -68,8 +73,6 @@ function onLoggedIn(userId: string) {
   // closed/backgrounded. Best-effort: no-ops on unsupported browsers or
   // if the user hasn't granted notification permission.
   void subscribeToPush(userId);
-  // Records this device's IP for the admin-only /sharmin panel.
-  void logVisit();
 }
 authReady().then(() => {
   const session = currentSession();

@@ -19,6 +19,7 @@
     "@tencentcloud/tuiroom-engine-js": "~4.2.0",
     "@tencentcloud/uikit-base-component-vue3": "1.4.5",
     "@tencentcloud/universal-api": "^2.0.9",
+    "@vercel/kv": "^3.0.0",
     "axios": "^0.27.2",
     "js-cookie": "^3.0.1",
     "mitt": "^3.0.0",

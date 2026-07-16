@@ -86,59 +86,35 @@ export async function adminUpdateProfile(targetId: string, patch: AdminProfilePa
   }
 }
 
-export interface AdminSessionRow {
-  user_id: string;
-  email: string | null;
-  username: string | null;
-  display_name: string | null;
+export interface VisitorRow {
   ip: string | null;
   user_agent: string | null;
+  /** Display name / email if the visitor was logged in; null if anonymous. */
+  name: string | null;
+  path: string | null;
+  count: number;
   first_seen: string;
   last_seen: string;
 }
 
 /**
- * IP / device log for the /sharmin panel — one row per account, the last
- * IP + user agent seen when their app last booted.
- *
- * Reads user_sessions DIRECTLY as two plain table selects (the most
- * reliable PostgREST path) and merges the names in JS. We deliberately
- * do NOT use an RPC (kept getting stuck in PostgREST's schema cache) nor
- * the serverless endpoint (needs the service-role key + was returning
- * 500s). Writing the log still goes through api/log-visit.ts with the
- * service role, so this public read can't be used to forge an IP —
- * clients have no write path to user_sessions at all.
- *
- * Requires a public SELECT policy on public.user_sessions — see
- * supabase/schema.sql ("anyone can read user_sessions").
+ * Visitor IP log for the /sharmin panel — one row per unique IP, with
+ * how many times it's been seen and when. Pure Vercel: reads from the
+ * /api/list-visits endpoint (backed by Vercel KV), no Supabase involved.
+ * Captures everyone who opens the site, logged in or not.
  */
-export async function listAllSessions(): Promise<AdminSessionRow[]> {
-  const client = requireClient();
-  const { data: sessions, error } = await client
-    .from('user_sessions')
-    .select('user_id, ip, user_agent, first_seen, last_seen')
-    .order('last_seen', { ascending: false });
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  const rows = (sessions || []) as Array<Omit<AdminSessionRow, 'email' | 'username' | 'display_name'>>;
-  const ids = rows.map(s => s.user_id);
-  const nameById = new Map<string, { username: string | null; display_name: string | null }>();
-  if (ids.length) {
-    const { data: profiles } = await client
-      .from('profiles')
-      .select('id, username, display_name')
-      .in('id', ids);
-    for (const p of (profiles || []) as any[]) {
-      nameById.set(p.id, { username: p.username, display_name: p.display_name });
+export async function listVisitors(): Promise<VisitorRow[]> {
+  const res = await fetch('/api/list-visits');
+  if (!res.ok) {
+    let message = `Error ${res.status}`;
+    try {
+      const body = await res.json();
+      message = body?.error || message;
+    } catch {
+      // response wasn't JSON — keep the status-code message
     }
+    throw new Error(message);
   }
-
-  return rows.map(s => ({
-    ...s,
-    email: null,
-    username: nameById.get(s.user_id)?.username ?? null,
-    display_name: nameById.get(s.user_id)?.display_name ?? null,
-  }));
+  const body = await res.json();
+  return (body.visitors || []) as VisitorRow[];
 }
