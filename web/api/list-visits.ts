@@ -2,7 +2,18 @@
 // for the /sharmin panel, straight from Upstash Redis. Pure Vercel — no
 // Supabase. NO AUTH for now, at the user's request: anyone who hits
 // this endpoint gets the list. See api/log-visit.ts for the setup.
-import { getRedis, VISITORS_KEY } from './_redis';
+import { Redis } from '@upstash/redis';
+
+const VISITORS_KEY = 'hypecall_visitors';
+
+function getRedis(): Redis {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) {
+    throw new Error('Falta conectar el almacenamiento Redis/Upstash a este proyecto y hacer Redeploy.');
+  }
+  return new Redis({ url, token });
+}
 
 export default async function handler(_req: any, res: any) {
   try {

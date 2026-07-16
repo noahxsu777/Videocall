@@ -1,13 +1,24 @@
 // Vercel serverless function (Node runtime). Records a visitor's real IP
 // + device into Upstash Redis, for the /sharmin panel. Pure Vercel — no
-// Supabase involved. The IP is read straight off the request headers
-// (which Vercel's edge network sets and a browser can't spoof), so a
-// client can never lie about its own IP.
+// Supabase. The IP is read straight off the request headers (which
+// Vercel's edge network sets and a browser can't spoof), so a client
+// can never lie about its own IP.
 //
-// Setup (one-time, no SQL): in Vercel → Storage → connect an Upstash /
-// Redis store to this project. That injects the URL + token env vars
-// that api/_redis.ts reads.
-import { getRedis, VISITORS_KEY } from './_redis';
+// The Redis client is built lazily and reads whichever env-var names the
+// storage integration injected (KV_* or UPSTASH_*), so it works no
+// matter how the Upstash/Redis store was connected in Vercel → Storage.
+import { Redis } from '@upstash/redis';
+
+const VISITORS_KEY = 'hypecall_visitors';
+
+function getRedis(): Redis {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) {
+    throw new Error('Falta conectar el almacenamiento Redis/Upstash a este proyecto y hacer Redeploy.');
+  }
+  return new Redis({ url, token });
+}
 
 export default async function handler(req: any, res: any) {
   try {
