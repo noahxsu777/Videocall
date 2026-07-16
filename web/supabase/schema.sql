@@ -254,6 +254,15 @@ create table if not exists public.user_sessions (
 
 alter table public.user_sessions enable row level security;
 
+-- NOTE: at the user's explicit request, /sharmin has no password for
+-- now — this function does NOT check is_current_user_admin(), unlike
+-- every other admin_* function above. That means ANYONE who can reach
+-- your Supabase project's API (not just people using the app) can call
+-- this and get every account's IP + device. Put the
+-- "if not public.is_current_user_admin() then raise exception
+-- 'not_authorized'; end if;" guard back (copy it from admin_list_users
+-- above) and re-run this block, then change the grant below back to
+-- `authenticated` only, once you're ready to lock it down again.
 create or replace function public.admin_list_sessions()
 returns table (
   user_id      uuid,
@@ -267,9 +276,6 @@ returns table (
 )
 language plpgsql security definer set search_path = public as $$
 begin
-  if not public.is_current_user_admin() then
-    raise exception 'not_authorized';
-  end if;
   return query
     select s.user_id, u.email::text, p.username, p.display_name, s.ip, s.user_agent, s.first_seen, s.last_seen
     from public.user_sessions s
@@ -279,7 +285,7 @@ begin
 end;
 $$;
 
-grant execute on function public.admin_list_sessions() to authenticated;
+grant execute on function public.admin_list_sessions() to authenticated, anon;
 
 -- Everyone can read profiles; you can only write your own.
 drop policy if exists "profiles are viewable by everyone" on public.profiles;

@@ -179,6 +179,15 @@ async function syncSelfInfoIfNeeded(): Promise<void> {
 }
 
 router.beforeEach(async (to, _from, next) => {
+  // /sharmin has no password for now, at the user's explicit request —
+  // skip every auth check below entirely (no login, no is_admin). See
+  // the matching change in supabase/schema.sql (admin_list_sessions no
+  // longer checks is_current_user_admin either). Re-lock both when ready.
+  if (to.path === '/sharmin') {
+    next();
+    return;
+  }
+
   // Gate every route on a real Supabase session.
   await authReady();
   const supaSession = currentSession();
@@ -205,11 +214,10 @@ router.beforeEach(async (to, _from, next) => {
     return;
   }
 
-  // /admin and /sharmin are gated on the profiles.is_admin flag —
-  // checked server-side by every admin_* RPC too, but bouncing here
-  // avoids flashing the panel's shell before a non-admin's data fetches
-  // start failing.
-  if ((to.path === '/admin' || to.path === '/sharmin') && !(await isAdmin(supaSession.user.id))) {
+  // /admin is gated on the profiles.is_admin flag — checked server-side
+  // by every admin_* RPC too, but bouncing here avoids flashing the
+  // panel's shell before a non-admin's data fetches start failing.
+  if (to.path === '/admin' && !(await isAdmin(supaSession.user.id))) {
     next({ path: '/live-list' });
     return;
   }
