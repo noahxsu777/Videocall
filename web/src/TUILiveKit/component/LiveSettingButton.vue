@@ -38,13 +38,11 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 import { useUIKit, TUIDialog, TUIInput, IconEditor } from '@tencentcloud/uikit-base-component-vue3';
 import {
-  fetchUploadConfig,
   UPLOAD_ALLOWED_MIME_TYPES,
   UPLOAD_MAX_FILE_SIZE_MB,
-  UploadConfig,
 } from '../../api/upload';
 import LiveCoverUpload from './LiveCoverUpload.vue';
 
@@ -64,17 +62,15 @@ const { t } = useUIKit();
 
 const settingPanelVisible = ref(false);
 const coverType = ref<CoverType>('landscape');
-const uploadConfig = ref<UploadConfig>({
-  enabled: true,
-  provider: 'none',
-});
 const form = ref<LiveSettingForm>({
   liveName: props.liveName || '',
   coverUrl: props.coverUrl || '',
 });
 const maxFileSizeMB = UPLOAD_MAX_FILE_SIZE_MB;
 const allowedMimeTypes = UPLOAD_ALLOWED_MIME_TYPES;
-const uploadEnabled = computed(() => Boolean(uploadConfig.value.enabled));
+// Uploading always works now — LiveCoverUpload sends the image straight
+// to Supabase Storage, no separate upload server required.
+const uploadEnabled = true;
 
 function syncFormWithProps() {
   coverType.value = 'landscape';
@@ -84,14 +80,9 @@ function syncFormWithProps() {
   };
 }
 
-async function ensureUploadConfig() {
-  uploadConfig.value = await fetchUploadConfig();
-}
-
-const handleIconClick = async () => {
+const handleIconClick = () => {
   syncFormWithProps();
   settingPanelVisible.value = true;
-  await ensureUploadConfig();
 };
 
 const handleClose = () => {

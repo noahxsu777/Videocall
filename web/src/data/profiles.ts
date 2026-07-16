@@ -293,6 +293,74 @@ export async function uploadVideo(userId: string, file: File): Promise<string> {
   return data.publicUrl;
 }
 
+/**
+ * Compress + upload a live-cover image and return its public URL. The
+ * cover is passed to Tencent's startLive({ coverUrl }) and shown in the
+ * live list, so it must be a short URL (a big data URL would be rejected
+ * by the room metadata) — hence Storage, not an inline data URL. Reuses
+ * the public "reels-videos" bucket under a covers/ path so there's no
+ * extra bucket to create.
+ */
+export async function uploadCover(userId: string, file: File): Promise<string> {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('El archivo debe ser una imagen.');
+  }
+  const blob = await compressImageToBlob(file, 720, 0.72);
+  const client = requireClient();
+  const path = `covers/${userId}/${Date.now()}.jpg`;
+  const { error } = await client.storage.from(REELS_VIDEO_BUCKET).upload(path, blob, {
+    cacheControl: '3600',
+    upsert: false,
+    contentType: 'image/jpeg',
+  });
+  if (error) {
+    throw new Error(
+      error.message.includes('not found')
+        ? 'Falta crear el bucket "reels-videos" en Supabase Storage (público).'
+        : error.message,
+    );
+  }
+  const { data } = client.storage.from(REELS_VIDEO_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+function compressImageToBlob(file: File, maxSize: number, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('No se pudo leer la imagen.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width >= height && width > maxSize) {
+          height = Math.round((height * maxSize) / width);
+          width = maxSize;
+        } else if (height > width && height > maxSize) {
+          width = Math.round((width * maxSize) / height);
+          height = maxSize;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas no disponible.'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          blob => (blob ? resolve(blob) : reject(new Error('No se pudo procesar la imagen.'))),
+          'image/jpeg',
+          quality,
+        );
+      };
+      img.onerror = () => reject(new Error('Imagen inválida.'));
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export async function deletePhoto(photoId: string): Promise<void> {
   const client = requireClient();
   const { error } = await client.from('photos').delete().eq('id', photoId);

@@ -84,14 +84,14 @@
 import { computed, ref, watch } from 'vue';
 import { IconClose, TUIInput, TUIToast, useUIKit } from '@tencentcloud/uikit-base-component-vue3';
 import {
-  uploadImageFile,
   UPLOAD_ALLOWED_MIME_TYPES,
   UPLOAD_MAX_FILE_SIZE_MB,
 } from '../../api/upload';
+import { uploadCover } from '../../data/profiles';
+import { useAuth } from '../../auth/useAuth';
 
 const LANDSCAPE_COVER_RATIO = 16 / 9;
 const PORTRAIT_COVER_RATIO = 9 / 16;
-const COVER_RATIO_TOLERANCE = 0.03;
 
 type CoverType = 'landscape' | 'portrait';
 
@@ -116,6 +116,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useUIKit();
+const { user } = useAuth();
 const coverFileInputRef = ref<HTMLInputElement>();
 const isUploading = ref(false);
 const pendingCoverType = ref<CoverType>('landscape');
@@ -140,26 +141,11 @@ function parseUploadErrorMessage(error: unknown) {
   return err?.response?.data?.message || err?.message || t('Upload failed, please try again');
 }
 
-function getExpectedRatio(type: CoverType) {
-  return type === 'portrait' ? PORTRAIT_COVER_RATIO : LANDSCAPE_COVER_RATIO;
-}
-
-function getRatioText(type: CoverType) {
-  return type === 'portrait' ? '9:16' : '16:9';
-}
-
 function resolveCoverTypeByRatio(width: number, height: number): CoverType {
   const ratio = width / height;
   const landscapeDiff = Math.abs(ratio - LANDSCAPE_COVER_RATIO);
   const portraitDiff = Math.abs(ratio - PORTRAIT_COVER_RATIO);
   return landscapeDiff <= portraitDiff ? 'landscape' : 'portrait';
-}
-
-function isAspectRatioValid(width: number, height: number, type: CoverType) {
-  if (!width || !height) {
-    return false;
-  }
-  return Math.abs(width / height - getExpectedRatio(type)) <= COVER_RATIO_TOLERANCE;
 }
 
 async function detectCoverTypeFromUrl(url: string): Promise<CoverType | null> {
@@ -196,20 +182,6 @@ async function getImageSize(file: File): Promise<{ width: number; height: number
     };
     image.src = imageUrl;
   });
-}
-
-async function validateCoverFile(file: File, type: CoverType): Promise<string> {
-  if (!props.allowedMimeTypes.includes(file.type)) {
-    return t('Unsupported image format');
-  }
-  if (file.size > props.maxSizeMb * 1024 * 1024) {
-    return t('File size cannot exceed {size}MB').replace('{size}', String(props.maxSizeMb));
-  }
-  const { width, height } = await getImageSize(file);
-  if (!isAspectRatioValid(width, height, type)) {
-    return t('Please upload a {ratio} image').replace('{ratio}', getRatioText(type));
-  }
-  return '';
 }
 
 function showUploadUnavailableTip() {
@@ -257,29 +229,35 @@ async function handleDrop(event: DragEvent, type: CoverType) {
 
 async function processUploadFile(selectedFile: File, type: CoverType) {
   try {
-    const validateErrorMessage = await validateCoverFile(selectedFile, type);
-    if (validateErrorMessage) {
-      TUIToast.error({
-        message: validateErrorMessage,
-      });
+    // Only the format matters now — we accept any photo from the gallery,
+    // compress it client-side and upload it to Supabase Storage. We no
+    // longer reject on a strict 16:9 / 9:16 ratio (that blocked most real
+    // photos); instead we auto-detect which frame the image best fits.
+    if (!props.allowedMimeTypes.includes(selectedFile.type)) {
+      TUIToast.error({ message: t('Unsupported image format') });
       return;
     }
-
-    if (!props.uploadEnabled) {
-      showUploadUnavailableTip();
+    if (!user.value?.id) {
+      TUIToast.error({ message: t('Please log in first') });
       return;
     }
 
     isUploading.value = true;
-    const uploadResult = await uploadImageFile({
-      file: selectedFile,
-      type: 'cover',
-    });
-    if (props.coverType !== type) {
-      emit('update:coverType', type);
+
+    let finalType = type;
+    try {
+      const { width, height } = await getImageSize(selectedFile);
+      finalType = resolveCoverTypeByRatio(width, height);
+    } catch {
+      // couldn't read dimensions — keep the card the user tapped
     }
-    emit('update:modelValue', uploadResult.url);
-    emit('upload-success', { url: uploadResult.url });
+
+    const url = await uploadCover(user.value.id, selectedFile);
+    if (props.coverType !== finalType) {
+      emit('update:coverType', finalType);
+    }
+    emit('update:modelValue', url);
+    emit('upload-success', { url });
   } catch (error: unknown) {
     TUIToast.error({
       message: parseUploadErrorMessage(error),
