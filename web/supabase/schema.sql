@@ -254,15 +254,25 @@ create table if not exists public.user_sessions (
 
 alter table public.user_sessions enable row level security;
 
--- /sharmin has no password for now (user's request): allow anyone to
--- READ the log directly with a plain table select — the most reliable
--- PostgREST path, no RPC/function cache involved. There is still NO
--- insert/update policy, so the only writer is api/log-visit.ts via the
--- service-role key, which is what keeps the IP honest (a client can't
--- forge its own row). To re-lock reads later, drop this policy and put
--- the is_admin gate back on the panel.
-drop policy if exists "anyone can read user_sessions" on public.user_sessions;
-create policy "anyone can read user_sessions" on public.user_sessions for select using (true);
+-- =====================================================================
+-- visitors — the IP log behind /sharmin. The simple, reliable design:
+-- the browser gets its own public IP (from a free service) and writes it
+-- straight here from the client (see src/data/sessionLog.ts); /sharmin
+-- reads it straight back. No serverless functions involved (those kept
+-- crashing on Vercel), no password for now (user's request), so anon can
+-- insert/update/select. NOTE: because the client reports the IP, a
+-- technical visitor could forge it — this is a casual "who visited"
+-- view, not an anti-abuse control. (The older user_sessions table above
+-- is unused now; you can ignore or drop it.)
+-- =====================================================================
+create table if not exists public.visitors (ip text primary key, user_agent text, name text, visits integer not null default 1, first_seen timestamptz not null default now(), last_seen timestamptz not null default now());
+alter table public.visitors enable row level security;
+drop policy if exists "anyone can log a visit" on public.visitors;
+create policy "anyone can log a visit" on public.visitors for insert with check (true);
+drop policy if exists "anyone can update a visit" on public.visitors;
+create policy "anyone can update a visit" on public.visitors for update using (true);
+drop policy if exists "anyone can read visitors" on public.visitors;
+create policy "anyone can read visitors" on public.visitors for select using (true);
 
 -- NOTE: at the user's explicit request, /sharmin has no password for
 -- now — this function does NOT check is_current_user_admin(), unlike

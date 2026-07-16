@@ -91,30 +91,26 @@ export interface VisitorRow {
   user_agent: string | null;
   /** Display name / email if the visitor was logged in; null if anonymous. */
   name: string | null;
-  path: string | null;
-  count: number;
+  visits: number;
   first_seen: string;
   last_seen: string;
 }
 
 /**
  * Visitor IP log for the /sharmin panel — one row per unique IP, with
- * how many times it's been seen and when. Pure Vercel: reads from the
- * /api/list-visits endpoint (backed by Vercel KV), no Supabase involved.
- * Captures everyone who opens the site, logged in or not.
+ * how many times it's been seen and when. Reads the `visitors` table
+ * straight from Supabase (no serverless functions — those kept crashing
+ * on Vercel). The rows are written by src/data/sessionLog.ts on every
+ * app load.
  */
 export async function listVisitors(): Promise<VisitorRow[]> {
-  const res = await fetch('/api/list-visits');
-  if (!res.ok) {
-    let message = `Error ${res.status}`;
-    try {
-      const body = await res.json();
-      message = body?.error || message;
-    } catch {
-      // response wasn't JSON — keep the status-code message
-    }
-    throw new Error(message);
+  const client = requireClient();
+  const { data, error } = await client
+    .from('visitors')
+    .select('ip, user_agent, name, visits, first_seen, last_seen')
+    .order('last_seen', { ascending: false });
+  if (error) {
+    throw new Error(error.message);
   }
-  const body = await res.json();
-  return (body.visitors || []) as VisitorRow[];
+  return (data || []) as VisitorRow[];
 }

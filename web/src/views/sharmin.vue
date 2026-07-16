@@ -25,7 +25,7 @@
             <div class="row-info">
               <div class="row-top">
                 <span class="row-ip">{{ v.ip || '—' }}</span>
-                <span v-if="v.count > 1" class="chip">{{ v.count }}× visitas</span>
+                <span v-if="v.visits > 1" class="chip">{{ v.visits }}× visitas</span>
               </div>
               <span class="row-name">{{ v.name || 'Visitante anónimo' }}</span>
               <span class="row-ua">{{ v.user_agent || 'Dispositivo desconocido' }}</span>
@@ -78,7 +78,7 @@ const filteredVisitors = computed(() => {
     || (v.name || '').toLowerCase().includes(q));
 });
 
-const totalVisits = computed(() => visitors.value.reduce((sum, v) => sum + (v.count || 0), 0));
+const totalVisits = computed(() => visitors.value.reduce((sum, v) => sum + (v.visits || 0), 0));
 
 function relativeTime(iso: string): string {
   if (!iso) {
