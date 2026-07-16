@@ -22,12 +22,15 @@
 
         <div class="row-list">
           <div v-for="v in filteredVisitors" :key="v.ip || ''" class="row-card">
+            <span class="row-flag">{{ v.flag || '🌐' }}</span>
             <div class="row-info">
               <div class="row-top">
                 <span class="row-ip">{{ v.ip || '—' }}</span>
                 <span v-if="v.visits > 1" class="chip">{{ v.visits }}× visitas</span>
               </div>
-              <span class="row-name">{{ v.name || 'Visitante anónimo' }}</span>
+              <span class="row-loc">{{ locationText(v) }}</span>
+              <span class="row-isp">📶 {{ v.isp || 'Operador desconocido' }}</span>
+              <span v-if="v.name" class="row-name">👤 {{ v.name }}</span>
               <span class="row-ua">{{ v.user_agent || 'Dispositivo desconocido' }}</span>
             </div>
             <span class="row-time">{{ relativeTime(v.last_seen) }}</span>
@@ -75,10 +78,18 @@ const filteredVisitors = computed(() => {
   }
   return visitors.value.filter(v =>
     (v.ip || '').toLowerCase().includes(q)
-    || (v.name || '').toLowerCase().includes(q));
+    || (v.name || '').toLowerCase().includes(q)
+    || (v.country || '').toLowerCase().includes(q)
+    || (v.city || '').toLowerCase().includes(q)
+    || (v.isp || '').toLowerCase().includes(q));
 });
 
 const totalVisits = computed(() => visitors.value.reduce((sum, v) => sum + (v.visits || 0), 0));
+
+function locationText(v: VisitorRow): string {
+  const parts = [v.city, v.country].filter(Boolean);
+  return parts.length ? parts.join(', ') : 'Ubicación desconocida';
+}
 
 function relativeTime(iso: string): string {
   if (!iso) {
@@ -182,6 +193,7 @@ function relativeTime(iso: string): string {
   background: rgba(30, 30, 34, 0.55);
   border: 0.5px solid rgba(255, 255, 255, 0.1);
 }
+.row-flag { font-size: 30px; flex-shrink: 0; line-height: 1; }
 .row-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .row-top { display: flex; align-items: center; gap: 8px; }
 .row-ip {
@@ -189,6 +201,8 @@ function relativeTime(iso: string): string {
   font-size: 15px;
   font-weight: 700;
 }
+.row-loc { font-size: 13px; font-weight: 600; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-isp { font-size: 11.5px; color: #34c759; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip {
   font-size: 9px;
   font-weight: 800;

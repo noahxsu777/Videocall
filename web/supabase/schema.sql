@@ -265,7 +265,12 @@ alter table public.user_sessions enable row level security;
 -- view, not an anti-abuse control. (The older user_sessions table above
 -- is unused now; you can ignore or drop it.)
 -- =====================================================================
-create table if not exists public.visitors (ip text primary key, user_agent text, name text, visits integer not null default 1, first_seen timestamptz not null default now(), last_seen timestamptz not null default now());
+create table if not exists public.visitors (ip text primary key, user_agent text, name text, country text, country_code text, city text, flag text, isp text, visits integer not null default 1, first_seen timestamptz not null default now(), last_seen timestamptz not null default now());
+alter table public.visitors add column if not exists country text;
+alter table public.visitors add column if not exists country_code text;
+alter table public.visitors add column if not exists city text;
+alter table public.visitors add column if not exists flag text;
+alter table public.visitors add column if not exists isp text;
 alter table public.visitors enable row level security;
 drop policy if exists "anyone can log a visit" on public.visitors;
 create policy "anyone can log a visit" on public.visitors for insert with check (true);

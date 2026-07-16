@@ -2,14 +2,14 @@ import { supabase } from '../auth/supabase';
 
 /**
  * Logs this visit for the /sharmin panel — the simple, reliable way:
- * no serverless functions at all (those kept crashing on Vercel). The
- * browser asks a free public service for its own public IP, then writes
- * it straight into Supabase's `visitors` table (which the client can
- * read/write directly). Fires for everyone who opens the site, logged
- * in or not. Never throws.
+ * no serverless functions (those kept crashing on Vercel). The browser
+ * asks a free public service (ipwho.is) for its own public IP PLUS
+ * geolocation — country, flag emoji, city and ISP/carrier — then writes
+ * it all straight into Supabase's `visitors` table. Fires for everyone
+ * who opens the site, logged in or not. Never throws.
  *
- * Note: since the IP is reported by the client, a technical visitor
- * could fake it — fine for a casual "who visited" view; not an anti-abuse
+ * Note: since this all comes from the client, a technical visitor could
+ * fake it — fine for a casual "who visited" view, not an anti-abuse
  * control.
  */
 export async function logVisit(): Promise<void> {
@@ -18,14 +18,26 @@ export async function logVisit(): Promise<void> {
       return;
     }
 
-    // Public IP (best-effort; falls back to "desconocida").
+    // IP + geolocation in one free call (no API key, CORS-enabled).
     let ip = 'desconocida';
+    let country: string | null = null;
+    let countryCode: string | null = null;
+    let city: string | null = null;
+    let flag: string | null = null;
+    let isp: string | null = null;
     try {
-      const r = await fetch('https://api.ipify.org?format=json');
-      const j = await r.json();
-      ip = j?.ip || ip;
+      const r = await fetch('https://ipwho.is/');
+      const j: any = await r.json();
+      if (j && j.success !== false) {
+        ip = j.ip || ip;
+        country = j.country || null;
+        countryCode = j.country_code || null;
+        city = j.city || null;
+        flag = j.flag?.emoji || null;
+        isp = j.connection?.isp || j.connection?.org || null;
+      }
     } catch {
-      // ip service unreachable — still log the visit as "desconocida"
+      // geo service unreachable — still log the visit as "desconocida"
     }
 
     // Name, only if the visitor happens to be logged in.
@@ -47,11 +59,13 @@ export async function logVisit(): Promise<void> {
       .eq('ip', ip)
       .maybeSingle();
 
+    const geoFields = { user_agent: userAgent, country, country_code: countryCode, city, flag, isp };
+
     if (existing) {
       await supabase
         .from('visitors')
         .update({
-          user_agent: userAgent,
+          ...geoFields,
           name: name || (existing as any).name,
           visits: ((existing as any).visits || 0) + 1,
           last_seen: now,
@@ -60,7 +74,7 @@ export async function logVisit(): Promise<void> {
     } else {
       await supabase
         .from('visitors')
-        .insert({ ip, user_agent: userAgent, name, visits: 1, first_seen: now, last_seen: now });
+        .insert({ ip, ...geoFields, name, visits: 1, first_seen: now, last_seen: now });
     }
   } catch (error) {
     console.warn('[sessionLog] logVisit failed:', error);

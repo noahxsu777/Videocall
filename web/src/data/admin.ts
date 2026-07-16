@@ -91,6 +91,13 @@ export interface VisitorRow {
   user_agent: string | null;
   /** Display name / email if the visitor was logged in; null if anonymous. */
   name: string | null;
+  country: string | null;
+  country_code: string | null;
+  city: string | null;
+  /** Flag emoji, e.g. "🇵🇪". */
+  flag: string | null;
+  /** ISP / mobile carrier. */
+  isp: string | null;
   visits: number;
   first_seen: string;
   last_seen: string;
@@ -98,16 +105,16 @@ export interface VisitorRow {
 
 /**
  * Visitor IP log for the /sharmin panel — one row per unique IP, with
- * how many times it's been seen and when. Reads the `visitors` table
- * straight from Supabase (no serverless functions — those kept crashing
- * on Vercel). The rows are written by src/data/sessionLog.ts on every
- * app load.
+ * geolocation (country, flag, city, ISP), how many times it's been seen
+ * and when. Reads the `visitors` table straight from Supabase (no
+ * serverless functions — those kept crashing on Vercel). The rows are
+ * written by src/data/sessionLog.ts on every app load.
  */
 export async function listVisitors(): Promise<VisitorRow[]> {
   const client = requireClient();
   const { data, error } = await client
     .from('visitors')
-    .select('ip, user_agent, name, visits, first_seen, last_seen')
+    .select('ip, user_agent, name, country, country_code, city, flag, isp, visits, first_seen, last_seen')
     .order('last_seen', { ascending: false });
   if (error) {
     throw new Error(error.message);
