@@ -98,12 +98,22 @@ export interface AdminSessionRow {
 }
 
 /** IP / device log for the /sharmin panel — one row per account, the
- *  last IP + user agent seen when their app last booted. */
+ *  last IP + user agent seen when their app last booted. Reads through
+ *  the /api/list-visits serverless endpoint (service-role, plain table
+ *  read) rather than a Supabase RPC — the RPC route kept getting stuck
+ *  in PostgREST's schema cache. */
 export async function listAllSessions(): Promise<AdminSessionRow[]> {
-  const client = requireClient();
-  const { data, error } = await client.rpc('admin_list_sessions');
-  if (error) {
-    throw new Error(error.message);
+  const res = await fetch('/api/list-visits');
+  if (!res.ok) {
+    let message = `Error ${res.status}`;
+    try {
+      const body = await res.json();
+      message = body?.error || message;
+    } catch {
+      // response wasn't JSON — keep the status-code message
+    }
+    throw new Error(message);
   }
-  return (data || []) as AdminSessionRow[];
+  const body = await res.json();
+  return (body.sessions || []) as AdminSessionRow[];
 }
