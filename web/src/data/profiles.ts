@@ -540,6 +540,19 @@ export async function addComment(
 }
 
 /**
+ * Delete a comment. Allowed for the comment's author OR the owner of the
+ * reel it's on (see the "delete comments" RLS policy in schema.sql — the
+ * database enforces this, so a plain delete just fails for anyone else).
+ */
+export async function deleteComment(commentId: string): Promise<void> {
+  const client = requireClient();
+  const { error } = await client.from('comments').delete().eq('id', commentId);
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+/**
  * Activate (or extend) a VIP subscription. Simulated purchase — no real
  * payment gateway is wired yet, so this just extends vip_until by the
  * chosen number of days from now (or from the current expiry if still

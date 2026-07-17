@@ -483,9 +483,16 @@ drop policy if exists "users can comment" on public.comments;
 create policy "users can comment"
   on public.comments for insert with check (auth.uid() = user_id);
 
+-- A comment can be deleted by its author OR by the owner of the photo/reel
+-- it's on (so a creator can moderate comments on their own posts).
 drop policy if exists "users can delete own comments" on public.comments;
-create policy "users can delete own comments"
-  on public.comments for delete using (auth.uid() = user_id);
+drop policy if exists "author or reel owner can delete comments" on public.comments;
+create policy "author or reel owner can delete comments"
+  on public.comments for delete
+  using (
+    auth.uid() = user_id
+    or auth.uid() = (select p.user_id from public.photos p where p.id = comments.photo_id)
+  );
 
 -- ---------- messages (chat 1 a 1) ----------
 create table if not exists public.messages (

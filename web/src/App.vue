@@ -4,6 +4,7 @@
       <router-view />
       <BottomNav v-if="showBottomNav" />
       <IncomingCallOverlay />
+      <PullToRefresh v-if="allowPullToRefresh" />
     </div>
   </UIKitProvider>
 </template>
@@ -16,6 +17,7 @@ import { UIKitProvider, useUIKit } from '@tencentcloud/uikit-base-component-vue3
 import { initRoomEngineLanguage } from './utils/utils';
 import BottomNav from './components/BottomNav.vue';
 import IncomingCallOverlay from './components/IncomingCallOverlay.vue';
+import PullToRefresh from './components/PullToRefresh.vue';
 import { authReady, currentSession } from './auth/useAuth';
 import { useIncomingCalls } from './calls/useIncomingCalls';
 import { subscribeToPush } from './data/push';
@@ -27,6 +29,14 @@ const route = useRoute();
 // screen or the full-screen broadcast/watch/call views.
 const NAV_ROUTES = ['/live-list', '/reels', '/messages', '/profile'];
 const showBottomNav = computed(() => NAV_ROUTES.includes(route.path));
+
+// Pull-to-refresh is enabled everywhere EXCEPT the full-screen live /
+// call views — reloading in the middle of a broadcast or a call would
+// drop it, so a stray downward swipe there must never refresh.
+const NO_PTR = ['/live-pusher', '/live-player', '/business/live-player', '/education/live-player'];
+const allowPullToRefresh = computed(
+  () => !NO_PTR.includes(route.path) && !route.path.startsWith('/call'),
+);
 
 const { language } = useUIKit();
 

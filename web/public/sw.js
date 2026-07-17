@@ -5,7 +5,7 @@
  *  - same-origin static assets (hashed js/css/img): cache first
  *  - everything else (Supabase, TRTC, websockets): untouched
  */
-const CACHE = 'hypecall-v16';
+const CACHE = 'hypecall-v17';
 
 self.addEventListener('install', () => {
   self.skipWaiting();

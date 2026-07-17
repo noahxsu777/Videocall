@@ -114,6 +114,7 @@
               </span>
               <p class="cmt-text">{{ c.content }}</p>
             </div>
+            <button v-if="canDeleteComment(c)" class="cmt-del" @click="removeComment(c)">🗑️</button>
           </div>
           <p v-if="!comments.length && !commentsLoading" class="cmt-empty">Sé el primero en comentar 💬</p>
         </div>
@@ -148,6 +149,7 @@ import {
   unlikePhoto,
   listComments,
   addComment,
+  deleteComment,
   deletePhoto,
   type FeedPhoto,
   type PhotoComment,
@@ -358,6 +360,31 @@ async function submitComment() {
     showToast('¿Ya creaste las tablas likes/comments en Supabase?');
   } finally {
     commentSending.value = false;
+  }
+}
+
+// A comment can be removed by the person who wrote it OR by the owner of
+// the reel it's on (creator moderation). The DB enforces the same rule.
+function canDeleteComment(c: PhotoComment): boolean {
+  if (!user.value) {
+    return false;
+  }
+  return c.user_id === user.value.id || commentsFor.value?.user_id === user.value.id;
+}
+
+async function removeComment(c: PhotoComment) {
+  if (!canDeleteComment(c)) {
+    return;
+  }
+  try {
+    await deleteComment(c.id);
+    comments.value = comments.value.filter(x => x.id !== c.id);
+    const entry = commentsFor.value ? stats.value[commentsFor.value.id] : null;
+    if (entry) {
+      entry.comments = Math.max(0, entry.comments - 1);
+    }
+  } catch (error: any) {
+    showToast(`No se pudo eliminar: ${error?.message || 'error'}`);
   }
 }
 
@@ -688,7 +715,18 @@ onUnmounted(() => {
   gap: 14px;
   padding: 4px 2px;
 }
-.cmt { display: flex; gap: 10px; }
+.cmt { display: flex; gap: 10px; align-items: flex-start; }
+.cmt-del {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  font-size: 15px;
+  cursor: pointer;
+  opacity: 0.6;
+  padding: 2px 4px;
+}
+.cmt-del:active { opacity: 1; }
 .cmt-avatar {
   width: 34px;
   height: 34px;

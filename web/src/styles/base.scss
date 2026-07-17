@@ -18,3 +18,33 @@ body,
   width: 100%;
   height: 100%;
 }
+
+// --- Global tap feedback --------------------------------------------------
+// Every button / clickable row springs in slightly when pressed. Uses a
+// fast transition + a scale on :active so it feels responsive everywhere
+// without having to wire it per-component. Elements that set their own
+// :active transform still win (more specific / later rules).
+button,
+[role='button'],
+.row-tap,
+.rail-btn,
+.tab,
+.vbtn {
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+button:active,
+[role='button']:active,
+.row-tap:active,
+.rail-btn:active,
+.tab:active,
+.vbtn:active {
+  transform: scale(0.93);
+}
+
+// Stop the browser's own overscroll / pull-to-refresh from fighting our
+// custom pull-to-refresh (see components/PullToRefresh.vue).
+html,
+body {
+  overscroll-behavior-y: contain;
+}
