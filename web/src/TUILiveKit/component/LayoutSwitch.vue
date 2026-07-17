@@ -5,11 +5,11 @@
     @click="handleSwitchLayout"
   >
     <IconLayoutTemplate class="custom-icon" />
-    <span class="custom-text setting-text">{{ t('Layout Settings') }}</span>
+    <span class="custom-text setting-text">Modos</span>
   </div>
   <TUIDialog
     :custom-classes="['layout-dialog']"
-    :title="t('Layout Settings')"
+    title="Modos"
     :visible="layoutSwitchVisible"
     :confirm-text="t('Confirm')"
     :cancel-text="t('Cancel')"
@@ -18,7 +18,7 @@
     @cancel="handleCancel"
   >
     <div class="layout-label">
-      {{ t('Audience Layout') }}
+      Cómo se ven la cámara y los co-host
     </div>
     <div class="template-options">
       <div class="options-grid">

@@ -153,6 +153,9 @@
       <div v-if="isMobile && isInLive" class="mobile-barrage">
         <LiveChat :is-host="true" @open-user="onOpenChatUser" />
       </div>
+      <!-- Gifts received from the Tencent catalog, shown to the host with
+           their diamond value. -->
+      <GiftBanner v-if="isInLive" />
       <div class="main-center-bottom">
         <div class="main-center-bottom-content">
           <div class="main-center-bottom-left">
@@ -326,6 +329,7 @@ import SettingButton from './component/SettingButton.vue';
 import SpeakerVolumeSetting from './component/SpeakerVolumeSetting.vue';
 import LivePusherNotification from './component/LivePusherNotification.vue';
 import LiveChat from '../components/LiveChat.vue';
+import GiftBanner from '../components/GiftBanner.vue';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
 import { useAuth } from '../auth/useAuth';
 import { copyToClipboard, isSvgCoverUrl } from './utils/utils';
