@@ -20,17 +20,24 @@
       <article v-for="item in feed" :key="item.id" class="reel">
         <video
           v-if="item.media_type === 'video'"
+          :ref="(el) => registerVideo(item.id, el as HTMLVideoElement | null)"
           class="reel-img"
           :src="item.image_url"
           autoplay
           muted
           loop
           playsinline
+          @click="toggleMute"
         />
         <img v-else class="reel-img" :src="item.image_url" :alt="item.caption || 'reel'" />
 
         <!-- Vertical action rail (like / comment), TikTok style -->
         <div class="rail">
+          <button v-if="item.media_type === 'video'" class="rail-btn" @click="toggleMute">
+            <svg v-if="muted" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="rgba(255,255,255,0.95)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m23 9-6 6M17 9l6 6"/></svg>
+            <svg v-else viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="rgba(255,255,255,0.95)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/></svg>
+            <span class="rail-count">{{ muted ? 'Silencio' : 'Sonido' }}</span>
+          </button>
           <button class="rail-btn" @click="toggleLike(item)">
             <svg
               class="heart-icon"
@@ -78,7 +85,7 @@
               <span v-else>{{ authorInitial(item) }}</span>
             </span>
             <span class="ra-name">@{{ authorName(item) }}</span>
-            <VerifiedBadge v-if="item.author?.verified" :size="14" />
+            <VerifiedBadge v-if="item.author?.verified" :size="22" class="ra-verified" />
           </button>
           <p v-if="item.caption" class="reel-caption">{{ item.caption }}</p>
         </div>
@@ -128,7 +135,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useAuth } from '../auth/useAuth';
 import {
   listFeedPhotos,
@@ -161,6 +168,50 @@ const stats = ref<Record<string, { likes: number; comments: number }>>({});
 const liked = ref<Set<string>>(new Set());
 const popped = ref<Set<string>>(new Set());
 
+// --- Video playback + sound -----------------------------------------------
+// Videos start muted (required for mobile autoplay). Tapping the video or
+// the speaker button toggles sound. Only the video currently in view plays
+// (an IntersectionObserver pauses the others), so unmuting never blasts
+// several clips at once — and the visible video keeps playing while the
+// comments sheet is open on top of it.
+const muted = ref(true);
+const videoEls = new Map<string, HTMLVideoElement>();
+let videoObserver: IntersectionObserver | null = null;
+
+function registerVideo(id: string, el: HTMLVideoElement | null) {
+  if (el) {
+    el.muted = muted.value;
+    videoEls.set(id, el);
+    videoObserver?.observe(el);
+  } else {
+    const prev = videoEls.get(id);
+    if (prev) {
+      videoObserver?.unobserve(prev);
+      videoEls.delete(id);
+    }
+  }
+}
+
+function toggleMute() {
+  muted.value = !muted.value;
+  for (const el of videoEls.values()) {
+    el.muted = muted.value;
+  }
+  // Make sure the visible one is actually playing after an unmute tap.
+  for (const el of videoEls.values()) {
+    if (isMostlyVisible(el)) {
+      void el.play().catch(() => {});
+    }
+  }
+}
+
+function isMostlyVisible(el: HTMLElement): boolean {
+  const r = el.getBoundingClientRect();
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  const visible = Math.min(r.bottom, vh) - Math.max(r.top, 0);
+  return visible > r.height * 0.6;
+}
+
 const menuFor = ref<FeedPhoto | null>(null);
 const commentsFor = ref<FeedPhoto | null>(null);
 const comments = ref<PhotoComment[]>([]);
@@ -180,15 +231,37 @@ function showToast(text: string) {
 async function shareReel(item: FeedPhoto) {
   const url = `${location.origin}${location.pathname}#/reels`;
   const text = item.caption ? `${item.caption} — ` : '';
-  try {
-    if (navigator.share) {
+  const shareText = `${text}${url}`;
+
+  // 1) Native share sheet, if available. A user cancelling it throws
+  //    AbortError — that's not a failure, so we stop silently. Any OTHER
+  //    error means share didn't work, so fall through to copy.
+  if (navigator.share) {
+    try {
       await navigator.share({ title: 'Mira este reel en Hype Call', text, url });
-    } else {
-      await navigator.clipboard.writeText(`${text}${url}`);
-      showToast('Enlace copiado ✓');
+      return;
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        return;
+      }
+      // fall through to clipboard
     }
+  }
+
+  // 2) Copy to clipboard (needs HTTPS — Vercel is, so this works).
+  try {
+    await navigator.clipboard.writeText(shareText);
+    showToast('Enlace copiado ✓');
+    return;
   } catch {
-    // user cancelled the share sheet — ignore
+    // fall through to the last-resort prompt
+  }
+
+  // 3) Last resort: show the link so the user can copy it by hand.
+  try {
+    window.prompt('Copia este enlace:', shareText);
+  } catch {
+    showToast('No se pudo compartir en este navegador.');
   }
 }
 
@@ -327,7 +400,25 @@ function openUser(item: FeedPhoto) {
   sheetOpen.value = true;
 }
 
-onMounted(load);
+onMounted(() => {
+  videoObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      const el = entry.target as HTMLVideoElement;
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+        el.muted = muted.value;
+        void el.play().catch(() => {});
+      } else {
+        el.pause();
+      }
+    }
+  }, { threshold: [0, 0.6, 1] });
+  void load();
+});
+
+onUnmounted(() => {
+  videoObserver?.disconnect();
+  videoObserver = null;
+});
 </script>
 
 <style scoped>
@@ -524,6 +615,10 @@ onMounted(load);
 }
 .ra-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .ra-name { font-size: 15px; font-weight: 700; }
+.ra-verified {
+  margin-left: 5px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.7));
+}
 .reel-caption {
   margin: 10px 0 0;
   font-size: 14px;
