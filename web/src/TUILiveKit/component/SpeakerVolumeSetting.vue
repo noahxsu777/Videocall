@@ -1,100 +1,65 @@
 <template>
-  <div class="device-setting">
+  <div
+    class="device-btn"
+    :class="{ 'is-muted': !speakerIsOn }"
+    @click="switchSpeaker(!speakerIsOn)"
+  >
     <TUIIcon
       class="device-icon"
       :icon="speakerIsOn ? IconSpeakerOn : IconSpeakerOff"
-      @click="switchSpeaker(!speakerIsOn)"
-    />
-    <TUISlider
-      v-model="speakerVolume"
-      class="device-slider"
-      :min="0"
-      :max="100"
-      @change="handleSpeakerVolumeChange"
-      @mouseup="saveSpeakerVolumeBeforeMute"
     />
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, watch } from 'vue';
-import { TUIIcon, TUISlider, IconSpeakerOn, IconSpeakerOff } from '@tencentcloud/uikit-base-component-vue3';
+import { ref } from 'vue';
+import { TUIIcon, IconSpeakerOn, IconSpeakerOff } from '@tencentcloud/uikit-base-component-vue3';
 import { useDeviceState } from 'tuikit-atomicx-vue3';
 
 const { outputVolume, setOutputVolume } = useDeviceState();
 
 const DEFAULT_VOLUME = 100;
-const speakerVolume = ref(outputVolume.value);
 const speakerIsOn = ref(true);
-const speakerVolumeBeforeMute = ref(outputVolume.value);
-
-const saveSpeakerVolumeBeforeMute = () => {
-  if (speakerVolume.value > 0) {
-    speakerVolumeBeforeMute.value = speakerVolume.value;
-  }
-};
+const speakerVolumeBeforeMute = ref(outputVolume.value || DEFAULT_VOLUME);
 
 const switchSpeaker = (open: boolean) => {
   speakerIsOn.value = open;
   if (!open) {
-    speakerVolumeBeforeMute.value = speakerVolume.value || DEFAULT_VOLUME;
-    speakerVolume.value = 0;
+    speakerVolumeBeforeMute.value = outputVolume.value || DEFAULT_VOLUME;
     setOutputVolume(0);
   } else {
-    const volumeToRestore = speakerVolumeBeforeMute.value || DEFAULT_VOLUME;
-    speakerVolume.value = volumeToRestore;
-    setOutputVolume(volumeToRestore);
+    setOutputVolume(speakerVolumeBeforeMute.value || DEFAULT_VOLUME);
   }
 };
-
-const handleSpeakerVolumeChange = (value: number) => {
-  if (value !== outputVolume.value) {
-    setOutputVolume(value);
-  }
-
-  if (value === 0 && speakerIsOn.value) {
-    speakerIsOn.value = false;
-  }
-
-  if (value > 0 && !speakerIsOn.value) {
-    speakerIsOn.value = true;
-  }
-};
-
-watch(outputVolume, (newVal) => {
-  speakerVolume.value = newVal;
-});
 </script>
 
 <style lang="scss" scoped>
 @import '../style/index.scss';
 
-.device-setting {
+.device-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  background-color: var(--bg-color-bubble-reciprocal);
-  padding: 0 8px;
-  border-radius: 6px;
-  height: 40px;
+  justify-content: center;
+  color: #fff;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.4);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  -webkit-tap-highlight-color: transparent;
 
   .device-icon {
-    width: 24px;
-    height: 24px;
-    cursor: pointer;
+    width: 22px;
+    height: 22px;
   }
-  .device-slider {
-    flex: 1;
-    width: 46px;
-
-    :deep(.slider-thumb) {
-      width: 8px;
-      height: 8px;
-    }
-
-    :deep(.slider-thumb-disabled) {
-      border-color: var(--slider-color-empty);
-    }
+  &.is-muted {
+    background: rgba(220, 53, 69, 0.6);
+  }
+  &:active {
+    transform: scale(0.92);
   }
 }
 </style>

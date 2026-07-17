@@ -1,24 +1,20 @@
 <template>
-  <div class="device-setting">
+  <div
+    class="device-btn"
+    :class="{ 'is-muted': microphoneStatus === DeviceStatus.Off }"
+    @click="switchMicrophoneStatus"
+  >
     <AudioIcon
-      :size="16"
+      :size="20"
       :audio-volume="currentMicVolume"
       :is-muted="microphoneStatus === DeviceStatus.Off"
-      @click="switchMicrophoneStatus"
-    />
-    <TUISlider
-      :model-value="displayVolume"
-      class="device-slider"
-      :min="0"
-      :max="100"
-      @change="handleMicrophoneVolumeChange"
     />
   </div>
 </template>
 
 <script lang="ts" setup>
-import { computed, ref, watch } from 'vue';
-import { TUISlider, TUIToast, useUIKit } from '@tencentcloud/uikit-base-component-vue3';
+import { ref, watch } from 'vue';
+import { TUIToast, useUIKit } from '@tencentcloud/uikit-base-component-vue3';
 import { DeviceError, DeviceStatus, useDeviceState } from 'tuikit-atomicx-vue3';
 import AudioIcon from '../base-component/AudioIcon.vue';
 
@@ -50,38 +46,6 @@ const DEFAULT_VOLUME = 100;
 // losing the user's intended volume and causing the second-time-open
 // "observers hear nothing" regression.
 const intendedVolume = ref(DEFAULT_VOLUME);
-
-// Slider display value is DERIVED from mic status + intended volume.
-// When the mic is off, the slider shows 0 (UI consistency with the muted
-// icon). When on, it shows the user's intended volume. Writing to the
-// slider is handled explicitly in `handleMicrophoneVolumeChange`.
-const displayVolume = computed(() =>
-  (microphoneStatus.value === DeviceStatus.Off ? 0 : intendedVolume.value),
-);
-
-const handleMicrophoneVolumeChange = async (value: number) => {
-  if (value > 0) {
-    // User set a non-zero volume: record it as the new intended volume
-    // and ensure the mic is on at that volume.
-    intendedVolume.value = value;
-    if (microphoneStatus.value === DeviceStatus.Off) {
-      try {
-        await openLocalMicrophone();
-        await unmuteLocalAudio();
-      } catch (err) {
-        console.warn('[MicVolumeSetting] openLocalMicrophone failed:', err);
-      }
-    }
-    await setCaptureVolume(value);
-  } else {
-    // User dragged the slider to 0: mute the mic and zero the SDK volume,
-    // but PRESERVE `intendedVolume` so the next unmute restores it.
-    if (microphoneStatus.value === DeviceStatus.On) {
-      await muteLocalAudio();
-    }
-    await setCaptureVolume(0);
-  }
-};
 
 const switchMicrophoneStatus = async () => {
   if (microphoneLastError.value !== DeviceError.NoError) {
@@ -137,27 +101,26 @@ watch(microphoneStatus, (next, prev) => {
 <style lang="scss" scoped>
 @import '../style/index.scss';
 
-.device-setting {
+.device-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  background-color: var(--bg-color-bubble-reciprocal);
-  padding: 0 8px;
-  border-radius: 6px;
-  height: 40px;
+  justify-content: center;
+  color: #fff;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.4);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  -webkit-tap-highlight-color: transparent;
 
-  .device-slider {
-    flex: 1;
-    width: 46px;
-
-    :deep(.slider-thumb) {
-      width: 8px;
-      height: 8px;
-    }
-
-    :deep(.slider-thumb-disabled) {
-      border-color: var(--slider-color-empty);
-    }
+  &.is-muted {
+    background: rgba(220, 53, 69, 0.6);
+  }
+  &:active {
+    transform: scale(0.92);
   }
 }
 </style>
