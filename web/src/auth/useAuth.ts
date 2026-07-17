@@ -85,9 +85,13 @@ function ensureInitialized(): Promise<void> {
   initPromise = (async () => {
     const { data } = await supabase!.auth.getSession();
     session.value = data.session;
-    if (session.value?.user) {
-      await signOutIfBanned(session.value.user.id);
-    }
+    // NOTE: we deliberately do NOT run the banned check here on session
+    // restore. Doing so meant that if that check ever signed the user
+    // out at app boot (a transient error, a stale flag, etc.), they got
+    // logged out every single time they opened the app. The ban is
+    // enforced at explicit login() instead, which is enough to block a
+    // banned account from getting back in without ever risking kicking
+    // an already-logged-in user on startup.
     supabase!.auth.onAuthStateChange((_event, newSession) => {
       session.value = newSession;
     });
