@@ -8,7 +8,7 @@
       </button>
     </header>
 
-    <AppLoader v-if="loading" label="Cargando reels…" />
+    <ReelsSkeleton v-if="loading" />
 
     <div v-else-if="!feed.length" class="state empty">
       <div class="empty-emoji">🎬</div>
@@ -17,7 +17,7 @@
     </div>
 
     <div v-else class="feed">
-      <article v-for="item in feed" :key="item.id" class="reel">
+      <article v-for="item in feed" :key="item.id" :data-reel-id="item.id" class="reel">
         <video
           v-if="item.media_type === 'video'"
           :ref="(el) => registerVideo(item.id, el as HTMLVideoElement | null)"
@@ -161,10 +161,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAuth } from '../auth/useAuth';
 import {
   listFeedPhotos,
+  getFeedPhoto,
   uploadMedia,
   uploadVideo,
   addPhoto,
@@ -182,9 +184,10 @@ import {
 import { saveCache, loadCache } from '../data/offlineCache';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
 import VerifiedBadge from '../components/VerifiedBadge.vue';
-import AppLoader from '../components/AppLoader.vue';
+import ReelsSkeleton from '../components/ReelsSkeleton.vue';
 
 const { user } = useAuth();
+const route = useRoute();
 
 const feed = ref<FeedPhoto[]>([]);
 const loading = ref(true);
@@ -281,7 +284,9 @@ function showToast(text: string) {
 }
 
 async function shareReel(item: FeedPhoto) {
-  const url = `${location.origin}${location.pathname}#/reels`;
+  // Deep-link straight to THIS reel (not the generic feed) so opening the
+  // link scrolls to that exact video.
+  const url = `${location.origin}${location.pathname}#/reels?r=${item.id}`;
   const text = item.caption ? `${item.caption} — ` : '';
   const shareText = `${text}${url}`;
 
@@ -526,8 +531,27 @@ onMounted(() => {
   }, { threshold: [0, 0.6, 1] });
   window.addEventListener('pointerdown', enableSoundOnce, { passive: true });
   window.addEventListener('touchstart', enableSoundOnce, { passive: true });
-  void load();
+  void load().then(jumpToSharedReel);
 });
+
+// When opened from a shared link (#/reels?r=<id>), make sure that reel is
+// in the feed (fetch it if it's older than the recent slice) and scroll
+// straight to it.
+async function jumpToSharedReel() {
+  const id = route.query.r as string | undefined;
+  if (!id) {
+    return;
+  }
+  if (!feed.value.some(p => p.id === id)) {
+    const shared = await getFeedPhoto(id);
+    if (shared) {
+      feed.value = [shared, ...feed.value.filter(p => p.id !== shared.id)];
+    }
+  }
+  await nextTick();
+  const el = document.querySelector(`[data-reel-id="${id}"]`);
+  el?.scrollIntoView({ behavior: 'auto', block: 'start' });
+}
 
 onUnmounted(() => {
   videoObserver?.disconnect();

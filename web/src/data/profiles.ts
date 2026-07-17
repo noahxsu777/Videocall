@@ -445,6 +445,19 @@ export async function listFeedPhotos(limit = 60): Promise<FeedPhoto[]> {
   return photos.map(p => ({ ...p, author: authors.get(p.user_id) || null })) as FeedPhoto[];
 }
 
+/** Fetch a single reel/photo by id (with its author) — used to open a
+ *  shared deep link even when the post isn't in the recent feed. */
+export async function getFeedPhoto(id: string): Promise<FeedPhoto | null> {
+  const client = requireClient();
+  const { data, error } = await client.from('photos').select('*').eq('id', id).maybeSingle();
+  if (error || !data) {
+    return null;
+  }
+  const photo = data as any;
+  const authors = await fetchAuthorsMap([photo.user_id]);
+  return { ...photo, author: authors.get(photo.user_id) || null } as FeedPhoto;
+}
+
 // ---------- likes & comments (reels) ----------
 
 export interface PhotoComment {
