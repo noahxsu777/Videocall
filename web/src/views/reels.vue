@@ -94,6 +94,31 @@
 
     <input ref="photoInput" type="file" accept="image/*,video/*" hidden @change="onPhotoSelected" />
 
+    <!-- Instagram-style upload composer: preview + caption + Compartir -->
+    <div v-if="composer" class="composer">
+      <header class="composer-nav">
+        <button class="composer-x" @click="closeComposer">✕</button>
+        <span class="composer-title">Nueva publicación</span>
+        <button class="composer-share" :disabled="composerUploading" @click="publishComposer">
+          <span v-if="composerUploading" class="spinner-sm" />
+          <span v-else>Compartir</span>
+        </button>
+      </header>
+      <div class="composer-preview">
+        <video v-if="composer.isVideo" :src="composer.url" autoplay muted loop playsinline />
+        <img v-else :src="composer.url" alt="preview" />
+      </div>
+      <div class="composer-caption">
+        <textarea
+          v-model.trim="composer.caption"
+          rows="3"
+          maxlength="300"
+          placeholder="Escribe una descripción…"
+        />
+        <span class="composer-count">{{ composer.caption.length }}/300</span>
+      </div>
+    </div>
+
     <div v-if="toast" class="toast">{{ toast }}</div>
 
     <!-- Comments bottom sheet -->
@@ -154,6 +179,7 @@ import {
   type FeedPhoto,
   type PhotoComment,
 } from '../data/profiles';
+import { saveCache, loadCache } from '../data/offlineCache';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
 import VerifiedBadge from '../components/VerifiedBadge.vue';
 
@@ -235,6 +261,8 @@ function enableSoundOnce() {
   window.removeEventListener('touchstart', enableSoundOnce);
 }
 
+const composer = ref<{ file: File; url: string; isVideo: boolean; caption: string } | null>(null);
+const composerUploading = ref(false);
 const menuFor = ref<FeedPhoto | null>(null);
 const commentsFor = ref<FeedPhoto | null>(null);
 const comments = ref<PhotoComment[]>([]);
@@ -304,16 +332,32 @@ async function removeReel(item: FeedPhoto) {
 
 async function load() {
   loading.value = true;
+  const cacheUser = user.value?.id || 'global';
   try {
-    feed.value = await listFeedPhotos();
+    const fetched = await listFeedPhotos();
+    if (fetched.length) {
+      feed.value = fetched;
+      // Cache a slice for offline viewing (localStorage is small and the
+      // image data URLs are heavy, so keep it to the most recent dozen).
+      saveCache(cacheUser, 'reels_feed', fetched.slice(0, 12));
+    } else {
+      // Empty likely means offline / a failed fetch — fall back to the
+      // last feed we cached so the tab still shows something offline.
+      const cached = loadCache<FeedPhoto[]>(cacheUser, 'reels_feed');
+      feed.value = cached?.data || [];
+    }
     const ids = feed.value.map(p => p.id);
     const [s, mine] = await Promise.all([
-      getPhotoStats(ids),
-      user.value ? myLikedPhotoIds(user.value.id, ids) : Promise.resolve(new Set<string>()),
+      getPhotoStats(ids).catch(() => ({} as Record<string, { likes: number; comments: number }>)),
+      user.value ? myLikedPhotoIds(user.value.id, ids).catch(() => new Set<string>()) : Promise.resolve(new Set<string>()),
     ]);
     stats.value = s;
     liked.value = mine;
   } catch (error) {
+    const cached = loadCache<FeedPhoto[]>(cacheUser, 'reels_feed');
+    if (cached?.data?.length) {
+      feed.value = cached.data;
+    }
     console.error('[reels] load failed:', error);
   } finally {
     loading.value = false;
@@ -413,26 +457,45 @@ function pickPhoto() {
   photoInput.value?.click();
 }
 
-async function onPhotoSelected(e: Event) {
+function onPhotoSelected(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0];
   if (!file || !user.value) {
     return;
   }
   const isVideo = file.type.startsWith('video/');
-  showToast(isVideo ? 'Subiendo video…' : 'Subiendo…');
+  // Instagram-style: don't upload yet — open the composer with a preview
+  // and a caption field, and only upload when the user taps "Compartir".
+  composer.value = { file, url: URL.createObjectURL(file), isVideo, caption: '' };
+  if (photoInput.value) {
+    photoInput.value.value = '';
+  }
+}
+
+function closeComposer() {
+  if (composer.value) {
+    URL.revokeObjectURL(composer.value.url);
+  }
+  composer.value = null;
+}
+
+async function publishComposer() {
+  if (!composer.value || !user.value) {
+    return;
+  }
+  const { file, isVideo, caption } = composer.value;
+  composerUploading.value = true;
   try {
     const url = isVideo
       ? await uploadVideo(user.value.id, file)
       : await uploadMedia(user.value.id, file, 1280, 0.72);
-    await addPhoto(user.value.id, url, '', isVideo ? 'video' : 'image');
+    await addPhoto(user.value.id, url, caption || '', isVideo ? 'video' : 'image');
+    closeComposer();
     showToast('¡Publicado! 🎉');
     await load();
   } catch (error: any) {
     showToast(`Error: ${error?.message || 'no se pudo subir'}`);
   } finally {
-    if (photoInput.value) {
-      photoInput.value.value = '';
-    }
+    composerUploading.value = false;
   }
 }
 
@@ -533,6 +596,100 @@ onUnmounted(() => {
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* Instagram-style upload composer */
+.composer {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #0a0a0c;
+  display: flex;
+  flex-direction: column;
+}
+.composer-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  padding: 0 12px;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+.composer-x {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+  width: 40px;
+  text-align: left;
+}
+.composer-title { font-size: 16px; font-weight: 700; color: #fff; }
+.composer-share {
+  min-width: 92px;
+  height: 34px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.composer-share:disabled { opacity: 0.6; }
+.spinner-sm {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.composer-preview {
+  flex: 1;
+  min-height: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.composer-preview img,
+.composer-preview video {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.composer-caption {
+  position: relative;
+  flex-shrink: 0;
+  padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0));
+  border-top: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+.composer-caption textarea {
+  width: 100%;
+  box-sizing: border-box;
+  background: none;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 15px;
+  font-family: inherit;
+  resize: none;
+  line-height: 1.45;
+}
+.composer-caption textarea::placeholder { color: #6a6a70; }
+.composer-count {
+  position: absolute;
+  right: 14px;
+  bottom: calc(10px + env(safe-area-inset-bottom, 0));
+  font-size: 11px;
+  color: #6a6a70;
 }
 
 /* Full-height snap feed */
