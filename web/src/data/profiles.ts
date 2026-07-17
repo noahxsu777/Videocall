@@ -581,6 +581,19 @@ export async function purchaseVerification(): Promise<number> {
 }
 
 /**
+ * Request the verified badge by application (the current flow — not paid
+ * with coins). Flags the user's profile as having requested verification;
+ * you approve/reject it from the /sharmin panel.
+ */
+export async function requestVerification(note?: string): Promise<void> {
+  const client = requireClient();
+  const { error } = await client.rpc('request_verification', { note: note || null });
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+/**
  * Turns on the (purely cosmetic) Creator badge for this account. Unlike
  * `verified`/`is_admin`, `is_creator` isn't a protected column and isn't
  * gating anything today — every account can already open /live-pusher

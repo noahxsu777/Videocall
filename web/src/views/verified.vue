@@ -12,7 +12,8 @@
       </div>
       <h1>Cuenta verificada</h1>
       <p v-if="isVerified" class="active">Tu cuenta ya tiene la insignia verificada ✓</p>
-      <p v-else class="sub">Consigue el check azul al estilo de Twitter/X</p>
+      <p v-else-if="requested" class="active">Solicitud enviada — en revisión ⏳</p>
+      <p v-else class="sub">Solicita el check azul al estilo de Twitter/X</p>
     </div>
 
     <ul class="perks">
@@ -22,46 +23,51 @@
       <li><span class="pk-ic">♾️</span> Es permanente, no caduca</li>
     </ul>
 
-    <div v-if="!isVerified" class="price-card">
-      <span class="price-label">Precio</span>
-      <span class="price-amount">🪙 {{ PRICE.toLocaleString() }}</span>
-      <span class="price-balance">Tienes {{ coins.toLocaleString() }} coins</span>
+    <div v-if="!isVerified && !requested" class="note-card">
+      <label class="note-label">¿Por qué quieres verificarte? (opcional)</label>
+      <textarea
+        v-model.trim="note"
+        rows="3"
+        maxlength="300"
+        placeholder="Cuéntanos quién eres, tus redes, por qué mereces el check…"
+      />
     </div>
 
     <p v-if="msg" class="msg" :class="ok ? 'ok' : 'err'">{{ msg }}</p>
 
     <button
-      v-if="!isVerified"
+      v-if="!isVerified && !requested"
       class="buy"
-      :disabled="buying || coins < PRICE"
-      @click="buy"
+      :disabled="sending"
+      @click="apply"
     >
-      <span v-if="buying" class="spinner" />
-      <span v-else-if="coins < PRICE">Coins insuficientes</span>
-      <span v-else>Obtener verificación</span>
+      <span v-if="sending" class="spinner" />
+      <span v-else>Solicitar verificación</span>
     </button>
-    <p v-if="!isVerified" class="fineprint">
-      Se descuentan {{ PRICE.toLocaleString() }} coins de tu saldo al instante. La insignia
-      no se puede quitar ni transferir.
+    <p v-if="!isVerified && !requested" class="fineprint">
+      Tu solicitud será revisada manualmente. Te avisaremos cuando se apruebe.
+    </p>
+    <p v-else-if="requested" class="fineprint">
+      Ya tienes una solicitud pendiente. Un administrador la revisará pronto.
     </p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import GlassBackButton from '../components/GlassBackButton.vue';
 import VerifiedBadge from '../components/VerifiedBadge.vue';
 import { useAuth } from '../auth/useAuth';
-import { getProfile, purchaseVerification, VERIFIED_PRICE_COINS } from '../data/profiles';
+import { getProfile, requestVerification } from '../data/profiles';
 
 const router = useRouter();
 const { user } = useAuth();
 
-const PRICE = VERIFIED_PRICE_COINS;
 const isVerified = ref(false);
-const coins = ref(0);
-const buying = ref(false);
+const requested = ref(false);
+const note = ref('');
+const sending = ref(false);
 const msg = ref('');
 const ok = ref(false);
 
@@ -72,37 +78,28 @@ onMounted(async () => {
   try {
     const p = await getProfile(user.value.id);
     isVerified.value = !!p?.verified;
-    coins.value = p?.coins ?? 0;
+    requested.value = !!(p as any)?.verification_requested;
   } catch (error) {
     console.error('[verified] load failed:', error);
   }
 });
 
-async function buy() {
-  if (!user.value || coins.value < PRICE) {
+async function apply() {
+  if (!user.value) {
     return;
   }
   msg.value = '';
-  buying.value = true;
+  sending.value = true;
   try {
-    const newBalance = await purchaseVerification();
-    coins.value = newBalance;
-    isVerified.value = true;
+    await requestVerification(note.value || undefined);
+    requested.value = true;
     ok.value = true;
-    msg.value = '¡Listo! Ya tienes la insignia verificada ✓';
+    msg.value = '¡Solicitud enviada! La revisaremos pronto ⏳';
   } catch (error: any) {
     ok.value = false;
-    const reason = error?.message || '';
-    if (reason.includes('insufficient_coins')) {
-      msg.value = 'No tienes suficientes coins.';
-    } else if (reason.includes('already_verified')) {
-      msg.value = 'Tu cuenta ya está verificada.';
-      isVerified.value = true;
-    } else {
-      msg.value = `No se pudo verificar: ${reason || 'error'}`;
-    }
+    msg.value = `No se pudo enviar: ${error?.message || 'error'}`;
   } finally {
-    buying.value = false;
+    sending.value = false;
   }
 }
 </script>
@@ -181,6 +178,22 @@ async function buy() {
 .price-label { font-size: 12px; color: #9fc9dd; text-transform: uppercase; letter-spacing: 0.4px; }
 .price-amount { font-size: 24px; font-weight: 800; }
 .price-balance { font-size: 12.5px; color: #7a8a92; margin-top: 2px; }
+
+.note-card { margin: 16px 18px 0; display: flex; flex-direction: column; gap: 8px; }
+.note-label { font-size: 12.5px; font-weight: 600; color: #9fc9dd; }
+.note-card textarea {
+  border-radius: 12px;
+  border: 1px solid rgba(29, 155, 240, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  resize: none;
+  line-height: 1.45;
+}
+.note-card textarea::placeholder { color: #6a7a82; }
 
 .msg { text-align: center; font-size: 14px; margin: 12px 16px 0; }
 .msg.ok { color: #1d9bf0; }

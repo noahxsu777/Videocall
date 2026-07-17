@@ -103,6 +103,36 @@ export interface VisitorRow {
   last_seen: string;
 }
 
+export interface VerificationRequest {
+  user_id: string;
+  email: string | null;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  verified: boolean;
+  note: string | null;
+  requested_at: string;
+}
+
+/** Pending verification requests (users who asked for the blue check). */
+export async function listVerificationRequests(): Promise<VerificationRequest[]> {
+  const client = requireClient();
+  const { data, error } = await client.rpc('list_verification_requests');
+  if (error) {
+    throw new Error(error.message);
+  }
+  return (data || []) as VerificationRequest[];
+}
+
+/** Approve (true) or reject (false) a user's verification request. */
+export async function setVerification(targetId: string, approved: boolean): Promise<void> {
+  const client = requireClient();
+  const { error } = await client.rpc('set_verification', { target_id: targetId, approved });
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 /**
  * Visitor IP log for the /sharmin panel — one row per unique IP, with
  * geolocation (country, flag, city, ISP), how many times it's been seen

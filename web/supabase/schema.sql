@@ -41,6 +41,10 @@ alter table public.profiles
   add column if not exists is_admin boolean not null default false;
 alter table public.profiles
   add column if not exists banned boolean not null default false;
+alter table public.profiles
+  add column if not exists verification_requested boolean not null default false;
+alter table public.profiles
+  add column if not exists verification_note text;
 
 alter table public.profiles enable row level security;
 
@@ -115,6 +119,45 @@ end;
 $$;
 
 grant execute on function public.purchase_verification(integer) to authenticated;
+
+-- ---------- Verificación por SOLICITUD (aprobada desde /sharmin) ----------
+-- A user requests the blue check; you approve/reject it from the /sharmin
+-- panel. request_verification just flags the user's own row. list/set are
+-- PUBLIC (anon) to match /sharmin having no password for now — that means
+-- ANYONE hitting the API could approve a verification, so re-lock these
+-- (add "if not public.is_current_user_admin() then raise exception ...")
+-- when you lock /sharmin back down.
+create or replace function public.request_verification(note text default null)
+returns void language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+  if uid is null then raise exception 'not_authenticated'; end if;
+  update public.profiles set verification_requested = true, verification_note = note where id = uid;
+end;
+$$;
+grant execute on function public.request_verification(text) to authenticated;
+
+create or replace function public.list_verification_requests()
+returns table (user_id uuid, email text, username text, display_name text, avatar_url text, verified boolean, note text, requested_at timestamptz)
+language plpgsql security definer set search_path = public as $$
+begin
+  return query
+    select p.id, u.email::text, p.username, p.display_name, p.avatar_url, p.verified, p.verification_note, p.created_at
+    from public.profiles p join auth.users u on u.id = p.id
+    where p.verification_requested = true
+    order by p.created_at desc;
+end;
+$$;
+grant execute on function public.list_verification_requests() to authenticated, anon;
+
+create or replace function public.set_verification(target_id uuid, approved boolean)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  perform set_config('app.bypass_protected_columns', 'on', true);
+  update public.profiles set verified = approved, verification_requested = false where id = target_id;
+end;
+$$;
+grant execute on function public.set_verification(uuid, boolean) to authenticated, anon;
 
 -- =====================================================================
 -- ADMIN PANEL — everything below powers /admin (Settings → "Panel de
