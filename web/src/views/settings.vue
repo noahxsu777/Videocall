@@ -521,7 +521,7 @@ textarea.row-field {
 .creator-val { color: #d68bff; }
 .ic-camera { background: linear-gradient(135deg, #ff2e74, #ff6a3d); }
 .ic-money { background: linear-gradient(135deg, #34c759, #16a34a); }
-.ic-stats { background: linear-gradient(135deg, #0a84ff, #5e5ce6); }
+.ic-stats { background: linear-gradient(135deg, #8b3dff, #ff2e74); }
 .ic-fans { background: linear-gradient(135deg, #ff9d2f, #ff5ec4); }
 .ic-agency { background: linear-gradient(135deg, #5e5ce6, #0a84ff); }
 .ic-store { background: linear-gradient(135deg, #a259ff, #6d28d9); }
@@ -597,7 +597,7 @@ textarea.row-field {
   margin-top: 14px;
   border: none;
   border-radius: 14px;
-  background: linear-gradient(135deg, #0a84ff 0%, #5e5ce6 100%);
+  background: linear-gradient(135deg, #8b3dff 0%, #ff2e74 100%);
   color: #fff;
   font-size: 16px;
   font-weight: 600;
@@ -605,7 +605,7 @@ textarea.row-field {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 20px rgba(10, 132, 255, 0.35);
+  box-shadow: 0 8px 20px rgba(139, 61, 255, 0.35);
 }
 .save-btn:disabled {
   opacity: 0.6;
@@ -626,6 +626,6 @@ textarea.row-field {
   margin: 14px 4px 0;
   text-align: center;
   font-size: 13px;
-  color: #0a84ff;
+  color: #c48bff;
 }
 </style>

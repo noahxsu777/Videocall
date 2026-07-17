@@ -137,10 +137,10 @@ const go = (path: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0a84ff 0%, #5e5ce6 100%);
+  background: linear-gradient(135deg, #8b3dff 0%, #ff2e74 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    0 6px 16px rgba(10, 132, 255, 0.5);
+    0 6px 16px rgba(139, 61, 255, 0.5);
   transition: transform 0.12s ease;
   animation: tab-create-glow 2.6s ease-in-out infinite;
 }
@@ -148,7 +148,7 @@ const go = (path: string) => {
   0%, 100% {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.4),
-      0 6px 16px rgba(10, 132, 255, 0.5);
+      0 6px 16px rgba(139, 61, 255, 0.5);
   }
   50% {
     box-shadow:

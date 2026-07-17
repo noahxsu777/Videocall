@@ -169,7 +169,7 @@ onMounted(async () => {
   right: -18%;
   width: 60vw;
   height: 60vw;
-  background: radial-gradient(circle, rgba(10, 132, 255, 0.28), transparent 70%);
+  background: radial-gradient(circle, rgba(139, 61, 255, 0.28), transparent 70%);
   animation: blob-float-2 11s ease-in-out infinite;
 }
 .bg-blob-3 {

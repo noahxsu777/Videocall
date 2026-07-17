@@ -497,7 +497,7 @@ const walletMatches = computed(() => {
   padding: 0 12px;
 }
 .btn:disabled { opacity: 0.5; }
-.btn-save { background: #0a84ff; color: #fff; }
+.btn-save { background: #8b3dff; color: #fff; }
 .btn-coins { background: rgba(52, 199, 89, 0.18); color: #34c759; white-space: nowrap; }
 .btn-coins-minus { background: rgba(255, 159, 10, 0.18); color: #ff9f0a; white-space: nowrap; }
 .btn-ban { background: rgba(255, 69, 58, 0.18); color: #ff453a; }
@@ -537,7 +537,7 @@ const walletMatches = computed(() => {
   text-align: left;
   cursor: pointer;
 }
-.wallet-match.sel { background: rgba(10, 132, 255, 0.15); }
+.wallet-match.sel { background: rgba(139, 61, 255, 0.15); }
 .wm-email { color: #8e8e93; font-size: 11.5px; }
 
 .wallet-target {

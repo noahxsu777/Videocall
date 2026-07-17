@@ -143,8 +143,8 @@ async function togglePip() {
   cursor: pointer;
 }
 .quality-btn.sel {
-  border-color: #0a84ff;
-  background: rgba(10, 132, 255, 0.18);
+  border-color: #8b3dff;
+  background: rgba(139, 61, 255, 0.18);
   color: #7fc4ff;
 }
 
@@ -208,7 +208,7 @@ async function togglePip() {
   margin-top: 16px;
   border-radius: 13px;
   border: none;
-  background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
   color: #fff;
   font-size: 15px;
   font-weight: 700;

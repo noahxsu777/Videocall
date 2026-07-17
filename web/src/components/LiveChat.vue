@@ -274,7 +274,7 @@ onMounted(async () => {
   height: 40px;
   border-radius: 20px;
   border: none;
-  background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
   color: #fff;
   font-size: 16px;
   cursor: pointer;

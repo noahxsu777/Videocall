@@ -171,7 +171,7 @@ async function shareNative() {
   justify-content: center;
   flex-shrink: 0;
 }
-.opt-ic-link { background: linear-gradient(135deg, #0a84ff, #5e5ce6); }
+.opt-ic-link { background: linear-gradient(135deg, #8b3dff, #ff2e74); }
 .opt-ic-wa { background: #25d366; }
 .opt-ic-more { background: #48484f; }
 

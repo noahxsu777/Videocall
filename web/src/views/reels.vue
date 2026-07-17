@@ -573,7 +573,7 @@ onUnmounted(() => {
   padding: 0 14px;
   border: none;
   border-radius: 17px;
-  background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
   color: #fff;
   font-size: 14px;
   font-weight: 700;
@@ -592,7 +592,7 @@ onUnmounted(() => {
   padding: 0 22px;
   border: none;
   border-radius: 22px;
-  background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
   color: #fff;
   font-size: 15px;
   font-weight: 700;
@@ -953,7 +953,7 @@ onUnmounted(() => {
   height: 42px;
   border-radius: 21px;
   border: none;
-  background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
   color: #fff;
   font-size: 16px;
   cursor: pointer;

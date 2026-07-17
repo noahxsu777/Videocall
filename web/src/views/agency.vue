@@ -177,7 +177,7 @@ async function submit() {
   margin-top: 6px;
   border: none;
   border-radius: 14px;
-  background: linear-gradient(135deg, #14b8a6, #0a84ff);
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
   color: #fff;
   font-size: 16px;
   font-weight: 800;
@@ -185,7 +185,7 @@ async function submit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 22px rgba(20, 184, 166, 0.35);
+  box-shadow: 0 8px 22px rgba(139, 61, 255, 0.4);
 }
 .submit:disabled { opacity: 0.6; }
 .spinner {

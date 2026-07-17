@@ -531,7 +531,7 @@ onUnmounted(() => {
   padding: 0 22px;
   border: none;
   border-radius: 22px;
-  background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
   color: #fff;
   font-size: 15px;
   font-weight: 700;
@@ -585,7 +585,7 @@ onUnmounted(() => {
   height: 19px;
   padding: 0 5px;
   border-radius: 10px;
-  background: #0a84ff;
+  background: #8b3dff;
   color: #fff;
   font-size: 11px;
   font-weight: 700;
@@ -664,7 +664,7 @@ onUnmounted(() => {
   word-break: break-word;
 }
 .bubble-row.mine .bubble {
-  background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
   border-radius: 18px;
   border-bottom-right-radius: 6px;
 }
@@ -715,7 +715,7 @@ onUnmounted(() => {
   height: 44px;
   border-radius: 22px;
   border: none;
-  background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
   color: #fff;
   font-size: 17px;
   cursor: pointer;

@@ -475,7 +475,7 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 2px solid rgba(10, 132, 255, 0.5);
+  border: 2px solid rgba(139, 61, 255, 0.5);
   animation: status-pulse-anim 2s ease-out infinite;
 }
 .status-pulse.p2 { animation-delay: 1s; }

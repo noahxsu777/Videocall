@@ -260,7 +260,7 @@ function viewProfile() {
   cursor: pointer;
 }
 .act-primary {
-  background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
   color: #fff;
 }
 .act-outline {
