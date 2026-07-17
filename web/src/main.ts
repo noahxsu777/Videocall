@@ -11,6 +11,18 @@ const app = createApp(App);
 app.use(router);
 app.mount('#app');
 
+// Suppress the browser's native long-press context menu (the "Copiar
+// imagen / Descargar imagen / Abrir en Chrome…" popup) so the PWA feels
+// like a native app. Text fields are exempted so the paste menu still
+// works there.
+window.addEventListener('contextmenu', (e) => {
+  const t = e.target as HTMLElement | null;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
+    return;
+  }
+  e.preventDefault();
+});
+
 // PWA: register the service worker (makes the app installable and fast
 // on repeat visits). Relative path so it works with the './' prod base.
 //

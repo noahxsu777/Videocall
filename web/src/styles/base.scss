@@ -7,11 +7,31 @@ body,
   padding: 0;
   overflow: hidden;
   user-select: none;
+  // Suppress the browser's long-press callout ("Copiar imagen /
+  // Descargar imagen…" popup) so the app feels native, not like a web
+  // page. Text fields re-enable selection below so paste still works.
+  -webkit-touch-callout: none;
   // Dark by default everywhere. Without this the browser's white canvas
   // shows through any gap around the floating bottom nav (its rounded
   // pill sits inset from the screen edges with transparent margin around
   // it) and through the safe-area padding reserved for it on every tab.
   background: #000;
+}
+
+// No long-press callout / drag-to-save on images and videos anywhere.
+img,
+video {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+// …but keep normal selection + paste menu inside text fields.
+input,
+textarea,
+[contenteditable='true'] {
+  -webkit-touch-callout: default;
+  user-select: text;
 }
 
 .app-root {
