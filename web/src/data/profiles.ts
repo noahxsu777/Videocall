@@ -396,18 +396,53 @@ export interface FeedPhoto extends Photo {
 }
 
 /** All recent photos across users (newest first) with author info. */
+/**
+ * Fetch the author profiles for a set of user ids as a map. Kept separate
+ * from the photos/comments queries on purpose: an embedded PostgREST join
+ * (`author:profiles(...)`) makes the WHOLE query fail if anything about
+ * the relationship or a selected column hiccups (e.g. the `verified`
+ * column not migrated yet), which emptied the entire Reels feed. Fetching
+ * authors on their own — with a retry that drops `verified` — means the
+ * feed always loads even when author enrichment can't.
+ */
+async function fetchAuthorsMap(userIds: string[]): Promise<Map<string, any>> {
+  const map = new Map<string, any>();
+  const client = requireClient();
+  const ids = [...new Set(userIds)].filter(Boolean);
+  if (!ids.length) {
+    return map;
+  }
+  let res = await client
+    .from('profiles')
+    .select('id, display_name, username, avatar_url, verified')
+    .in('id', ids);
+  if (res.error) {
+    // Retry without `verified` in case that column isn't migrated yet.
+    res = await client
+      .from('profiles')
+      .select('id, display_name, username, avatar_url')
+      .in('id', ids);
+  }
+  for (const a of (res.data || []) as any[]) {
+    map.set(a.id, a);
+  }
+  return map;
+}
+
 export async function listFeedPhotos(limit = 60): Promise<FeedPhoto[]> {
   const client = requireClient();
   const { data, error } = await client
     .from('photos')
-    .select('*, author:profiles(id, display_name, username, avatar_url, verified)')
+    .select('*')
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) {
     console.warn('[profiles] listFeedPhotos failed:', error.message);
     return [];
   }
-  return (data || []) as FeedPhoto[];
+  const photos = (data || []) as any[];
+  const authors = await fetchAuthorsMap(photos.map(p => p.user_id));
+  return photos.map(p => ({ ...p, author: authors.get(p.user_id) || null })) as FeedPhoto[];
 }
 
 // ---------- likes & comments (reels) ----------
@@ -477,7 +512,7 @@ export async function listComments(photoId: string): Promise<PhotoComment[]> {
   const client = requireClient();
   const { data, error } = await client
     .from('comments')
-    .select('*, author:profiles(id, display_name, username, avatar_url, verified)')
+    .select('*')
     .eq('photo_id', photoId)
     .order('created_at', { ascending: true })
     .limit(200);
@@ -485,7 +520,9 @@ export async function listComments(photoId: string): Promise<PhotoComment[]> {
     console.warn('[profiles] listComments failed:', error.message);
     return [];
   }
-  return (data || []) as PhotoComment[];
+  const comments = (data || []) as any[];
+  const authors = await fetchAuthorsMap(comments.map(c => c.user_id));
+  return comments.map(c => ({ ...c, author: authors.get(c.user_id) || null })) as PhotoComment[];
 }
 
 export async function addComment(
