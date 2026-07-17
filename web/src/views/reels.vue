@@ -8,7 +8,7 @@
       </button>
     </header>
 
-    <div v-if="loading" class="state">Cargando…</div>
+    <AppLoader v-if="loading" label="Cargando reels…" />
 
     <div v-else-if="!feed.length" class="state empty">
       <div class="empty-emoji">🎬</div>
@@ -182,6 +182,7 @@ import {
 import { saveCache, loadCache } from '../data/offlineCache';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
 import VerifiedBadge from '../components/VerifiedBadge.vue';
+import AppLoader from '../components/AppLoader.vue';
 
 const { user } = useAuth();
 

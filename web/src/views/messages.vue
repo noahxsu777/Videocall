@@ -42,7 +42,7 @@
     </div>
 
     <!-- Conversations -->
-    <div v-if="loadingList" class="state">Cargando…</div>
+    <AppLoader v-if="loadingList" label="Cargando mensajes…" />
     <div v-else-if="!conversations.length && !newOpen" class="state empty">
       <div class="empty-emoji">💬</div>
       <p>Aún no tienes chats.</p>
@@ -136,6 +136,7 @@ import { useRouter, useRoute } from 'vue-router';
 import GlassBackButton from '../components/GlassBackButton.vue';
 import VerifiedBadge from '../components/VerifiedBadge.vue';
 import CallSettingsSheet from '../components/CallSettingsSheet.vue';
+import AppLoader from '../components/AppLoader.vue';
 import { useAuth } from '../auth/useAuth';
 import { getProfile, type Profile } from '../data/profiles';
 import { getCallRate, getCoins, ringUser } from '../data/calls';

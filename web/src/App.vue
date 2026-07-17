@@ -2,7 +2,7 @@
   <UIKitProvider theme="dark" style-preset="business">
     <div class="app-shell" :class="{ 'has-bottom-nav': showBottomNav }">
       <div v-if="navLoading" class="nav-progress"><span /></div>
-      <router-view />
+      <router-view :key="refreshKey" />
       <BottomNav v-if="showBottomNav" />
       <IncomingCallOverlay />
       <PullToRefresh v-if="allowPullToRefresh" />
@@ -19,7 +19,7 @@ import { initRoomEngineLanguage } from './utils/utils';
 import BottomNav from './components/BottomNav.vue';
 import IncomingCallOverlay from './components/IncomingCallOverlay.vue';
 import PullToRefresh from './components/PullToRefresh.vue';
-import { navLoading } from './composables/navLoading';
+import { navLoading, refreshKey } from './composables/navLoading';
 import { authReady, currentSession } from './auth/useAuth';
 import { useIncomingCalls } from './calls/useIncomingCalls';
 import { subscribeToPush } from './data/push';

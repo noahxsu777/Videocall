@@ -15,6 +15,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { softRefresh } from '../composables/navLoading';
 
 const THRESHOLD = 72; // pull distance (px, after damping) that triggers a refresh
 const MAX = 120;
@@ -95,8 +96,14 @@ function onTouchEnd() {
   pulling = false;
   if (distance.value >= THRESHOLD) {
     refreshing.value = true;
-    // Let the spin animation show for a beat, then reload.
-    window.setTimeout(() => window.location.reload(), 700);
+    // Soft refresh: remount the current page (re-fetches its data with
+    // the AppLoader) instead of a full page reload — no black flash, the
+    // app stays visible the whole time.
+    window.setTimeout(() => {
+      softRefresh();
+      distance.value = 0;
+      window.setTimeout(() => { refreshing.value = false; }, 400);
+    }, 350);
   } else {
     distance.value = 0;
   }
