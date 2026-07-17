@@ -44,6 +44,30 @@
             <svg viewBox="0 0 24 24" width="29" height="29" fill="rgba(255,255,255,0.95)"><path d="M12 3a9 9 0 0 0-8 13.2L2.6 20.3a1 1 0 0 0 1.26 1.26l4.1-1.37A9 9 0 1 0 12 3Z"/></svg>
             <span class="rail-count">{{ stats[item.id]?.comments || 0 }}</span>
           </button>
+          <button class="rail-btn" @click="shareReel(item)">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="rgba(255,255,255,0.95)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-3.9M8.6 13.5l6.8 3.9"/></svg>
+            <span class="rail-count">Compartir</span>
+          </button>
+          <button class="rail-btn" @click="menuFor = menuFor?.id === item.id ? null : item">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="rgba(255,255,255,0.95)"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+          </button>
+        </div>
+
+        <!-- Per-reel action menu (3 dots) -->
+        <div v-if="menuFor?.id === item.id" class="reel-menu-backdrop" @click.self="menuFor = null">
+          <div class="reel-menu">
+            <button class="reel-menu-item" @click="shareReel(item); menuFor = null">
+              <span class="rm-ic">🔗</span> Compartir
+            </button>
+            <button
+              v-if="user && item.user_id === user.id"
+              class="reel-menu-item danger"
+              @click="removeReel(item)"
+            >
+              <span class="rm-ic">🗑️</span> Eliminar {{ item.media_type === 'video' ? 'video' : 'foto' }}
+            </button>
+            <button class="reel-menu-item cancel" @click="menuFor = null">Cancelar</button>
+          </div>
         </div>
 
         <!-- Author + caption, above the bottom nav -->
@@ -117,6 +141,7 @@ import {
   unlikePhoto,
   listComments,
   addComment,
+  deletePhoto,
   type FeedPhoto,
   type PhotoComment,
 } from '../data/profiles';
@@ -136,6 +161,7 @@ const stats = ref<Record<string, { likes: number; comments: number }>>({});
 const liked = ref<Set<string>>(new Set());
 const popped = ref<Set<string>>(new Set());
 
+const menuFor = ref<FeedPhoto | null>(null);
 const commentsFor = ref<FeedPhoto | null>(null);
 const comments = ref<PhotoComment[]>([]);
 const commentsLoading = ref(false);
@@ -149,6 +175,35 @@ const authorInitial = (item: FeedPhoto) => authorName(item).charAt(0).toUpperCas
 function showToast(text: string) {
   toast.value = text;
   window.setTimeout(() => { toast.value = ''; }, 2600);
+}
+
+async function shareReel(item: FeedPhoto) {
+  const url = `${location.origin}${location.pathname}#/reels`;
+  const text = item.caption ? `${item.caption} — ` : '';
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: 'Mira este reel en Hype Call', text, url });
+    } else {
+      await navigator.clipboard.writeText(`${text}${url}`);
+      showToast('Enlace copiado ✓');
+    }
+  } catch {
+    // user cancelled the share sheet — ignore
+  }
+}
+
+async function removeReel(item: FeedPhoto) {
+  if (!user.value || item.user_id !== user.value.id) {
+    return;
+  }
+  menuFor.value = null;
+  try {
+    await deletePhoto(item.id);
+    feed.value = feed.value.filter(p => p.id !== item.id);
+    showToast('Eliminado ✓');
+  } catch (error: any) {
+    showToast(`No se pudo eliminar: ${error?.message || 'error'}`);
+  }
 }
 
 async function load() {
@@ -382,6 +437,43 @@ onMounted(load);
   font-size: 12.5px;
   font-weight: 700;
 }
+
+/* 3-dots action menu */
+.reel-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+}
+.reel-menu {
+  width: 100%;
+  padding: 8px;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.reel-menu-item {
+  height: 54px;
+  border: none;
+  border-radius: 14px;
+  background: rgba(40, 40, 44, 0.98);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.reel-menu-item.danger { color: #ff453a; }
+.reel-menu-item.cancel { color: #8e8e93; margin-top: 2px; }
+.rm-ic { font-size: 18px; }
 .heart-icon {
   transform-origin: center;
 }
