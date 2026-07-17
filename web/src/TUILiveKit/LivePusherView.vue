@@ -80,6 +80,11 @@
         </div>
         <div class="main-center-top-right">{{ audienceCount }} {{ t('People watching') }}</div>
       </div>
+      <!-- Live stats (host): time on air + total diamonds received. -->
+      <div v-if="isMobile && isInLive" class="live-stats">
+        <span class="live-stat live-stat-time">⏱ {{ liveElapsedText }}</span>
+        <span class="live-stat live-stat-diamonds">💎 {{ diamondsReceived.toLocaleString() }}</span>
+      </div>
       <div class="main-center-center">
         <!--
           StreamMixer is built on TRTC's VideoMixer plugin, which hard-
@@ -118,6 +123,10 @@
         (our preview stream) and in-live (engine switch / close+republish).
       -->
       <div v-if="isMobile" class="mobile-camera-actions">
+        <div class="camera-action-btn" :class="{ 'is-off': isCameraOff }" @click="toggleMobileCameraOff">
+          <IconCameraOn v-if="!isCameraOff" size="22" />
+          <IconCameraOff v-else size="22" />
+        </div>
         <div class="camera-action-btn" @click="toggleMobileCameraFacing">
           <IconCameraSwitch size="22" />
         </div>
@@ -126,10 +135,6 @@
         </div>
         <div class="camera-action-btn" :class="{ 'is-on': camFilter !== 'none' }" @click="filterPickerVisible = !filterPickerVisible">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 9v6l8 6 8-6V9z"/><path d="M12 3v18M4 9l16 0"/></svg>
-        </div>
-        <div class="camera-action-btn" :class="{ 'is-off': isCameraOff }" @click="toggleMobileCameraOff">
-          <IconCameraOn v-if="!isCameraOff" size="22" />
-          <IconCameraOff v-else size="22" />
         </div>
       </div>
       <!-- Basic filter picker (host-side look; see CAMERA_FILTERS note) -->
@@ -318,6 +323,8 @@ import {
   LiveListEventInfo,
   BarrageEvent,
   Barrage,
+  useLiveGiftState,
+  LiveGiftEvents,
 } from 'tuikit-atomicx-vue3';
 import CoGuestButton from './component/CoGuestButton.vue';
 import CoHostButton from './component/CoHostButton.vue';
@@ -388,6 +395,41 @@ const isInLive = computed(() => !!currentLive.value?.liveId);
 // Battle / co-host connected: on mobile we lift the two camera tiles up
 // and open a viewer-message area beneath them (see .is-battle CSS).
 const isBattle = computed(() => coHostStatus.value === CoHostStatus.Connected);
+
+// --- Live stats: time on air + total diamonds received --------------------
+const { subscribeEvent: subscribeGiftEvent, unsubscribeEvent: unsubscribeGiftEvent } = useLiveGiftState();
+const liveElapsed = ref(0);
+const diamondsReceived = ref(0);
+let liveTimerId = 0;
+const liveElapsedText = computed(() => {
+  const total = liveElapsed.value;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+});
+function onGiftForStats(info: any) {
+  const gift = info?.giftInfo || {};
+  const count = info?.giftCount || 1;
+  diamondsReceived.value += (gift.coins || 0) * count;
+}
+watch(isInLive, (inLive) => {
+  window.clearInterval(liveTimerId);
+  if (inLive) {
+    liveElapsed.value = 0;
+    liveTimerId = window.setInterval(() => { liveElapsed.value += 1; }, 1000);
+    subscribeGiftEvent(LiveGiftEvents.ON_RECEIVE_GIFT_MESSAGE, onGiftForStats);
+  } else {
+    diamondsReceived.value = 0;
+    unsubscribeGiftEvent(LiveGiftEvents.ON_RECEIVE_GIFT_MESSAGE, onGiftForStats);
+  }
+});
+onUnmounted(() => {
+  window.clearInterval(liveTimerId);
+  unsubscribeGiftEvent(LiveGiftEvents.ON_RECEIVE_GIFT_MESSAGE, onGiftForStats);
+});
 
 // Tapping a chat author opens the follow/message sheet.
 const chatUserSheet = ref(false);
@@ -1468,6 +1510,36 @@ onUnmounted(() => {
         &.is-off {
           background: rgba(220, 53, 69, 0.65) !important;
         }
+      }
+    }
+
+    // Live stats overlay (time on air + diamonds), pinned top-left just
+    // under the title bar.
+    .live-stats {
+      position: absolute !important;
+      top: 58px !important;
+      left: 12px !important;
+      z-index: 4 !important;
+      display: flex;
+      gap: 8px;
+      pointer-events: none;
+
+      .live-stat {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 26px;
+        padding: 0 10px;
+        border-radius: 13px;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.45);
+        -webkit-backdrop-filter: blur(10px);
+        backdrop-filter: blur(10px);
+      }
+      .live-stat-diamonds {
+        background: linear-gradient(90deg, rgba(255, 61, 129, 0.75), rgba(155, 45, 247, 0.65));
       }
     }
 
