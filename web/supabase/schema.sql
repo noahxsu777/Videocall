@@ -507,6 +507,15 @@ create policy "users manage their own push subscriptions"
 -- política para poder leer las suscripciones de la persona a la que se
 -- llama — el usuario normal solo puede leer/crear/borrar la suya.
 
+-- ---------- agency_applications (formulario del programa de agencias) ----------
+create table if not exists public.agency_applications (id uuid primary key default gen_random_uuid(), user_id uuid references public.profiles(id) on delete set null, agency_name text not null, contact_name text not null, email text not null, phone text, country text, creators text, message text, created_at timestamptz not null default now());
+alter table public.agency_applications enable row level security;
+drop policy if exists "anyone can apply to agency program" on public.agency_applications;
+create policy "anyone can apply to agency program" on public.agency_applications for insert with check (true);
+-- Solo los admin pueden leer las solicitudes (desde el panel, si lo agregas luego).
+drop policy if exists "admins read agency applications" on public.agency_applications;
+create policy "admins read agency applications" on public.agency_applications for select using (public.is_current_user_admin());
+
 -- =====================================================================
 -- STORAGE: avatars and PHOTOS are compressed on the client and stored
 -- inline as data URLs, so no bucket is needed for those. VIDEOS are too

@@ -7,88 +7,6 @@
     </header>
 
     <div class="content">
-      <!-- Herramientas del creador -->
-      <p class="group-header">Herramientas del creador</p>
-      <section class="group">
-        <button class="row row-tap" @click="router.push('/live-pusher')">
-          <span class="ic ic-camera">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3z"/></svg>
-          </span>
-          <span class="row-key">Mi cámara</span>
-          <span class="chev" v-html="CHEV" />
-        </button>
-        <button class="row row-tap" @click="router.push('/vip')">
-          <span class="ic ic-money">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5a2.5 2 0 0 1 5 0c0 2.5-5 1.5-5 4a2.5 2 0 0 0 5 0"/></svg>
-          </span>
-          <span class="row-key">Obtener dinero</span>
-          <span class="row-dot" />
-          <span class="chev" v-html="CHEV" />
-        </button>
-        <button class="row row-tap" @click="notImplemented">
-          <span class="ic ic-stats">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
-          </span>
-          <span class="row-key">Estadísticas</span>
-          <span class="chev" v-html="CHEV" />
-        </button>
-        <button class="row row-tap" @click="router.push('/profile')">
-          <span class="ic ic-fans">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M18 8l1.5 3 3 .5-2 2 .5 3-2.5-1.5"/></svg>
-          </span>
-          <span class="row-key">Mis fans</span>
-          <span class="chev" v-html="CHEV" />
-        </button>
-      </section>
-
-      <!-- Programas especiales -->
-      <p class="group-header">Programas especiales</p>
-      <section class="group">
-        <button class="row row-tap" @click="notImplemented">
-          <span class="ic ic-agency">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M15 20a5 5 0 0 1 6 0"/></svg>
-          </span>
-          <span class="row-key">Programa para agencias</span>
-          <span class="chev" v-html="CHEV" />
-        </button>
-        <button class="row row-tap" @click="router.push('/vip')">
-          <span class="ic ic-vip">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="#fff"><path d="M3 7l4 3 5-6 5 6 4-3-2 12H5L3 7z"/></svg>
-          </span>
-          <span class="row-key">Fidelidad VIP</span>
-          <span class="row-val vip-val">{{ vipActive ? vipUntilText : '👑' }}</span>
-          <span class="chev" v-html="CHEV" />
-        </button>
-        <button class="row row-tap" @click="notImplemented">
-          <span class="ic ic-store">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9 4 4h16l1 5M4 9v11h16V9M4 9h16"/></svg>
-          </span>
-          <span class="row-key">Tienda MyVIP</span>
-          <span class="chev" v-html="CHEV" />
-        </button>
-        <button class="row row-tap" @click="notImplemented">
-          <span class="ic ic-intro">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5zM6 12v5c0 1 3 3 6 3s6-2 6-3v-5"/></svg>
-          </span>
-          <span class="row-key">Introducción</span>
-          <span class="chev" v-html="CHEV" />
-        </button>
-        <button class="row row-tap" @click="notImplemented">
-          <span class="ic ic-cards">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="12" height="15" rx="2"/><path d="M8 3h11a2 2 0 0 1 2 2v11"/></svg>
-          </span>
-          <span class="row-key">Subasta de Cards</span>
-          <span class="chev" v-html="CHEV" />
-        </button>
-        <button class="row row-tap" @click="notImplemented">
-          <span class="ic ic-games">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="11" rx="4"/><path d="M7 11v3M5.5 12.5h3M15 12h.01M18 14h.01"/></svg>
-          </span>
-          <span class="row-key">Juegos</span>
-          <span class="chev" v-html="CHEV" />
-        </button>
-      </section>
-
       <!-- Editar perfil -->
       <p class="group-header">Editar perfil</p>
       <section class="group">
@@ -161,6 +79,66 @@
           </span>
           <span class="row-key">{{ isCreator ? 'Eres Creador' : 'Conviértete en Creador' }}</span>
           <span class="row-val creator-val">{{ isCreator ? '✓' : '🎥' }}</span>
+          <span class="chev" v-html="CHEV" />
+        </button>
+      </section>
+
+      <!-- Herramientas del creador (debajo de Membresía) -->
+      <p class="group-header">Herramientas del creador</p>
+      <section class="group">
+        <button class="row row-tap" @click="router.push('/live-pusher')">
+          <span class="ic ic-camera">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="m16 10 6-3v10l-6-3z"/></svg>
+          </span>
+          <span class="row-key">Mi cámara</span>
+          <span class="chev" v-html="CHEV" />
+        </button>
+        <button class="row row-tap" @click="router.push('/vip')">
+          <span class="ic ic-money">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5a2.5 2 0 0 1 5 0c0 2.5-5 1.5-5 4a2.5 2 0 0 0 5 0"/></svg>
+          </span>
+          <span class="row-key">Obtener dinero</span>
+          <span class="row-dot" />
+          <span class="chev" v-html="CHEV" />
+        </button>
+        <button class="row row-tap" @click="notImplemented">
+          <span class="ic ic-stats">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+          </span>
+          <span class="row-key">Estadísticas</span>
+          <span class="chev" v-html="CHEV" />
+        </button>
+        <button class="row row-tap" @click="router.push('/fan-club')">
+          <span class="ic ic-fans">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/></svg>
+          </span>
+          <span class="row-key">Club de Fans</span>
+          <span class="chev" v-html="CHEV" />
+        </button>
+      </section>
+
+      <!-- Programas especiales -->
+      <p class="group-header">Programas especiales</p>
+      <section class="group">
+        <button class="row row-tap" @click="router.push('/agency')">
+          <span class="ic ic-agency">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M15 20a5 5 0 0 1 6 0"/></svg>
+          </span>
+          <span class="row-key">Programa para agencias</span>
+          <span class="chev" v-html="CHEV" />
+        </button>
+        <button class="row row-tap" @click="notImplemented">
+          <span class="ic ic-intro">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10 12 5 2 10l10 5 10-5zM6 12v5c0 1 3 3 6 3s6-2 6-3v-5"/></svg>
+          </span>
+          <span class="row-key">Introducción</span>
+          <span class="chev" v-html="CHEV" />
+        </button>
+        <button class="row row-tap" @click="notImplemented">
+          <span class="ic ic-games">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="11" rx="4"/><path d="M7 11v3M5.5 12.5h3M15 12h.01M18 14h.01"/></svg>
+          </span>
+          <span class="row-key">Juegos</span>
           <span class="chev" v-html="CHEV" />
         </button>
       </section>

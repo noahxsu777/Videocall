@@ -38,6 +38,14 @@ const routes = [
     component: () => import('@/views/become-creator.vue'),
   },
   {
+    path: '/fan-club',
+    component: () => import('@/views/fan-club.vue'),
+  },
+  {
+    path: '/agency',
+    component: () => import('@/views/agency.vue'),
+  },
+  {
     path: '/admin',
     component: () => import('@/views/admin.vue'),
   },
