@@ -243,12 +243,21 @@ router.beforeEach(async (to, _from, next) => {
     return;
   }
 
+  // Log into the Tencent live/chat SDK. If this FAILS (e.g. the Tencent
+  // secret key is missing/changed in the deploy env, so userSig can't be
+  // generated) we must NOT bounce to /login — the Supabase session is
+  // what "logged in" means, and redirecting a validly-authenticated user
+  // to /login just loops back here (login → has session → redirect to
+  // target → Tencent still fails → login …), which looks exactly like
+  // "the app logs me out every time I open it". Instead, let the user
+  // into the app; only the live features that actually need Tencent will
+  // be affected, and they surface their own errors.
   await restoreLoginIfNeeded();
   if (!useLoginState().loginUserInfo.value?.userId) {
-    next({ path: '/login', query: { from: to.path } });
-    return;
+    console.warn('[router] Tencent SDK login unavailable — continuing with Supabase session only.');
+  } else {
+    await syncSelfInfoIfNeeded();
   }
-  await syncSelfInfoIfNeeded();
 
   if (isH5) {
     if (to.path === '/business/live-player' || to.path === '/education/live-player') {
