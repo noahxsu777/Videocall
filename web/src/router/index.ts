@@ -7,6 +7,7 @@ import { authReady, currentSession, consumeBannedFlag, tencentUserIdFor, display
 import { SDKAPPID, genTestUserSig } from '@/config/basic-info-config';
 import { isAdmin } from '@/data/admin';
 import { getProfile } from '@/data/profiles';
+import { navLoading } from '@/composables/navLoading';
 
 const routes = [
   {
@@ -200,6 +201,7 @@ async function syncSelfInfoIfNeeded(): Promise<void> {
 }
 
 router.beforeEach(async (to, _from, next) => {
+  navLoading.value = true;
   // /sharmin has no password for now, at the user's explicit request —
   // skip every auth check below entirely (no login, no is_admin). See
   // the matching change in supabase/schema.sql (admin_list_sessions no
@@ -293,6 +295,13 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   next();
+});
+
+router.afterEach(() => {
+  navLoading.value = false;
+});
+router.onError(() => {
+  navLoading.value = false;
 });
 
 export default router;

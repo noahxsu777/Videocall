@@ -214,6 +214,27 @@ function isMostlyVisible(el: HTMLElement): boolean {
   return visible > r.height * 0.6;
 }
 
+// Sound is "on by default": videos must start muted so mobile autoplay
+// works, but we unmute automatically on the user's very first interaction
+// (a tap or scroll), so from their side sound is on the moment they touch
+// the feed. Runs once.
+let soundEnabled = false;
+function enableSoundOnce() {
+  if (soundEnabled) {
+    return;
+  }
+  soundEnabled = true;
+  muted.value = false;
+  for (const el of videoEls.values()) {
+    el.muted = false;
+    if (isMostlyVisible(el)) {
+      void el.play().catch(() => {});
+    }
+  }
+  window.removeEventListener('pointerdown', enableSoundOnce);
+  window.removeEventListener('touchstart', enableSoundOnce);
+}
+
 const menuFor = ref<FeedPhoto | null>(null);
 const commentsFor = ref<FeedPhoto | null>(null);
 const comments = ref<PhotoComment[]>([]);
@@ -439,12 +460,16 @@ onMounted(() => {
       }
     }
   }, { threshold: [0, 0.6, 1] });
+  window.addEventListener('pointerdown', enableSoundOnce, { passive: true });
+  window.addEventListener('touchstart', enableSoundOnce, { passive: true });
   void load();
 });
 
 onUnmounted(() => {
   videoObserver?.disconnect();
   videoObserver = null;
+  window.removeEventListener('pointerdown', enableSoundOnce);
+  window.removeEventListener('touchstart', enableSoundOnce);
 });
 </script>
 

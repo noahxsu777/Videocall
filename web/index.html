@@ -43,7 +43,16 @@
     </script>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <!-- Instant loading screen shown while the app bundle boots (and on
+           every reload, e.g. pull-to-refresh) so the user never sees a
+           blank black flash. Vue replaces all of #app's content once it
+           mounts, so this disappears automatically. -->
+      <div id="app-boot" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(120% 90% at 50% -10%,#3a1d4d 0%,#1c1030 45%,#0d0718 100%);">
+        <div style="width:52px;height:52px;border-radius:50%;border:3px solid rgba(255,255,255,0.15);border-top-color:#ff2e74;animation:app-boot-spin 0.8s linear infinite;"></div>
+      </div>
+      <style>@keyframes app-boot-spin{to{transform:rotate(360deg)}}</style>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

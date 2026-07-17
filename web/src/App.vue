@@ -1,6 +1,7 @@
 <template>
   <UIKitProvider theme="dark" style-preset="business">
     <div class="app-shell" :class="{ 'has-bottom-nav': showBottomNav }">
+      <div v-if="navLoading" class="nav-progress"><span /></div>
       <router-view />
       <BottomNav v-if="showBottomNav" />
       <IncomingCallOverlay />
@@ -18,6 +19,7 @@ import { initRoomEngineLanguage } from './utils/utils';
 import BottomNav from './components/BottomNav.vue';
 import IncomingCallOverlay from './components/IncomingCallOverlay.vue';
 import PullToRefresh from './components/PullToRefresh.vue';
+import { navLoading } from './composables/navLoading';
 import { authReady, currentSession } from './auth/useAuth';
 import { useIncomingCalls } from './calls/useIncomingCalls';
 import { subscribeToPush } from './data/push';
@@ -103,6 +105,30 @@ watch(currentSession, (session) => {
 .app-shell {
   width: 100%;
   height: 100%;
+}
+
+/* Top progress bar shown while a route is navigating/loading. */
+.nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 5000;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.nav-progress span {
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(90deg, #8b3dff, #ff2e74);
+  animation: nav-progress-slide 0.9s ease-in-out infinite;
+}
+@keyframes nav-progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(320%); }
 }
 
 // Leave room for the fixed bottom nav so page content isn't hidden
