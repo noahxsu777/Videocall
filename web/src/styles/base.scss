@@ -16,6 +16,10 @@ body,
   // pill sits inset from the screen edges with transparent margin around
   // it) and through the safe-area padding reserved for it on every tab.
   background: #000;
+  // Block the browser's double-tap-to-zoom gesture (and its ~300ms click
+  // delay) so taps register instantly like a native app. Pinch-zoom is
+  // already disabled via the viewport meta tag.
+  touch-action: manipulation;
 }
 
 // No long-press callout / drag-to-save on images and videos anywhere.
@@ -67,4 +71,27 @@ button:active,
 html,
 body {
   overscroll-behavior-y: contain;
+}
+
+// --- Press effect on tappable media --------------------------------------
+// Photos and reels dip slightly when pressed (like iOS's peek), giving a
+// tactile "3D-touch" feel. Opt-in via .press-media so we don't dim every
+// decorative image. Fast spring, no highlight flash.
+.press-media {
+  transition: transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.14s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.press-media:active {
+  transform: scale(0.97);
+  filter: brightness(0.9);
+}
+
+// --- Safe-area helpers ----------------------------------------------------
+// Utility classes for padding around the notch / home indicator so content
+// clears the hardware cutouts on modern phones (viewport-fit=cover is set).
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }

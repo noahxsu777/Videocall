@@ -2,10 +2,15 @@
   <UIKitProvider theme="dark" style-preset="business">
     <div class="app-shell" :class="{ 'has-bottom-nav': showBottomNav }">
       <div v-if="navLoading" class="nav-progress"><span /></div>
-      <router-view :key="refreshKey" />
+      <router-view v-slot="{ Component }" :key="refreshKey">
+        <Transition :name="transitionName" mode="out-in">
+          <component :is="Component" />
+        </Transition>
+      </router-view>
       <BottomNav v-if="showBottomNav" />
       <IncomingCallOverlay />
       <PullToRefresh v-if="allowPullToRefresh" />
+      <InstallPrompt />
     </div>
   </UIKitProvider>
 </template>
@@ -19,6 +24,7 @@ import { initRoomEngineLanguage } from './utils/utils';
 import BottomNav from './components/BottomNav.vue';
 import IncomingCallOverlay from './components/IncomingCallOverlay.vue';
 import PullToRefresh from './components/PullToRefresh.vue';
+import InstallPrompt from './components/InstallPrompt.vue';
 import { navLoading, refreshKey } from './composables/navLoading';
 import { authReady, currentSession } from './auth/useAuth';
 import { useIncomingCalls } from './calls/useIncomingCalls';
@@ -38,6 +44,14 @@ const showBottomNav = computed(() => NAV_ROUTES.includes(route.path));
 const NO_PTR = ['/live-pusher', '/live-player', '/business/live-player', '/education/live-player'];
 const allowPullToRefresh = computed(
   () => !NO_PTR.includes(route.path) && !route.path.startsWith('/call'),
+);
+
+// Native-feel page transitions: a quick cross-fade between screens. The
+// full-screen live/broadcast/call views are exempt ('none' has no CSS, so
+// Vue swaps them instantly) — animating a Tencent SDK view as it mounts
+// can flash or race its stream setup.
+const transitionName = computed(() =>
+  NO_PTR.includes(route.path) || route.path.startsWith('/call') ? 'none' : 'page',
 );
 
 const { language } = useUIKit();
@@ -136,5 +150,20 @@ watch(currentSession, (session) => {
 .app-shell.has-bottom-nav {
   padding-bottom: 84px;
   box-sizing: border-box;
+}
+
+/* Native-feel screen transition: a quick fade + subtle rise. */
+.page-enter-active {
+  transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.page-leave-active {
+  transition: opacity 0.16s ease;
+}
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.page-leave-to {
+  opacity: 0;
 }
 </style>

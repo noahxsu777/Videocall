@@ -21,7 +21,7 @@
         <video
           v-if="item.media_type === 'video'"
           :ref="(el) => registerVideo(item.id, el as HTMLVideoElement | null)"
-          class="reel-img"
+          class="reel-img press-media"
           :src="item.image_url"
           autoplay
           muted
@@ -29,7 +29,7 @@
           playsinline
           @click="toggleMute"
         />
-        <img v-else class="reel-img" :src="item.image_url" :alt="item.caption || 'reel'" />
+        <img v-else class="reel-img press-media" :src="item.image_url" :alt="item.caption || 'reel'" />
 
         <!-- Vertical action rail (like / comment), TikTok style -->
         <div class="rail">
@@ -185,6 +185,7 @@ import { saveCache, loadCache } from '../data/offlineCache';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
 import VerifiedBadge from '../components/VerifiedBadge.vue';
 import ReelsSkeleton from '../components/ReelsSkeleton.vue';
+import { haptic, playTick } from '../composables/feedback';
 
 const { user } = useAuth();
 const route = useRoute();
@@ -387,6 +388,8 @@ async function toggleLike(item: FeedPhoto) {
       liked.value = new Set(liked.value);
       popped.value.add(item.id);
       popped.value = new Set(popped.value);
+      haptic('success');
+      playTick(680);
       window.setTimeout(() => {
         popped.value.delete(item.id);
         popped.value = new Set(popped.value);

@@ -6,6 +6,7 @@ import router from './router/index';
 import { addI18n } from 'tuikit-atomicx-vue3';
 import { enResource, zhResource } from './i18n';
 import { useIncomingCalls } from './calls/useIncomingCalls';
+import { haptic } from './composables/feedback';
 
 const app = createApp(App);
 app.use(router);
@@ -22,6 +23,24 @@ window.addEventListener('contextmenu', (e) => {
   }
   e.preventDefault();
 });
+
+// Native-feel: a tiny haptic buzz on every tap of an interactive element,
+// wired globally so we don't have to touch every button. Fires on
+// pointerdown (before the click) so it feels instant. Best-effort — no-ops
+// on devices/browsers without the Vibration API (e.g. iOS Safari).
+window.addEventListener(
+  'pointerdown',
+  (e) => {
+    const t = e.target as HTMLElement | null;
+    if (!t || !t.closest) {
+      return;
+    }
+    if (t.closest('button, [role="button"], a, .row-tap, .rail-btn, .tab, .vbtn')) {
+      haptic('tap');
+    }
+  },
+  { passive: true },
+);
 
 // PWA: register the service worker (makes the app installable and fast
 // on repeat visits). Relative path so it works with the './' prod base.
