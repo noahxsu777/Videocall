@@ -204,7 +204,7 @@
           <span class="row-key">Versión</span>
           <span class="row-val">1.0.0</span>
         </div>
-        <button class="row row-tap" @click="notImplemented">
+        <button class="row row-tap" @click="router.push('/terminos')">
           <span class="row-key">Términos y privacidad</span>
           <span class="chev" v-html="CHEV" />
         </button>
