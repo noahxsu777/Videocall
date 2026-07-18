@@ -392,6 +392,27 @@ export async function ensureRealAvatarUrl(userId: string): Promise<string> {
   }
 }
 
+/**
+ * Accumulate diamonds a creator earned from a received gift onto their
+ * profile (shown in the Saldo screen). Server-side RPC keyed to auth.uid()
+ * so nobody can credit someone else. Best-effort: logs and continues if
+ * the migration hasn't been run yet.
+ */
+export async function addDiamondsEarned(amount: number): Promise<void> {
+  if (!amount || amount <= 0) {
+    return;
+  }
+  try {
+    const client = requireClient();
+    const { error } = await client.rpc('add_diamonds_earned', { amount: Math.round(amount) });
+    if (error) {
+      console.warn('[profiles] add_diamonds_earned failed (¿falta la migración SQL?):', error.message);
+    }
+  } catch (error) {
+    console.warn('[profiles] addDiamondsEarned failed:', error);
+  }
+}
+
 /** A colored initials avatar (real http URL) from a display name. */
 export function initialsAvatarUrl(name: string): string {
   const n = encodeURIComponent((name || 'User').trim().slice(0, 24) || 'User');

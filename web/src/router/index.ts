@@ -31,6 +31,10 @@ const routes = [
     component: () => import('@/views/vip.vue'),
   },
   {
+    path: '/saldo',
+    component: () => import('@/views/saldo.vue'),
+  },
+  {
     path: '/verified',
     component: () => import('@/views/verified.vue'),
   },

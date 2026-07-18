@@ -5,7 +5,7 @@
  *  - same-origin static assets (hashed js/css/img): cache first
  *  - everything else (Supabase, TRTC, websockets): untouched
  */
-const CACHE = 'hypecall-v52';
+const CACHE = 'hypecall-v53';
 
 // Precache the ENTIRE app (shell + every hashed route chunk) at install so
 // it runs fully offline, not just the pages visited while online. The list
@@ -138,7 +138,10 @@ self.addEventListener('push', (event) => {
         tag: `call-${data.callId}`,
         requireInteraction: true,
         vibrate: [300, 150, 300, 150, 300],
-        actions: [{ action: 'open', title: '📞 Contestar' }],
+        actions: [
+          { action: 'open', title: '📞 Contestar' },
+          { action: 'reject', title: '✖️ Rechazar' },
+        ],
         data,
       }),
     );
@@ -202,6 +205,12 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification.data || {};
+
+  // "Rechazar" on an incoming call: just dismiss the notification without
+  // opening the app (the caller's side times out on its own).
+  if (event.action === 'reject') {
+    return;
+  }
 
   // Message tap: focus an open tab (and tell it to open the thread) or
   // cold-open the app straight into that conversation.

@@ -391,7 +391,7 @@ import LivePusherNotification from './component/LivePusherNotification.vue';
 import LiveChat from '../components/LiveChat.vue';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
 import { useAuth } from '../auth/useAuth';
-import { notifyLiveStarted } from '../data/profiles';
+import { notifyLiveStarted, addDiamondsEarned } from '../data/profiles';
 import { copyToClipboard, isSvgCoverUrl } from './utils/utils';
 import { errorHandler } from './utils/errorHandler';
 import { initRoomEngineLanguage } from '../utils/utils';
@@ -475,7 +475,10 @@ const liveElapsedText = computed(() => {
 function onGiftForStats(info: any) {
   const gift = info?.giftInfo || {};
   const count = info?.giftCount || 1;
-  diamondsReceived.value += (gift.coins || 0) * count;
+  const value = (gift.coins || 0) * count;
+  diamondsReceived.value += value;
+  // Persist the earnings onto the creator's profile (Saldo screen).
+  void addDiamondsEarned(value);
 }
 
 // --- Swipe-left stats panel (host) ---------------------------------------

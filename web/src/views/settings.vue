@@ -93,11 +93,11 @@
           <span class="row-key">Mi cámara</span>
           <span class="chev" v-html="CHEV" />
         </button>
-        <button class="row row-tap" @click="router.push('/vip')">
+        <button class="row row-tap" @click="router.push('/saldo')">
           <span class="ic ic-money">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5a2.5 2 0 0 1 5 0c0 2.5-5 1.5-5 4a2.5 2 0 0 0 5 0"/></svg>
           </span>
-          <span class="row-key">Obtener dinero</span>
+          <span class="row-key">Saldo</span>
           <span class="row-dot" />
           <span class="chev" v-html="CHEV" />
         </button>
