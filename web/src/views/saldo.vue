@@ -37,8 +37,12 @@
         <span class="row-val" :class="{ ok: payout.payoutsEnabled }">{{ payoutStatusLabel }}</span>
       </div>
       <div v-if="payout.configured" class="row">
-        <span class="row-key">Valor estimado</span>
+        <span class="row-key">Valor bruto</span>
         <span class="row-val">≈ ${{ estimatedUsd }} USD</span>
+      </div>
+      <div v-if="payout.configured" class="row">
+        <span class="row-key">Recibirías (−{{ payout.payoutFeePercent }}% comisión)</span>
+        <span class="row-val">≈ ${{ estimatedNetUsd }} USD</span>
       </div>
     </section>
 
@@ -67,9 +71,10 @@
     </button>
 
     <p v-if="payout.configured" class="hint rate-hint">
-      {{ payout.diamondsPerUsd.toLocaleString() }} 💎 = $1 USD · El dinero llega
-      a la cuenta bancaria que registres en Stripe (funciona con bancos de
-      Perú y muchos otros países).
+      {{ payout.diamondsPerUsd.toLocaleString() }} 💎 = $1 USD · Comisión de
+      retiro: {{ payout.payoutFeePercent }}% · El dinero llega a la cuenta
+      bancaria que registres en Stripe (funciona con bancos de Perú y muchos
+      otros países).
     </p>
 
     <p v-if="toast" class="toast">{{ toast }}</p>
@@ -113,6 +118,10 @@ const payoutStatusLabel = computed(() => {
 
 const estimatedUsd = computed(() =>
   (diamonds.value / (payout.value.diamondsPerUsd || 200)).toFixed(2));
+const estimatedNetUsd = computed(() => {
+  const gross = diamonds.value / (payout.value.diamondsPerUsd || 200);
+  return (gross * (1 - (payout.value.payoutFeePercent || 0) / 100)).toFixed(2);
+});
 
 function showToast(text: string) {
   toast.value = text;

@@ -13,6 +13,7 @@ module.exports = makeStripeHandler(async ({ res, cfg, supabase, user, stripe }) 
   const rateInfo = {
     diamondsPerUsd: cfg.diamondsPerUsd,
     minPayoutDiamonds: cfg.minPayoutDiamonds,
+    payoutFeePercent: cfg.payoutFeePercent,
     diamonds: (profile && profile.diamonds_earned) || 0,
   };
 

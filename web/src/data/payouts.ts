@@ -11,6 +11,7 @@ export interface PayoutStatus {
   diamonds: number;
   diamondsPerUsd: number;
   minPayoutDiamonds: number;
+  payoutFeePercent: number;
 }
 
 async function authedPost(path: string, body?: unknown): Promise<any> {
@@ -40,6 +41,7 @@ export async function getPayoutStatus(): Promise<PayoutStatus> {
     diamonds: 0,
     diamondsPerUsd: 200,
     minPayoutDiamonds: 1000,
+    payoutFeePercent: 10,
   };
   try {
     const data = await authedPost('/api/stripe-status');
@@ -54,6 +56,7 @@ export async function getPayoutStatus(): Promise<PayoutStatus> {
       diamonds: data?.diamonds ?? 0,
       diamondsPerUsd: data?.diamondsPerUsd ?? 200,
       minPayoutDiamonds: data?.minPayoutDiamonds ?? 1000,
+      payoutFeePercent: data?.payoutFeePercent ?? 10,
     };
   } catch {
     return fallback;
@@ -77,7 +80,8 @@ export async function requestPayout(): Promise<{ ok: boolean; message: string }>
   const data = await authedPost('/api/stripe-payout');
   if (data?.ok) {
     const warn = data.warning ? ' (aviso interno registrado)' : '';
-    return { ok: true, message: `✅ Retiro enviado: $${Number(data.paidUsd).toFixed(2)} USD a tu cuenta.${warn}` };
+    const fee = data.feeUsd ? ` (comisión de retiro: $${Number(data.feeUsd).toFixed(2)})` : '';
+    return { ok: true, message: `✅ Retiro enviado: $${Number(data.paidUsd).toFixed(2)} USD a tu cuenta${fee}.${warn}` };
   }
   switch (data?.reason) {
     case 'not_connected':

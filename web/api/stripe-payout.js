@@ -29,21 +29,25 @@ module.exports = makeStripeHandler(async ({ res, cfg, supabase, user, stripe }) 
     return;
   }
 
-  // Whole cents only; leftover diamonds stay in the balance.
-  const usdCents = Math.floor((diamonds / cfg.diamondsPerUsd) * 100);
-  const usedDiamonds = Math.ceil((usdCents / 100) * cfg.diamondsPerUsd);
-  if (usdCents < 100) {
+  // Whole cents only; leftover diamonds stay in the balance. The withdrawal
+  // fee (PAYOUT_FEE_PERCENT) is deducted from the gross so Connect's costs
+  // come out of the creator's payout, not the platform.
+  const grossCents = Math.floor((diamonds / cfg.diamondsPerUsd) * 100);
+  const feeCents = Math.ceil(grossCents * (cfg.payoutFeePercent / 100));
+  const netCents = grossCents - feeCents;
+  const usedDiamonds = Math.ceil((grossCents / 100) * cfg.diamondsPerUsd);
+  if (grossCents < 100 || netCents < 50) {
     res.status(200).json({ ok: false, reason: 'below_minimum', minPayoutDiamonds: cfg.minPayoutDiamonds, diamonds });
     return;
   }
 
   try {
     await stripe.transfers.create({
-      amount: usdCents,
+      amount: netCents,
       currency: 'usd',
       destination: accountId,
-      description: `Retiro Hype Call (${usedDiamonds} diamantes)`,
-      metadata: { user_id: user.id, diamonds: String(usedDiamonds) },
+      description: `Retiro Hype Call (${usedDiamonds} diamantes, comisión ${cfg.payoutFeePercent}%)`,
+      metadata: { user_id: user.id, diamonds: String(usedDiamonds), fee_cents: String(feeCents) },
     });
   } catch (err) {
     if (err && err.code === 'balance_insufficient') {
@@ -60,9 +64,9 @@ module.exports = makeStripeHandler(async ({ res, cfg, supabase, user, stripe }) 
     .eq('id', user.id);
   if (error) {
     // The transfer DID go through — surface the bookkeeping problem loudly.
-    res.status(200).json({ ok: true, paidUsd: usdCents / 100, remaining: diamonds, warning: 'transfer sent but balance update failed: ' + error.message });
+    res.status(200).json({ ok: true, paidUsd: netCents / 100, feeUsd: feeCents / 100, remaining: diamonds, warning: 'transfer sent but balance update failed: ' + error.message });
     return;
   }
 
-  res.status(200).json({ ok: true, paidUsd: usdCents / 100, usedDiamonds, remaining });
+  res.status(200).json({ ok: true, paidUsd: netCents / 100, feeUsd: feeCents / 100, usedDiamonds, remaining });
 });

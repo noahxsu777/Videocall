@@ -17,6 +17,11 @@ function getConfig() {
     stripeKey: process.env.STRIPE_SECRET_KEY,
     diamondsPerUsd: Math.max(1, parseInt(process.env.DIAMONDS_PER_USD || '200', 10) || 200),
     minPayoutDiamonds: Math.max(1, parseInt(process.env.MIN_PAYOUT_DIAMONDS || '1000', 10) || 1000),
+    // Withdrawal fee (%) deducted from the creator's payout — covers the
+    // Stripe Connect costs ($2 active account + transfer + cross-border
+    // fees) so the platform nets ~zero on payouts. Override with
+    // PAYOUT_FEE_PERCENT in Vercel.
+    payoutFeePercent: Math.min(50, Math.max(0, parseFloat(process.env.PAYOUT_FEE_PERCENT || '10') || 10)),
   };
 }
 
