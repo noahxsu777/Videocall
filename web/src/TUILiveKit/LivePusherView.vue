@@ -182,7 +182,6 @@
               <SpeakerVolumeSetting />
               <CoGuestButton />
               <CoHostButton />
-              <OrientationSwitch />
               <LayoutSwitch />
               <SettingButton />
             </div>
@@ -344,7 +343,6 @@ import CoHostButton from './component/CoHostButton.vue';
 import LayoutSwitch from './component/LayoutSwitch.vue';
 import LiveSettingButton from './component/LiveSettingButton.vue';
 import MicVolumeSetting from './component/MicVolumeSetting.vue';
-import OrientationSwitch from './component/OrientationSwitch.vue';
 import SettingButton from './component/SettingButton.vue';
 import SpeakerVolumeSetting from './component/SpeakerVolumeSetting.vue';
 import LivePusherNotification from './component/LivePusherNotification.vue';
@@ -1847,10 +1845,11 @@ onUnmounted(() => {
     position: absolute !important;
     left: 10px !important;
     right: 10px !important;
-    // Clear the mic/speaker + tools + End live stack at the bottom so the
-    // chat input never overlaps the volume pills.
-    bottom: 235px !important;
-    height: 30vh !important;
+    // Sits just above the single-row controls (End live moved to the top,
+    // Portrait removed, so the bottom is now one tidy row — the chat can
+    // drop lower without overlapping it).
+    bottom: 150px !important;
+    height: 34vh !important;
     z-index: 3 !important;
     pointer-events: none !important;
   }
@@ -1879,7 +1878,7 @@ onUnmounted(() => {
     }
     .mobile-barrage {
       top: calc(58px + 88.9vw) !important; // just under the tiles (100vw * 8/9)
-      bottom: 235px !important;
+      bottom: 150px !important;
       height: auto !important;
     }
   }
