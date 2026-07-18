@@ -50,7 +50,11 @@ const DEFAULT_VAPID_PUBLIC_KEY =
  * no-ops if the browser doesn't support push or the user denies.
  */
 export async function subscribeToPush(userId: string): Promise<void> {
-  const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || DEFAULT_VAPID_PUBLIC_KEY;
+  // ALWAYS the baked-in key — a stale VITE_VAPID_PUBLIC_KEY env var from an
+  // old setup would silently make devices subscribe under a key the server
+  // can't sign for (endless 403s). One source of truth; the server verifies
+  // its private key pairs with this one.
+  const publicKey = DEFAULT_VAPID_PUBLIC_KEY;
   if (!isPushSupported || !publicKey) {
     return;
   }
@@ -202,6 +206,8 @@ export async function testPushNotification(userId: string): Promise<{ ok: boolea
         return { ok: false, message: 'Este dispositivo no está registrado para push. Da permiso de notificaciones y reintenta.' };
       case 'subscription_expired':
         return { ok: false, message: 'La suscripción de este dispositivo caducó. Reintenta (se volverá a registrar).' };
+      case 'vapid_mismatch':
+        return { ok: false, message: 'La VAPID_PRIVATE_KEY en Vercel NO es la pareja de la llave de la app (verificado matemáticamente). Borra la variable, pégala de nuevo exactamente como te la pasé, y haz Redeploy.' };
       case 'exception':
         return { ok: false, message: `Error del servidor: ${data?.detail || 'desconocido'}. (Suele ser una llave VAPID inválida o que no coincide con la pública.)` };
       case 'send_failed': {
