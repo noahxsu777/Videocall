@@ -7,10 +7,14 @@ import { addI18n } from 'tuikit-atomicx-vue3';
 import { enResource, zhResource } from './i18n';
 import { useIncomingCalls } from './calls/useIncomingCalls';
 import { haptic } from './composables/feedback';
+import { installElasticBounce } from './composables/elasticBounce';
 
 const app = createApp(App);
 app.use(router);
 app.mount('#app');
+
+// iPhone-style rubber-band bounce when scroll lists reach their edges.
+installElasticBounce();
 
 // Suppress the browser's native long-press context menu (the "Copiar
 // imagen / Descargar imagen / Abrir en Chrome…" popup) so the PWA feels
