@@ -729,8 +729,9 @@ const applyPreviewFit = (videoEl: HTMLVideoElement) => {
   // only gave landscape, cover shows the centered vertical slice —
   // still better received than letterbox bars.
   videoEl.style.objectFit = 'cover';
-  // Mirror only the selfie camera.
-  videoEl.style.transform = isFrontCameraActive.value ? 'scaleX(-1)' : 'none';
+  // Mirror is controlled solely by the manual mirror button through the
+  // camVideoStyle binding on this <video>, so we don't set transform here
+  // (doing so fought that binding and made the preview flip on go-live).
 };
 
 // The host's own (local) self-view is attached via setLocalVideoView,
@@ -748,7 +749,11 @@ const applyLocalRenderFit = async () => {
       // Fill = full-bleed cover, consistent with the preview. Fit
       // (contain) produced black bars, which the user rejected.
       fillMode: TRTCVideoFillMode.TRTCVideoFillMode_Fill,
-      mirrorType: isFrontCameraActive.value
+      // Mirror is driven ONLY by the manual mirror button (isMirrored,
+      // default OFF) so going live never auto-flips the view — it stays
+      // exactly like the pre-live preview. Toggling the button re-applies
+      // this (see the watch below).
+      mirrorType: isMirrored.value
         ? TRTCVideoMirrorType.TRTCVideoMirrorType_Enable
         : TRTCVideoMirrorType.TRTCVideoMirrorType_Disable,
     });
@@ -756,6 +761,14 @@ const applyLocalRenderFit = async () => {
     console.warn('[LivePusherView] setLocalRenderParams failed:', error);
   }
 };
+
+// Keep the live render in sync when the host toggles the mirror button
+// mid-stream (the pre-live preview already reacts via camVideoStyle).
+watch(isMirrored, () => {
+  if (isInLive.value) {
+    void applyLocalRenderFit();
+  }
+});
 
 // Own getUserMedia preview with explicit PORTRAIT constraints — the
 // SDK's startCameraTest takes no constraints and always captures

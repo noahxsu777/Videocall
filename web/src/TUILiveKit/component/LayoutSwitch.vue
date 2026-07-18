@@ -31,14 +31,20 @@
             :class="{ active: selectedTemplate === template.templateId }"
             @click="selectTemplate(template.templateId)"
           >
-            <div class="option-info">
+            <div class="option-thumb">
               <component
                 :is="template.icon"
                 v-if="template.icon"
                 class="option-icon"
               />
-              <h4>{{ template.label }}</h4>
             </div>
+            <div class="option-info">
+              <h4>{{ template.label }}</h4>
+              <p v-if="template.desc">{{ template.desc }}</p>
+            </div>
+            <span class="option-check" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            </span>
           </div>
         </template>
       </div>
@@ -80,24 +86,28 @@ const portraitLayoutOptions = computed(() => [
     icon: DynamicGrid9,
     templateId: TUISeatLayoutTemplate.PortraitDynamic_Grid9,
     label: t('Dynamic Grid9 Layout'),
+    desc: 'Las cámaras se acomodan solas según cuántos entren (hasta 9).',
   },
   {
     id: 'PortraitFixed_1v6',
     icon: Fixed1v6,
     templateId: TUISeatLayoutTemplate.PortraitFixed_1v6,
     label: t('Fixed 1v6 Layout'),
+    desc: 'Tú en grande y hasta 6 invitados en fila.',
   },
   {
     id: 'PortraitFixed_Grid9',
     icon: FixedGrid9,
     templateId: TUISeatLayoutTemplate.PortraitFixed_Grid9,
     label: t('Fixed Grid9 Layout'),
+    desc: 'Cuadrícula fija de 9 espacios iguales.',
   },
   {
     id: 'PortraitDynamic_1v6',
     icon: Dynamic1v6,
     templateId: TUISeatLayoutTemplate.PortraitDynamic_1v6,
     label: t('Dynamic 1v6 Layout'),
+    desc: 'Tú en grande; los invitados aparecen al unirse.',
   },
 ]);
 
@@ -107,6 +117,7 @@ const horizontalLayoutOptions = computed(() => [
     icon: HorizontalFloat,
     templateId: TUISeatLayoutTemplate.LandscapeDynamic_1v3,
     label: t('Landscape Template'),
+    desc: 'Modo horizontal con hasta 3 invitados.',
   },
 ]);
 
@@ -277,20 +288,23 @@ function handleCancel() {
 }
 
 :deep(.layout-dialog) {
-  padding: 24px;
-  width: 480px;
+  padding: 22px 20px;
+  width: 460px;
+  max-width: calc(100vw - 32px);
+  border-radius: 24px;
   .tui-dialog-body {
     flex-wrap: wrap;
   }
   .tui-dialog-footer {
-    padding-top: 32px;
+    padding-top: 24px;
   }
 }
 
 .layout-label {
   @include text-size-14;
-  color: var(--text-color-primary, #ffffff);
-  margin: 4px 0px 16px 0px;
+  color: rgba(255, 255, 255, 0.55);
+  margin: 2px 0 18px 0;
+  text-align: center;
 }
 
 .template-options {
@@ -300,50 +314,88 @@ function handleCancel() {
 
   .options-grid {
     display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    justify-content: flex-start;
+    flex-direction: column;
+    gap: 12px;
 
     .option-card {
       box-sizing: border-box;
-      padding: 12px 13px;
-      width: 208px;
-      background: #3a3a3a;
-      border: 2px solid transparent;
-      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 14px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1.5px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
       cursor: pointer;
-      transition: all 0.2s ease;
-      text-align: center;
+      transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease;
 
+      &:active {
+        transform: scale(0.98);
+      }
       &:hover {
-        background: #4a4a4a;
-        border-color: #5a5a5a;
+        background: rgba(255, 255, 255, 0.08);
       }
 
-      &.active {
-        border: 2px solid var(--text-color-link-hover, #2B6AD6);
-        background: var(--list-color-focused, #243047);
-
-        .option-info h4 {
-          color: #ffffff;
+      .option-thumb {
+        flex: 0 0 auto;
+        width: 46px;
+        height: 46px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        background: rgba(139, 61, 255, 0.14);
+        .option-icon {
+          width: 26px;
+          height: 26px;
+          color: #c79bff;
         }
       }
 
       .option-info {
-        display: flex;
-        align-items: center;
-        justify-content: flex-start;
-        gap: 8px;
-        .option-icon {
-          width: 24px;
-          height: 24px;
-        }
+        flex: 1 1 auto;
+        min-width: 0;
+        text-align: left;
         h4 {
           margin: 0;
-          font-size: 14px;
-          font-weight: 600;
-          color: #ffffff;
-          transition: color 0.2s ease;
+          font-size: 15px;
+          font-weight: 700;
+          color: #fff;
+        }
+        p {
+          margin: 3px 0 0;
+          font-size: 12px;
+          line-height: 1.3;
+          color: rgba(255, 255, 255, 0.5);
+        }
+      }
+
+      .option-check {
+        flex: 0 0 auto;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.25);
+        color: transparent;
+        transition: all 0.2s ease;
+      }
+
+      &.active {
+        border-color: transparent;
+        background: linear-gradient(135deg, rgba(139, 61, 255, 0.28), rgba(255, 46, 116, 0.22));
+        box-shadow: 0 0 0 1.5px rgba(199, 155, 255, 0.55) inset;
+        .option-thumb {
+          background: rgba(255, 255, 255, 0.16);
+          .option-icon { color: #fff; }
+        }
+        .option-check {
+          border-color: transparent;
+          background: linear-gradient(135deg, #8b3dff, #ff2e74);
+          color: #fff;
         }
       }
     }
