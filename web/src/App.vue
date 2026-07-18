@@ -28,7 +28,7 @@ import InstallPrompt from './components/InstallPrompt.vue';
 import { navLoading, refreshKey } from './composables/navLoading';
 import { authReady, currentSession } from './auth/useAuth';
 import { useIncomingCalls } from './calls/useIncomingCalls';
-import { subscribeToPush } from './data/push';
+import { subscribeToPush, enableNotifications } from './data/push';
 import { logVisit } from './data/sessionLog';
 
 const route = useRoute();
@@ -99,6 +99,24 @@ function onLoggedIn(userId: string) {
   // closed/backgrounded. Best-effort: no-ops on unsupported browsers or
   // if the user hasn't granted notification permission.
   void subscribeToPush(userId);
+  // Ask for notification permission as soon as the user enters the app.
+  // Browsers block an automatic request on load, so we fire it on their
+  // very FIRST interaction (a tap/click) — which happens within seconds of
+  // entering — instead of never showing the prompt at all. Runs once.
+  requestPushOnFirstGesture(userId);
+}
+
+function requestPushOnFirstGesture(userId: string) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'default') {
+    return;
+  }
+  const ask = () => {
+    window.removeEventListener('pointerdown', ask);
+    window.removeEventListener('keydown', ask);
+    void enableNotifications(userId);
+  };
+  window.addEventListener('pointerdown', ask, { once: true });
+  window.addEventListener('keydown', ask, { once: true });
 }
 authReady().then(() => {
   const session = currentSession();

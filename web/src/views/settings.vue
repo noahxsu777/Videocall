@@ -188,6 +188,10 @@
       <!-- Acerca de -->
       <p class="group-header">Acerca de</p>
       <section class="group">
+        <button class="row row-tap" @click="handleEnablePush">
+          <span class="row-key">Activar notificaciones</span>
+          <span class="row-val">{{ permLabel }}</span>
+        </button>
         <button class="row row-tap" :disabled="testingPush" @click="handleTestPush">
           <span class="row-key">Probar notificación</span>
           <span class="row-val">{{ testingPush ? 'Enviando…' : 'Enviar prueba' }}</span>
@@ -226,7 +230,7 @@ import GlassBackButton from '../components/GlassBackButton.vue';
 import VerifiedBadge from '../components/VerifiedBadge.vue';
 import { useAuth } from '../auth/useAuth';
 import { supabase } from '../auth/supabase';
-import { testPushNotification } from '../data/push';
+import { testPushNotification, enableNotifications, notificationPermission } from '../data/push';
 import {
   getProfile,
   ensureProfile,
@@ -245,6 +249,25 @@ const CHEV =
 const testingPush = ref(false);
 const pushMsg = ref('');
 const pushOk = ref(false);
+const perm = ref(notificationPermission());
+const permLabel = computed(() => {
+  switch (perm.value) {
+    case 'granted': return 'Activadas ✓';
+    case 'denied': return 'Bloqueadas';
+    case 'unsupported': return 'No disponible';
+    default: return 'Toca para activar';
+  }
+});
+async function handleEnablePush() {
+  if (!user.value) {
+    return;
+  }
+  pushMsg.value = '';
+  const result = await enableNotifications(user.value.id);
+  perm.value = notificationPermission();
+  pushOk.value = result.ok;
+  pushMsg.value = result.message;
+}
 async function handleTestPush() {
   if (!user.value || testingPush.value) {
     return;

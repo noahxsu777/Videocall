@@ -177,9 +177,9 @@
       <div class="main-center-bottom">
         <div class="main-center-bottom-content">
           <div class="main-center-bottom-left">
-            <MicVolumeSetting />
-            <SpeakerVolumeSetting />
             <div class="main-center-bottom-tools">
+              <MicVolumeSetting />
+              <SpeakerVolumeSetting />
               <CoGuestButton />
               <CoHostButton />
               <OrientationSwitch />
@@ -1704,6 +1704,19 @@ onUnmounted(() => {
           justify-content: center !important;
           flex-wrap: wrap !important;
           gap: 12px !important;
+
+          // All the live controls (mic, speaker, co-guest, co-host,
+          // orientation, modos, setting) in ONE evenly-spaced, centered
+          // row that wraps cleanly instead of a couple of buttons floating
+          // loose over the video.
+          .main-center-bottom-tools {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            justify-content: center !important;
+            align-items: center !important;
+            gap: 6px 16px !important;
+            width: 100% !important;
+          }
         }
 
         .main-center-bottom-right {

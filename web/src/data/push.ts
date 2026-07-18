@@ -75,6 +75,37 @@ export async function subscribeToPush(userId: string): Promise<void> {
   }
 }
 
+/** Current notification permission as a simple label for the UI. */
+export function notificationPermission(): 'granted' | 'denied' | 'default' | 'unsupported' {
+  if (!isPushSupported || typeof Notification === 'undefined') {
+    return 'unsupported';
+  }
+  return Notification.permission as 'granted' | 'denied' | 'default';
+}
+
+/**
+ * Ask for notification permission FROM A USER GESTURE (a button tap) and
+ * register this device. Browsers ignore an auto-request on page load, which
+ * is why the prompt never appeared — this must be called from a click.
+ */
+export async function enableNotifications(userId: string): Promise<{ ok: boolean; message: string }> {
+  if (!isPushSupported || typeof Notification === 'undefined') {
+    return { ok: false, message: 'Este navegador no soporta notificaciones. En iPhone, instala primero la app en la pantalla de inicio (Compartir → Añadir a inicio) y ábrela desde ahí.' };
+  }
+  let permission = Notification.permission;
+  if (permission === 'default') {
+    permission = await Notification.requestPermission();
+  }
+  if (permission === 'denied') {
+    return { ok: false, message: 'Notificaciones bloqueadas. Ábrelas en los ajustes del navegador/app para este sitio y vuelve a intentarlo.' };
+  }
+  if (permission !== 'granted') {
+    return { ok: false, message: 'No se concedió el permiso de notificaciones.' };
+  }
+  await subscribeToPush(userId);
+  return { ok: true, message: '✅ Notificaciones activadas en este dispositivo.' };
+}
+
 /**
  * Verify the whole push chain end-to-end and return a human message:
  * requests permission + (re)subscribes this device, then asks the server to
