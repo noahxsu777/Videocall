@@ -74,3 +74,57 @@ export async function subscribeToPush(userId: string): Promise<void> {
     console.warn('[push] subscribe failed:', error);
   }
 }
+
+/**
+ * Verify the whole push chain end-to-end and return a human message:
+ * requests permission + (re)subscribes this device, then asks the server to
+ * send a test push back. Used by the "Probar notificación" button so the
+ * user (and we) can see exactly where it breaks.
+ */
+export async function testPushNotification(userId: string): Promise<{ ok: boolean; message: string }> {
+  if (!isPushSupported) {
+    return { ok: false, message: 'Este navegador no soporta notificaciones push. En iPhone, primero instala la app en la pantalla de inicio.' };
+  }
+  // Ensure permission + a saved subscription first.
+  if (Notification.permission !== 'granted') {
+    const permission = Notification.permission === 'default' ? await Notification.requestPermission() : Notification.permission;
+    if (permission !== 'granted') {
+      return { ok: false, message: 'No diste permiso de notificaciones. Actívalo en los ajustes del navegador/app para este sitio.' };
+    }
+  }
+  await subscribeToPush(userId);
+
+  let token = '';
+  try {
+    const { data } = await requireClient().auth.getSession();
+    token = data.session?.access_token || '';
+  } catch {
+    // ignore
+  }
+  if (!token) {
+    return { ok: false, message: 'No hay sesión activa. Inicia sesión e inténtalo de nuevo.' };
+  }
+
+  try {
+    const res = await fetch('/api/notify-test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (data?.ok) {
+      return { ok: true, message: '✅ Enviada. Deberías ver la notificación en unos segundos (si la app está en segundo plano).' };
+    }
+    switch (data?.reason) {
+      case 'server_not_configured':
+        return { ok: false, message: `El servidor no tiene configurados: ${(data.missing || []).join(', ')}. Agrégalos en Vercel → Settings → Environment Variables y vuelve a desplegar.` };
+      case 'no_subscription':
+        return { ok: false, message: 'Este dispositivo no está registrado para push. Da permiso de notificaciones y reintenta.' };
+      case 'subscription_expired':
+        return { ok: false, message: 'La suscripción de este dispositivo caducó. Reintenta (se volverá a registrar).' };
+      default:
+        return { ok: false, message: `No se pudo enviar (${data?.reason || 'error'}). Revisa las variables de entorno del servidor.` };
+    }
+  } catch (error: any) {
+    return { ok: false, message: `Error de red al probar: ${error?.message || error}` };
+  }
+}

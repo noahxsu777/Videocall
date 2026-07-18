@@ -188,6 +188,14 @@
       <!-- Acerca de -->
       <p class="group-header">Acerca de</p>
       <section class="group">
+        <button class="row row-tap" :disabled="testingPush" @click="handleTestPush">
+          <span class="row-key">Probar notificación</span>
+          <span class="row-val">{{ testingPush ? 'Enviando…' : 'Enviar prueba' }}</span>
+        </button>
+        <p v-if="pushMsg" class="push-msg" :class="{ ok: pushOk }">{{ pushMsg }}</p>
+      </section>
+
+      <section class="group">
         <div class="row">
           <span class="row-key">Versión</span>
           <span class="row-val">1.0.0</span>
@@ -218,6 +226,7 @@ import GlassBackButton from '../components/GlassBackButton.vue';
 import VerifiedBadge from '../components/VerifiedBadge.vue';
 import { useAuth } from '../auth/useAuth';
 import { supabase } from '../auth/supabase';
+import { testPushNotification } from '../data/push';
 import {
   getProfile,
   ensureProfile,
@@ -232,6 +241,24 @@ const { user, displayName, logout } = useAuth();
 
 const CHEV =
   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
+
+const testingPush = ref(false);
+const pushMsg = ref('');
+const pushOk = ref(false);
+async function handleTestPush() {
+  if (!user.value || testingPush.value) {
+    return;
+  }
+  testingPush.value = true;
+  pushMsg.value = '';
+  try {
+    const result = await testPushNotification(user.value.id);
+    pushOk.value = result.ok;
+    pushMsg.value = result.message;
+  } finally {
+    testingPush.value = false;
+  }
+}
 
 const username = ref('');
 const bio = ref('');
@@ -590,6 +617,14 @@ textarea.row-field {
 }
 .save-msg.ok { color: #34c759; }
 .save-msg.err { color: #ff453a; }
+
+.push-msg {
+  margin: 10px 14px 4px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #ff9f43;
+}
+.push-msg.ok { color: #34c759; }
 
 .save-btn {
   width: 100%;
