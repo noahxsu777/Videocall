@@ -75,6 +75,44 @@ create table if not exists public.coin_purchases (
   created_at timestamptz not null default now()
 );
 alter table public.coin_purchases enable row level security;
+-- Cada quien puede VER sus compras (pestaña Transacciones); solo el
+-- service role escribe.
+drop policy if exists "users read own coin purchases" on public.coin_purchases;
+create policy "users read own coin purchases"
+  on public.coin_purchases for select using (auth.uid() = user_id);
+
+-- Libro de retiros (pestaña Transacciones). Solo el service role escribe
+-- (api/stripe-payout.js); cada quien lee los suyos.
+create table if not exists public.coin_payouts (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  coins      integer not null,
+  usd_cents  integer not null,
+  fee_cents  integer not null default 0,
+  created_at timestamptz not null default now()
+);
+alter table public.coin_payouts enable row level security;
+drop policy if exists "users read own payouts" on public.coin_payouts;
+create policy "users read own payouts"
+  on public.coin_payouts for select using (auth.uid() = user_id);
+
+-- Registro de cada live terminado (pantalla Estadísticas: horas, coins,
+-- rachas). El host inserta el suyo al cortar; cada quien lee los suyos.
+create table if not exists public.live_sessions (
+  id               uuid primary key default gen_random_uuid(),
+  user_id          uuid not null references public.profiles(id) on delete cascade,
+  duration_seconds integer not null default 0,
+  coins_earned     integer not null default 0,
+  viewers          integer not null default 0,
+  created_at       timestamptz not null default now()
+);
+alter table public.live_sessions enable row level security;
+drop policy if exists "users insert own live sessions" on public.live_sessions;
+create policy "users insert own live sessions"
+  on public.live_sessions for insert with check (auth.uid() = user_id);
+drop policy if exists "users read own live sessions" on public.live_sessions;
+create policy "users read own live sessions"
+  on public.live_sessions for select using (auth.uid() = user_id);
 
 -- "verified", "is_admin" and "banned" can't be set by a direct table
 -- update from the app — this trigger silently reverts them — EXCEPT

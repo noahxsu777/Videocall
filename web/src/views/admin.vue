@@ -1,7 +1,7 @@
 <template>
   <div class="admin-page">
     <header class="nav">
-      <GlassBackButton @click="router.back()" />
+      <GlassBackButton />
       <span class="nav-title">Panel de administración</span>
       <span class="nav-spacer" />
     </header>

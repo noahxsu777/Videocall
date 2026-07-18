@@ -34,6 +34,51 @@ export const DEFAULT_PACKS: CoinPack[] = [
   { id: 'xxl', coins: 7000, usd: 49.99 },
 ];
 
+export interface PurchaseRow {
+  session_id: string;
+  coins: number;
+  usd_cents: number;
+  created_at: string;
+}
+
+export interface PayoutRow {
+  id: string;
+  coins: number;
+  usd_cents: number;
+  fee_cents: number;
+  created_at: string;
+}
+
+/** The user's coin purchases (Transacciones tab). Needs the RLS policy. */
+export async function listPurchases(userId: string): Promise<PurchaseRow[]> {
+  const { data, error } = await supabase!
+    .from('coin_purchases')
+    .select('session_id, coins, usd_cents, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) {
+    console.warn('[payouts] listPurchases failed:', error.message);
+    return [];
+  }
+  return (data || []) as PurchaseRow[];
+}
+
+/** The user's withdrawals (Transacciones tab). Needs the RLS policy. */
+export async function listPayouts(userId: string): Promise<PayoutRow[]> {
+  const { data, error } = await supabase!
+    .from('coin_payouts')
+    .select('id, coins, usd_cents, fee_cents, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) {
+    console.warn('[payouts] listPayouts failed:', error.message);
+    return [];
+  }
+  return (data || []) as PayoutRow[];
+}
+
 async function authedPost(path: string, body?: unknown): Promise<any> {
   const { data } = await supabase!.auth.getSession();
   const token = data.session?.access_token;

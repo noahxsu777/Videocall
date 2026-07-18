@@ -418,6 +418,7 @@ import LiveChat from '../components/LiveChat.vue';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
 import { useAuth } from '../auth/useAuth';
 import { notifyLiveStarted, addEarnedCoins } from '../data/profiles';
+import { recordLiveSession } from '../data/stats';
 import { copyToClipboard, isSvgCoverUrl } from './utils/utils';
 import { errorHandler } from './utils/errorHandler';
 import { initRoomEngineLanguage } from '../utils/utils';
@@ -1195,8 +1196,12 @@ const handleEndLive = async () => {
       coins: diamondsReceived.value,
       viewers: audienceCount.value || 0,
     };
+    const durationSeconds = liveElapsed.value;
     await endLive();
     endSummary.value = summary;
+    // Persist the session for the Estadísticas screen (hours, coins,
+    // streaks) — best-effort.
+    void recordLiveSession(durationSeconds, summary.coins, summary.viewers);
     loading.value = false;
   } catch (error: any) {
     const errorInfo = errorHandler.parseError(error);

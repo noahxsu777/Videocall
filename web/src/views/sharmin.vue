@@ -1,7 +1,7 @@
 <template>
   <div class="sharmin-page">
     <header class="nav">
-      <GlassBackButton @click="router.back()" />
+      <GlassBackButton />
       <span class="nav-title">Panel</span>
       <button class="refresh" @click="load" :disabled="loading">↻</button>
     </header>

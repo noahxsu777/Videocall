@@ -90,6 +90,39 @@
       otros países).
     </p>
 
+    <!-- Transactions: purchases and withdrawals, separate tabs. -->
+    <p class="section-title">Transacciones</p>
+    <div class="tx-tabs">
+      <button class="tx-tab" :class="{ active: txTab === 'compras' }" @click="txTab = 'compras'">
+        Compras
+      </button>
+      <button class="tx-tab" :class="{ active: txTab === 'retiros' }" @click="txTab = 'retiros'">
+        Retiros
+      </button>
+    </div>
+
+    <section v-if="txTab === 'compras'" class="group">
+      <div v-for="p in purchases" :key="p.session_id" class="row tx-row">
+        <div class="tx-main">
+          <span class="tx-title">🪙 +{{ p.coins.toLocaleString() }} Coins</span>
+          <span class="tx-date">{{ formatDate(p.created_at) }}</span>
+        </div>
+        <span class="row-val">${{ (p.usd_cents / 100).toFixed(2) }}</span>
+      </div>
+      <p v-if="!purchases.length" class="tx-empty">Aún no has comprado Coins.</p>
+    </section>
+
+    <section v-else class="group">
+      <div v-for="p in payouts" :key="p.id" class="row tx-row">
+        <div class="tx-main">
+          <span class="tx-title">💸 Retiro · {{ p.coins.toLocaleString() }} 🪙</span>
+          <span class="tx-date">{{ formatDate(p.created_at) }} · comisión ${{ (p.fee_cents / 100).toFixed(2) }}</span>
+        </div>
+        <span class="row-val ok">${{ (p.usd_cents / 100).toFixed(2) }}</span>
+      </div>
+      <p v-if="!payouts.length" class="tx-empty">Aún no has hecho retiros.</p>
+    </section>
+
     <p v-if="toast" class="toast">{{ toast }}</p>
 
     <!-- Purchase result (returning from Stripe Checkout) -->
@@ -118,8 +151,12 @@ import {
   requestPayout,
   buyCoinPack,
   verifyCoinPurchase,
+  listPurchases,
+  listPayouts,
   DEFAULT_PACKS,
   type PayoutStatus,
+  type PurchaseRow,
+  type PayoutRow,
 } from '../data/payouts';
 
 const { user } = useAuth();
@@ -128,9 +165,18 @@ const coins = ref(0);
 const earnedCoins = ref(0);
 const toast = ref('');
 const packsSection = ref<HTMLElement | null>(null);
+const txTab = ref<'compras' | 'retiros'>('compras');
+const purchases = ref<PurchaseRow[]>([]);
+const payouts = ref<PayoutRow[]>([]);
 
 function scrollToPacks() {
   packsSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString('es', { day: '2-digit', month: 'short' })
+    + ' ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
 }
 const busy = ref(false);
 const payout = ref<PayoutStatus>({
@@ -188,6 +234,12 @@ async function refresh() {
     if (payout.value.creditedNow) {
       showToast(`✅ Se acreditaron ${payout.value.creditedNow.toLocaleString()} 🪙 de compras pendientes.`);
     }
+  }
+  if (user.value) {
+    [purchases.value, payouts.value] = await Promise.all([
+      listPurchases(user.value.id),
+      listPayouts(user.value.id),
+    ]);
   }
 }
 
@@ -410,6 +462,45 @@ onMounted(async () => {
 .withdraw-btn:disabled { opacity: 0.55; }
 .withdraw-btn.dim { opacity: 0.55; }
 .rate-hint { margin-top: 14px; text-align: center; }
+
+/* Transactions */
+.tx-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.tx-tab {
+  flex: 1;
+  height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: #121214;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tx-tab.active {
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
+  border-color: transparent;
+  color: #fff;
+}
+.tx-row { align-items: center; }
+.tx-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.tx-title { font-size: 14px; font-weight: 700; }
+.tx-date { font-size: 11.5px; color: #8a8a93; }
+.tx-empty {
+  margin: 0;
+  padding: 18px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: #8a8a93;
+}
 .toast {
   margin-top: 14px;
   text-align: center;

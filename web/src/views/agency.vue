@@ -1,7 +1,7 @@
 <template>
   <div class="agency-page">
     <header class="nav">
-      <GlassBackButton @click="router.back()" />
+      <GlassBackButton />
       <span class="nav-title">Programa para agencias</span>
       <span class="nav-spacer" />
     </header>

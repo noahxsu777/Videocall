@@ -1,7 +1,7 @@
 <template>
   <div class="verified-page">
     <header class="nav">
-      <GlassBackButton @click="router.back()" />
+      <GlassBackButton />
       <span class="nav-title">Verificación</span>
       <span class="nav-spacer" />
     </header>

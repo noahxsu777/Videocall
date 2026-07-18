@@ -1,7 +1,7 @@
 <template>
   <div class="vip">
     <header class="nav">
-      <GlassBackButton @click="router.back()" />
+      <GlassBackButton />
       <span class="nav-title">VIP</span>
       <span class="nav-spacer" />
     </header>

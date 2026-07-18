@@ -56,6 +56,14 @@ module.exports = makeStripeHandler(async ({ res, cfg, supabase, user, stripe }) 
     throw err;
   }
 
+  // Ledger row for the Transacciones tab (best-effort; service role only).
+  await supabase.from('coin_payouts').insert({
+    user_id: user.id,
+    coins: usedCoins,
+    usd_cents: netCents,
+    fee_cents: feeCents,
+  });
+
   const remaining = Math.max(0, coins - usedCoins);
   const { error } = await supabase
     .from('profiles')

@@ -2,7 +2,7 @@
   <div class="profile">
     <header class="profile-top">
       <button v-if="isOwnProfile" class="top-btn" @click="goSettings">⚙️</button>
-      <GlassBackButton v-else @click="router.back()" />
+      <GlassBackButton v-else />
       <span class="top-title">{{ profile?.display_name || profile?.username || 'Perfil' }}</span>
       <button v-if="isOwnProfile" class="top-btn" @click="handleLogout">Salir</button>
       <span v-else class="top-btn" />

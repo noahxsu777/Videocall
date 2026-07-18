@@ -1,7 +1,7 @@
 <template>
   <div class="creator-page">
     <header class="nav">
-      <GlassBackButton @click="router.back()" />
+      <GlassBackButton />
       <span class="nav-title">Creador</span>
       <span class="nav-spacer" />
     </header>

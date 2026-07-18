@@ -35,6 +35,10 @@ const routes = [
     component: () => import('@/views/saldo.vue'),
   },
   {
+    path: '/estadisticas',
+    component: () => import('@/views/estadisticas.vue'),
+  },
+  {
     path: '/verified',
     component: () => import('@/views/verified.vue'),
   },

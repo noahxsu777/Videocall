@@ -1,7 +1,7 @@
 <template>
   <div class="fanclub-page">
     <header class="nav">
-      <GlassBackButton @click="router.back()" />
+      <GlassBackButton />
       <span class="nav-title">Club de Fans</span>
       <span class="nav-spacer" />
     </header>

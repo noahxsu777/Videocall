@@ -1,5 +1,5 @@
 <template>
-  <button class="glass-btn" type="button" aria-label="Atrás">
+  <button class="glass-btn" type="button" aria-label="Atrás" @click="handleClick">
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 5.5-6.5 6.5 6.5 6.5"/></svg>
   </button>
 </template>
@@ -7,7 +7,29 @@
 <script setup lang="ts">
 // iOS 26 "liquid glass" back button — translucent capsule with a top
 // specular highlight and a slow water-like shimmer sweeping across.
-// Native click events fall through to the parent automatically.
+//
+// Smart back built in: when the parent binds its own @click (e.g. closing
+// a chat thread), that handler runs via fallthrough and we do nothing.
+// Otherwise we navigate back — and when there's NO in-app history (cold
+// start on this screen, or returning from an external redirect like
+// Stripe), history.back() silently does nothing, so fall back to home.
+import { useAttrs } from 'vue';
+import { useRouter } from 'vue-router';
+
+const attrs = useAttrs();
+const router = useRouter();
+
+function handleClick() {
+  if (attrs.onClick) {
+    return; // parent's own handler (runs via attribute fallthrough)
+  }
+  const state = router.options.history.state;
+  if (state && state.back) {
+    router.back();
+  } else {
+    router.replace('/live-list');
+  }
+}
 </script>
 
 <style scoped>
