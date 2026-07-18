@@ -30,31 +30,96 @@
       saldo automáticamente.
     </p>
 
-    <button class="withdraw-btn" @click="showToast('El retiro de ganancias estará disponible pronto.')">
-      Retirar ganancias
+    <!-- Withdrawals: connect a Stripe Express account, then cash out. -->
+    <section class="group">
+      <div class="row">
+        <span class="row-key">Estado de retiros</span>
+        <span class="row-val" :class="{ ok: payout.payoutsEnabled }">{{ payoutStatusLabel }}</span>
+      </div>
+      <div v-if="payout.configured" class="row">
+        <span class="row-key">Valor estimado</span>
+        <span class="row-val">≈ ${{ estimatedUsd }} USD</span>
+      </div>
+    </section>
+
+    <button
+      v-if="!payout.configured"
+      class="withdraw-btn dim"
+      @click="showToast('Los retiros estarán disponibles muy pronto.')"
+    >
+      Retiros disponibles pronto
     </button>
+    <button
+      v-else-if="!payout.connected || !payout.payoutsEnabled"
+      class="withdraw-btn"
+      :disabled="busy"
+      @click="handleConnect"
+    >
+      {{ busy ? 'Abriendo…' : payout.connected ? 'Continuar verificación' : 'Conectar cuenta de retiro' }}
+    </button>
+    <button
+      v-else
+      class="withdraw-btn"
+      :disabled="busy || diamonds < payout.minPayoutDiamonds"
+      @click="handlePayout"
+    >
+      {{ busy ? 'Procesando…' : `Retirar ganancias (mín. ${payout.minPayoutDiamonds.toLocaleString()} 💎)` }}
+    </button>
+
+    <p v-if="payout.configured" class="hint rate-hint">
+      {{ payout.diamondsPerUsd.toLocaleString() }} 💎 = $1 USD · El dinero llega
+      a la cuenta bancaria que registres en Stripe (funciona con bancos de
+      Perú y muchos otros países).
+    </p>
 
     <p v-if="toast" class="toast">{{ toast }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import GlassBackButton from '../components/GlassBackButton.vue';
 import { useAuth } from '../auth/useAuth';
 import { getProfile } from '../data/profiles';
+import { getPayoutStatus, connectPayoutAccount, requestPayout, type PayoutStatus } from '../data/payouts';
 
 const { user } = useAuth();
+const route = useRoute();
 const coins = ref(0);
 const diamonds = ref(0);
 const toast = ref('');
+const busy = ref(false);
+const payout = ref<PayoutStatus>({
+  configured: false,
+  connected: false,
+  diamonds: 0,
+  diamondsPerUsd: 200,
+  minPayoutDiamonds: 1000,
+});
+
+const payoutStatusLabel = computed(() => {
+  if (!payout.value.configured) {
+    return 'Próximamente';
+  }
+  if (!payout.value.connected) {
+    return 'Sin conectar';
+  }
+  if (!payout.value.payoutsEnabled) {
+    return 'Verificación pendiente';
+  }
+  return 'Lista ✓';
+});
+
+const estimatedUsd = computed(() =>
+  (diamonds.value / (payout.value.diamondsPerUsd || 200)).toFixed(2));
 
 function showToast(text: string) {
   toast.value = text;
-  window.setTimeout(() => { toast.value = ''; }, 2600);
+  window.setTimeout(() => { toast.value = ''; }, 4000);
 }
 
-onMounted(async () => {
+async function refresh() {
   if (!user.value) {
     return;
   }
@@ -65,6 +130,44 @@ onMounted(async () => {
     diamonds.value = p?.diamonds_earned ?? 0;
   } catch (error) {
     console.warn('[saldo] load failed:', error);
+  }
+  payout.value = await getPayoutStatus();
+  if (payout.value.diamonds > diamonds.value) {
+    diamonds.value = payout.value.diamonds;
+  }
+}
+
+async function handleConnect() {
+  busy.value = true;
+  try {
+    const url = await connectPayoutAccount('PE');
+    window.location.href = url; // Stripe's hosted onboarding
+  } catch (error: any) {
+    showToast(error?.message || 'No se pudo conectar con Stripe.');
+    busy.value = false;
+  }
+}
+
+async function handlePayout() {
+  busy.value = true;
+  try {
+    const result = await requestPayout();
+    showToast(result.message);
+    if (result.ok) {
+      await refresh();
+    }
+  } finally {
+    busy.value = false;
+  }
+}
+
+onMounted(async () => {
+  await refresh();
+  // Back from Stripe onboarding (?stripe=done / retry).
+  if (route.query.stripe === 'done') {
+    showToast('Datos enviados a Stripe. La verificación puede tardar unos minutos.');
+  } else if (route.query.stripe === 'retry') {
+    showToast('Conexión interrumpida — toca de nuevo para continuar la verificación.');
   }
 });
 </script>
@@ -148,6 +251,10 @@ onMounted(async () => {
   font-weight: 800;
   cursor: pointer;
 }
+.withdraw-btn:disabled { opacity: 0.55; }
+.withdraw-btn.dim { opacity: 0.55; }
+.row-val.ok { color: #34c759; }
+.rate-hint { margin-top: 14px; text-align: center; }
 .toast {
   margin-top: 14px;
   text-align: center;

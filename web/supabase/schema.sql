@@ -45,8 +45,21 @@ alter table public.profiles
   add column if not exists verification_requested boolean not null default false;
 alter table public.profiles
   add column if not exists verification_note text;
+-- Saldo (ganancias del creador) + cuenta de retiro Stripe
+alter table public.profiles
+  add column if not exists diamonds_earned integer not null default 0;
+alter table public.profiles
+  add column if not exists stripe_account_id text;
 
 alter table public.profiles enable row level security;
+
+-- Acumula diamantes ganados por regalos recibidos en un live (pantalla
+-- Saldo). Ligado a auth.uid() para que nadie acredite a otra cuenta.
+create or replace function public.add_diamonds_earned(amount integer)
+returns void language sql security definer set search_path = public as $$
+  update public.profiles set diamonds_earned = diamonds_earned + greatest(0, amount) where id = auth.uid();
+$$;
+grant execute on function public.add_diamonds_earned(integer) to authenticated;
 
 -- "verified", "is_admin" and "banned" can't be set by a direct table
 -- update from the app — this trigger silently reverts them — EXCEPT
