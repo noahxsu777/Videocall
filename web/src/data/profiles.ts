@@ -486,6 +486,67 @@ export async function listFeedPhotos(limit = 60): Promise<FeedPhoto[]> {
   return photos.map(p => ({ ...p, author: authors.get(p.user_id) || null })) as FeedPhoto[];
 }
 
+/** The ids of everyone this user follows. */
+export async function listFollowingIds(userId: string): Promise<string[]> {
+  const client = requireClient();
+  const { data } = await client
+    .from('follows')
+    .select('following_id')
+    .eq('follower_id', userId);
+  return ((data || []) as { following_id: string }[]).map(r => r.following_id);
+}
+
+/** Reels/photos ONLY from the people this user follows ("Seguidos" tab). */
+export async function listFollowingFeed(userId: string, limit = 60): Promise<FeedPhoto[]> {
+  const client = requireClient();
+  const ids = await listFollowingIds(userId);
+  if (!ids.length) {
+    return [];
+  }
+  const { data, error } = await client
+    .from('photos')
+    .select('*')
+    .in('user_id', ids)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.warn('[profiles] listFollowingFeed failed:', error.message);
+    return [];
+  }
+  const photos = (data || []) as any[];
+  const authors = await fetchAuthorsMap(photos.map(p => p.user_id));
+  return photos.map(p => ({ ...p, author: authors.get(p.user_id) || null })) as FeedPhoto[];
+}
+
+/**
+ * A lightweight "taste profile" for the For You algorithm: which posts the
+ * user has already liked, and how strongly they lean toward each creator
+ * (based on how many of that creator's posts they've liked). Bounded to the
+ * user's most recent likes so it stays a small, fast query.
+ */
+export async function getTasteProfile(
+  userId: string,
+): Promise<{ likedPhotoIds: Set<string>; authorAffinity: Record<string, number> }> {
+  const client = requireClient();
+  const { data: likeRows } = await client
+    .from('likes')
+    .select('photo_id')
+    .eq('user_id', userId)
+    .limit(300);
+  const likedPhotoIds = new Set(((likeRows || []) as { photo_id: string }[]).map(r => r.photo_id));
+  const authorAffinity: Record<string, number> = {};
+  if (likedPhotoIds.size) {
+    const { data: likedPhotos } = await client
+      .from('photos')
+      .select('id,user_id')
+      .in('id', Array.from(likedPhotoIds));
+    for (const row of (likedPhotos || []) as { id: string; user_id: string }[]) {
+      authorAffinity[row.user_id] = (authorAffinity[row.user_id] || 0) + 1;
+    }
+  }
+  return { likedPhotoIds, authorAffinity };
+}
+
 /** Fetch a single reel/photo by id (with its author) — used to open a
  *  shared deep link even when the post isn't in the recent feed. */
 export async function getFeedPhoto(id: string): Promise<FeedPhoto | null> {

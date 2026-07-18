@@ -1,7 +1,14 @@
 <template>
   <div class="reels">
     <header class="reels-top">
-      <span class="reels-title">Reels</span>
+      <div class="reels-tabs">
+        <button class="reels-tab" :class="{ active: tab === 'foryou' }" @click="switchTab('foryou')">
+          Para ti
+        </button>
+        <button class="reels-tab" :class="{ active: tab === 'following' }" @click="switchTab('following')">
+          Seguidos
+        </button>
+      </div>
       <button class="reels-upload" @click="pickPhoto">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
         Subir
@@ -9,6 +16,12 @@
     </header>
 
     <ReelsSkeleton v-if="loading" />
+
+    <div v-else-if="!feed.length && tab === 'following'" class="state empty">
+      <div class="empty-emoji">👤</div>
+      <p>Aún no sigues a nadie que haya publicado.</p>
+      <button class="empty-btn" @click="switchTab('foryou')">Descubrir en Para ti</button>
+    </div>
 
     <div v-else-if="!feed.length" class="state empty">
       <div class="empty-emoji">🎬</div>
@@ -166,6 +179,9 @@ import { useRoute } from 'vue-router';
 import { useAuth } from '../auth/useAuth';
 import {
   listFeedPhotos,
+  listFollowingFeed,
+  getTasteProfile,
+  listFollowingIds,
   getFeedPhoto,
   uploadMedia,
   uploadVideo,
@@ -181,6 +197,7 @@ import {
   type FeedPhoto,
   type PhotoComment,
 } from '../data/profiles';
+import { rankForYou } from '../data/recommend';
 import { saveCache, loadCache } from '../data/offlineCache';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
 import VerifiedBadge from '../components/VerifiedBadge.vue';
@@ -190,6 +207,8 @@ import { haptic, playTick } from '../composables/feedback';
 const { user } = useAuth();
 const route = useRoute();
 
+type ReelsTab = 'foryou' | 'following';
+const tab = ref<ReelsTab>('foryou');
 const feed = ref<FeedPhoto[]>([]);
 const loading = ref(true);
 const toast = ref('');
@@ -337,31 +356,79 @@ async function removeReel(item: FeedPhoto) {
   }
 }
 
+function switchTab(next: ReelsTab) {
+  if (tab.value === next) {
+    return;
+  }
+  tab.value = next;
+  feed.value = [];
+  load();
+}
+
+// Load the currently selected tab's feed. "Para ti" pulls a larger pool of
+// recent posts and re-orders it with the recommendation algorithm using the
+// viewer's taste; "Seguidos" shows only posts from people they follow.
 async function load() {
   loading.value = true;
+  const cacheKey = tab.value === 'following' ? 'reels_feed_following' : 'reels_feed_foryou';
   const cacheUser = user.value?.id || 'global';
   try {
-    const fetched = await listFeedPhotos();
-    if (fetched.length) {
-      feed.value = fetched;
+    let posts: FeedPhoto[] = [];
+
+    if (tab.value === 'following') {
+      posts = user.value ? await listFollowingFeed(user.value.id, 60) : [];
+    } else if (user.value) {
+      // For You: rank a candidate pool by personal taste + popularity +
+      // freshness. Fetch the pool, the viewer's taste, and who they follow.
+      const [pool, taste, followingIds] = await Promise.all([
+        listFeedPhotos(100),
+        getTasteProfile(user.value.id).catch(() => ({ likedPhotoIds: new Set<string>(), authorAffinity: {} })),
+        listFollowingIds(user.value.id).catch(() => [] as string[]),
+      ]);
+      const poolStats = await getPhotoStats(pool.map(p => p.id)).catch(
+        () => ({} as Record<string, { likes: number; comments: number }>),
+      );
+      posts = rankForYou(pool, {
+        followingIds: new Set(followingIds),
+        authorAffinity: taste.authorAffinity,
+        likedPhotoIds: taste.likedPhotoIds,
+        stats: poolStats,
+        myId: user.value.id,
+      });
+      stats.value = poolStats;
+    } else {
+      posts = await listFeedPhotos(60);
+    }
+
+    if (posts.length) {
+      feed.value = posts;
       // Cache a slice for offline viewing (localStorage is small and the
       // image data URLs are heavy, so keep it to the most recent dozen).
-      saveCache(cacheUser, 'reels_feed', fetched.slice(0, 12));
+      saveCache(cacheUser, cacheKey, posts.slice(0, 12));
+    } else if (tab.value === 'following') {
+      // Genuinely empty (nobody followed / no posts) OR offline — prefer a
+      // cached following feed if we have one, else show the empty state.
+      const cached = loadCache<FeedPhoto[]>(cacheUser, cacheKey);
+      feed.value = cached?.data || [];
     } else {
-      // Empty likely means offline / a failed fetch — fall back to the
-      // last feed we cached so the tab still shows something offline.
-      const cached = loadCache<FeedPhoto[]>(cacheUser, 'reels_feed');
+      const cached = loadCache<FeedPhoto[]>(cacheUser, cacheKey);
       feed.value = cached?.data || [];
     }
+
     const ids = feed.value.map(p => p.id);
+    // For You already fetched stats over the pool; only (re)fetch when we
+    // don't have them yet (following tab / anon).
+    const needStats = tab.value !== 'foryou' || !user.value;
     const [s, mine] = await Promise.all([
-      getPhotoStats(ids).catch(() => ({} as Record<string, { likes: number; comments: number }>)),
+      needStats
+        ? getPhotoStats(ids).catch(() => ({} as Record<string, { likes: number; comments: number }>))
+        : Promise.resolve(stats.value),
       user.value ? myLikedPhotoIds(user.value.id, ids).catch(() => new Set<string>()) : Promise.resolve(new Set<string>()),
     ]);
     stats.value = s;
     liked.value = mine;
   } catch (error) {
-    const cached = loadCache<FeedPhoto[]>(cacheUser, 'reels_feed');
+    const cached = loadCache<FeedPhoto[]>(cacheUser, cacheKey);
     if (cached?.data?.length) {
       feed.value = cached.data;
     }
@@ -591,6 +658,36 @@ onUnmounted(() => {
 .reels-title {
   font-size: 22px;
   font-weight: 800;
+}
+.reels-tabs {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.reels-tab {
+  position: relative;
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.reels-tab.active {
+  color: #fff;
+}
+.reels-tab.active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #8b3dff, #ff2e74);
 }
 .reels-upload {
   display: flex;
