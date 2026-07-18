@@ -15,7 +15,9 @@ export interface PayoutStatus {
   connected: boolean;
   detailsSubmitted?: boolean;
   payoutsEnabled?: boolean;
-  coins: number;
+  coins: number; // spendable (purchases + bonus)
+  earnedCoins: number; // withdrawable (gifts received while live)
+  creditedNow?: number; // coins auto-credited by reconciliation this call
   coinsPerUsd: number;
   minPayoutCoins: number;
   payoutFeePercent: number;
@@ -57,6 +59,7 @@ export async function getPayoutStatus(): Promise<PayoutStatus> {
     configured: false,
     connected: false,
     coins: 0,
+    earnedCoins: 0,
     coinsPerUsd: 200,
     minPayoutCoins: 2000,
     payoutFeePercent: 10,
@@ -73,6 +76,8 @@ export async function getPayoutStatus(): Promise<PayoutStatus> {
       detailsSubmitted: data?.detailsSubmitted,
       payoutsEnabled: data?.payoutsEnabled,
       coins: data?.coins ?? 0,
+      earnedCoins: data?.earnedCoins ?? 0,
+      creditedNow: data?.creditedNow ?? 0,
       coinsPerUsd: data?.coinsPerUsd ?? 200,
       minPayoutCoins: data?.minPayoutCoins ?? 2000,
       payoutFeePercent: data?.payoutFeePercent ?? 10,

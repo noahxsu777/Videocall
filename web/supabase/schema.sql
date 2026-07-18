@@ -45,18 +45,22 @@ alter table public.profiles
   add column if not exists verification_requested boolean not null default false;
 alter table public.profiles
   add column if not exists verification_note text;
--- Saldo (moneda única: Coins) + cuenta de retiro Stripe
+-- Saldo + cuenta de retiro Stripe. Dos bolsillos con el mismo nombre
+-- "Coins": profiles.coins = saldo para GASTAR (compras + bono de
+-- registro); profiles.earned_coins = saldo RETIRABLE (solo regalos
+-- recibidos transmitiendo) — así lo recargado nunca se puede retirar.
 alter table public.profiles
   add column if not exists stripe_account_id text;
+alter table public.profiles
+  add column if not exists earned_coins integer not null default 0;
 
 alter table public.profiles enable row level security;
 
--- Acumula los Coins ganados por regalos recibidos en un live directo al
--- balance (modelo de moneda única: se compra, regala y retira lo mismo).
--- Ligado a auth.uid() para que nadie acredite a otra cuenta.
+-- Acumula los Coins ganados por regalos recibidos en un live al bolsillo
+-- RETIRABLE. Ligado a auth.uid() para que nadie acredite a otra cuenta.
 create or replace function public.add_earned_coins(amount integer)
 returns void language sql security definer set search_path = public as $$
-  update public.profiles set coins = coins + greatest(0, amount) where id = auth.uid();
+  update public.profiles set earned_coins = earned_coins + greatest(0, amount) where id = auth.uid();
 $$;
 grant execute on function public.add_earned_coins(integer) to authenticated;
 

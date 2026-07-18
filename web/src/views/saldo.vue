@@ -3,18 +3,26 @@
     <GlassBackButton />
     <h1 class="title">Saldo</h1>
 
-    <!-- Single-currency balance: Coins (buy, gift, withdraw — the same). -->
+    <!-- TikTok-style: earnings shown as MONEY (auto-converted from the
+         coins received in lives); the rechargeable Coins live in their own
+         pill below. -->
     <div class="balance-card">
-      <span class="bc-label">Tu saldo</span>
+      <span class="bc-label">Saldo estimado (USD)</span>
       <div class="bc-amount">
-        <span class="bc-gem">🪙</span>
-        <span class="bc-value">{{ coins.toLocaleString() }}</span>
+        <span class="bc-gem">$</span>
+        <span class="bc-value">{{ estimatedUsd }}</span>
       </div>
-      <span class="bc-sub">Coins · compra, recibe regalos y retira con la misma moneda</span>
+      <span class="bc-sub">Lo que ganas en tus lives se convierte en dólares automáticamente</span>
     </div>
 
+    <button class="coins-pill" @click="scrollToPacks">
+      <span class="cp-coins">🪙 Coins <strong>{{ coins.toLocaleString() }}</strong></span>
+      <span class="cp-sep">|</span>
+      <span class="cp-get">Obtener Coins →</span>
+    </button>
+
     <!-- Buy coins (Stripe Checkout) -->
-    <p class="section-title">Comprar Coins</p>
+    <p ref="packsSection" class="section-title">Comprar Coins</p>
     <div class="packs">
       <button
         v-for="pack in payout.packs"
@@ -29,8 +37,9 @@
     </div>
 
     <p class="hint">
-      Cada regalo que recibes en un live suma sus Coins a tu saldo
-      automáticamente — y son los mismos Coins que puedes retirar.
+      Los Coins que compras son para enviar regalos y hacer llamadas — no se
+      pueden retirar. Solo lo que ganas transmitiendo (regalos recibidos) se
+      convierte en tu saldo en dólares.
     </p>
 
     <!-- Withdrawals: connect a Stripe Express account, then cash out. -->
@@ -68,7 +77,7 @@
     <button
       v-else
       class="withdraw-btn"
-      :disabled="busy || coins < payout.minPayoutCoins"
+      :disabled="busy || earnedCoins < payout.minPayoutCoins"
       @click="handlePayout"
     >
       {{ busy ? 'Procesando…' : `Retirar (mín. ${payout.minPayoutCoins.toLocaleString()} 🪙)` }}
@@ -104,12 +113,19 @@ import {
 const { user } = useAuth();
 const route = useRoute();
 const coins = ref(0);
+const earnedCoins = ref(0);
 const toast = ref('');
+const packsSection = ref<HTMLElement | null>(null);
+
+function scrollToPacks() {
+  packsSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 const busy = ref(false);
 const payout = ref<PayoutStatus>({
   configured: false,
   connected: false,
   coins: 0,
+  earnedCoins: 0,
   coinsPerUsd: 200,
   minPayoutCoins: 2000,
   payoutFeePercent: 10,
@@ -130,9 +146,9 @@ const payoutStatusLabel = computed(() => {
 });
 
 const estimatedUsd = computed(() =>
-  (coins.value / (payout.value.coinsPerUsd || 200)).toFixed(2));
+  (earnedCoins.value / (payout.value.coinsPerUsd || 200)).toFixed(2));
 const estimatedNetUsd = computed(() => {
-  const gross = coins.value / (payout.value.coinsPerUsd || 200);
+  const gross = earnedCoins.value / (payout.value.coinsPerUsd || 200);
   return (gross * (1 - (payout.value.payoutFeePercent || 0) / 100)).toFixed(2);
 });
 
@@ -148,12 +164,18 @@ async function refresh() {
   try {
     const p: any = await getProfile(user.value.id);
     coins.value = p?.coins ?? 0;
+    earnedCoins.value = p?.earned_coins ?? 0;
   } catch (error) {
     console.warn('[saldo] load failed:', error);
   }
   payout.value = await getPayoutStatus();
   if (payout.value.configured) {
     coins.value = payout.value.coins;
+    earnedCoins.value = payout.value.earnedCoins;
+    // Purchases recovered by the server-side reconciliation just now.
+    if (payout.value.creditedNow) {
+      showToast(`✅ Se acreditaron ${payout.value.creditedNow.toLocaleString()} 🪙 de compras pendientes.`);
+    }
   }
 }
 
@@ -259,6 +281,24 @@ onMounted(async () => {
   opacity: 0.8;
   text-align: center;
 }
+.coins-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 16px;
+  margin-bottom: 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #121214;
+  color: #fff;
+  font-size: 14.5px;
+  cursor: pointer;
+}
+.cp-coins strong { font-weight: 800; }
+.cp-sep { color: rgba(255, 255, 255, 0.25); }
+.cp-get { color: #c79bff; font-weight: 700; }
 .section-title {
   margin: 0 4px 10px;
   font-size: 15px;

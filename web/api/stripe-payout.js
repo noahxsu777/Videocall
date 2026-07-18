@@ -7,12 +7,12 @@ const { makeStripeHandler } = require('./_stripe');
 module.exports = makeStripeHandler(async ({ res, cfg, supabase, user, stripe }) => {
   const { data: profile } = await supabase
     .from('profiles')
-    .select('stripe_account_id, coins')
+    .select('stripe_account_id, earned_coins')
     .eq('id', user.id)
     .maybeSingle();
 
   const accountId = profile && profile.stripe_account_id;
-  const coins = (profile && profile.coins) || 0;
+  const coins = (profile && profile.earned_coins) || 0;
 
   if (!accountId) {
     res.status(200).json({ ok: false, reason: 'not_connected' });
@@ -59,7 +59,7 @@ module.exports = makeStripeHandler(async ({ res, cfg, supabase, user, stripe }) 
   const remaining = Math.max(0, coins - usedCoins);
   const { error } = await supabase
     .from('profiles')
-    .update({ coins: remaining })
+    .update({ earned_coins: remaining })
     .eq('id', user.id);
   if (error) {
     // The transfer DID go through — surface the bookkeeping problem loudly.

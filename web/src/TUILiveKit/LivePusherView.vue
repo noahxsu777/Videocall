@@ -179,6 +179,32 @@
            the teleported receive display still shows app-wide. -->
       <div v-if="isInLive" class="host-gift-receiver"><LiveGift /></div>
 
+      <!-- End-of-live recap: time on air, coins earned, viewers. -->
+      <div v-if="endSummary" class="end-summary-backdrop">
+        <div class="end-summary">
+          <h3 class="es-title">Transmisión finalizada</h3>
+          <div class="es-grid">
+            <div class="es-card">
+              <span class="es-ico">⏱</span>
+              <span class="es-val">{{ endSummary.duration }}</span>
+              <span class="es-lbl">En vivo</span>
+            </div>
+            <div class="es-card">
+              <span class="es-ico">👁</span>
+              <span class="es-val">{{ endSummary.viewers }}</span>
+              <span class="es-lbl">Viewers</span>
+            </div>
+            <div class="es-card es-card-coins">
+              <span class="es-ico">🪙</span>
+              <span class="es-val">{{ endSummary.coins.toLocaleString() }}</span>
+              <span class="es-lbl">Coins ganados</span>
+            </div>
+          </div>
+          <p class="es-note">≈ ${{ (endSummary.coins / 200).toFixed(2) }} USD añadidos a tu Saldo, listos para retirar. 🎉</p>
+          <button class="es-close" @click="endSummary = null">Cerrar</button>
+        </div>
+      </div>
+
       <!-- Swipe-left stats panel (host): live stats + diamonds + a nudge to
            keep streaming more hours. -->
       <template v-if="isMobile && isInLive">
@@ -1156,11 +1182,21 @@ const handleStartLive = async () => {
     throw error;
   }
 };
+// End-of-live summary (our own — Tencent's web kit just closes the room
+// with no recap). Captured BEFORE endLive() resets the counters.
+const endSummary = ref<{ duration: string; coins: number; viewers: number } | null>(null);
+
 const handleEndLive = async () => {
   try {
     loading.value = true;
     exitLiveDialogVisible.value = false;
+    const summary = {
+      duration: liveElapsedText.value,
+      coins: diamondsReceived.value,
+      viewers: audienceCount.value || 0,
+    };
     await endLive();
+    endSummary.value = summary;
     loading.value = false;
   } catch (error: any) {
     const errorInfo = errorHandler.parseError(error);
@@ -2006,6 +2042,75 @@ onUnmounted(() => {
 // their own live). The GiftCardPlayer teleports to #app so it's unaffected.
 .host-gift-receiver {
   display: none;
+}
+
+// --- End-of-live summary ---------------------------------------------------
+.end-summary-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.7);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.end-summary {
+  width: 100%;
+  max-width: 360px;
+  padding: 26px 20px;
+  border-radius: 24px;
+  background: linear-gradient(160deg, rgba(36, 18, 61, 0.98), rgba(13, 7, 24, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  text-align: center;
+}
+.es-title {
+  margin: 0 0 18px;
+  font-size: 20px;
+  font-weight: 800;
+}
+.es-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.es-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 14px 6px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.es-card-coins {
+  background: linear-gradient(135deg, rgba(255, 61, 129, 0.28), rgba(155, 45, 247, 0.24));
+  border-color: transparent;
+}
+.es-ico { font-size: 20px; }
+.es-val { font-size: 17px; font-weight: 800; }
+.es-lbl { font-size: 11px; color: rgba(255, 255, 255, 0.6); }
+.es-note {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.75);
+}
+.es-close {
+  width: 100%;
+  height: 46px;
+  border: none;
+  border-radius: 23px;
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 // --- Swipe-left stats panel ------------------------------------------------
