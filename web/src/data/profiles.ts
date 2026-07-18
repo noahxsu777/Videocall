@@ -644,6 +644,7 @@ export async function addComment(
   userId: string,
   photoId: string,
   content: string,
+  meta?: { ownerId?: string; senderName?: string; senderAvatar?: string | null },
 ): Promise<void> {
   const client = requireClient();
   const { error } = await client
@@ -651,6 +652,68 @@ export async function addComment(
     .insert({ user_id: userId, photo_id: photoId, content });
   if (error) {
     throw new Error(error.message);
+  }
+  // Notify the post owner (native push) — best-effort, skips self-comments.
+  if (meta?.ownerId && meta.ownerId !== userId) {
+    void sendCommentPushNotification(meta.ownerId, userId, content, photoId, meta);
+  }
+}
+
+async function sendCommentPushNotification(
+  ownerId: string,
+  senderId: string,
+  content: string,
+  photoId: string,
+  meta: { senderName?: string; senderAvatar?: string | null },
+): Promise<void> {
+  try {
+    const client = requireClient();
+    const { data } = await client.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      return;
+    }
+    await fetch('/api/notify-comment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        ownerId,
+        senderId,
+        senderName: meta.senderName || '',
+        senderAvatar: meta.senderAvatar || null,
+        preview: content,
+        photoId,
+      }),
+    });
+  } catch (error) {
+    console.warn('[profiles] comment push failed:', error);
+  }
+}
+
+/** Fire a native push to a creator's followers that they've gone live. */
+export async function notifyLiveStarted(
+  streamerId: string,
+  info: { name?: string; avatar?: string | null; liveId?: string },
+): Promise<void> {
+  try {
+    const client = requireClient();
+    const { data } = await client.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      return;
+    }
+    await fetch('/api/notify-live', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        streamerId,
+        streamerName: info.name || '',
+        streamerAvatar: info.avatar || null,
+        liveId: info.liveId || null,
+      }),
+    });
+  } catch (error) {
+    console.warn('[profiles] live push failed:', error);
   }
 }
 

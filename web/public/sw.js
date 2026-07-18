@@ -5,7 +5,7 @@
  *  - same-origin static assets (hashed js/css/img): cache first
  *  - everything else (Supabase, TRTC, websockets): untouched
  */
-const CACHE = 'hypecall-v33';
+const CACHE = 'hypecall-v34';
 
 // Precache the ENTIRE app (shell + every hashed route chunk) at install so
 // it runs fully offline, not just the pages visited while online. The list
@@ -151,6 +151,38 @@ self.addEventListener('push', (event) => {
     );
     return;
   }
+
+  // New comment on your reel/photo.
+  if (data.type === 'new-comment') {
+    event.waitUntil(
+      self.registration.showNotification(`${data.senderName || 'Alguien'} comentó tu publicación`, {
+        body: data.preview || '',
+        icon: data.senderAvatar || './icons/icon-192.png',
+        badge: './icons/icon-192.png',
+        tag: `comment-${data.photoId || 'x'}`,
+        renotify: true,
+        vibrate: [80, 40, 80],
+        data,
+      }),
+    );
+    return;
+  }
+
+  // A followed creator went live.
+  if (data.type === 'live-started' && data.streamerId) {
+    event.waitUntil(
+      self.registration.showNotification(`${data.streamerName || 'Alguien'} está en vivo 🔴`, {
+        body: 'Toca para entrar a la transmisión',
+        icon: data.streamerAvatar || './icons/icon-192.png',
+        badge: './icons/icon-192.png',
+        tag: `live-${data.streamerId}`,
+        renotify: true,
+        vibrate: [100, 50, 100],
+        data,
+      }),
+    );
+    return;
+  }
 });
 
 self.addEventListener('notificationclick', (event) => {
@@ -168,6 +200,28 @@ self.addEventListener('notificationclick', (event) => {
           if ('focus' in client) {
             await client.focus();
             client.postMessage({ type: 'open-thread', senderId: data.senderId });
+            return;
+          }
+        }
+        await self.clients.openWindow(target);
+      })(),
+    );
+    return;
+  }
+
+  // Comment tap → open that reel. Live tap → open the live list.
+  if (data.type === 'new-comment' || data.type === 'live-started') {
+    const target =
+      data.type === 'new-comment' && data.photoId
+        ? `./#/reels?r=${data.photoId}`
+        : './#/live-list';
+    event.waitUntil(
+      (async () => {
+        const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of allClients) {
+          if ('focus' in client) {
+            await client.focus();
+            client.navigate(target).catch(() => {});
             return;
           }
         }

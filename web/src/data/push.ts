@@ -17,6 +17,15 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 export const isPushSupported =
   typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
 
+// The VAPID PUBLIC key is not secret — it's sent to the browser anyway — so
+// we bake it in as a default. This means push works out of the box without
+// needing VITE_VAPID_PUBLIC_KEY set at build time (a common reason no
+// device ever subscribed). Only the matching PRIVATE key must live in the
+// Vercel server env (VAPID_PRIVATE_KEY). Set VITE_VAPID_PUBLIC_KEY to
+// override if you rotate to a different keypair.
+const DEFAULT_VAPID_PUBLIC_KEY =
+  'BOF26O-X3sFWnutN81XVOwg7VdlMVetGvXCCpuU1cXvcPb8X8CpNHigfhM-U0YCMg7Om0aEd-JyGGnTo2WJSZAI';
+
 /**
  * Ask for notification permission and register this device to receive
  * Web Push (incoming-call ringing even when the app/tab is closed). Saves
@@ -24,7 +33,7 @@ export const isPushSupported =
  * no-ops if the browser doesn't support push or the user denies.
  */
 export async function subscribeToPush(userId: string): Promise<void> {
-  const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+  const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY || DEFAULT_VAPID_PUBLIC_KEY;
   if (!isPushSupported || !publicKey) {
     return;
   }

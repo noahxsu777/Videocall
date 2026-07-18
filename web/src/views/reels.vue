@@ -490,7 +490,14 @@ async function submitComment() {
   const text = commentDraft.value;
   commentDraft.value = '';
   try {
-    await addComment(user.value.id, commentsFor.value.id, text);
+    await addComment(user.value.id, commentsFor.value.id, text, {
+      ownerId: commentsFor.value.user_id,
+      senderName:
+        (user.value.user_metadata?.display_name as string)
+        || user.value.email?.split('@')[0]
+        || undefined,
+      senderAvatar: (user.value.user_metadata?.avatar_url as string) || null,
+    });
     comments.value = await listComments(commentsFor.value.id);
     const entry = stats.value[commentsFor.value.id];
     if (entry) {

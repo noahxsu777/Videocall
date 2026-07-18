@@ -339,6 +339,7 @@ import LiveChat from '../components/LiveChat.vue';
 import GiftBanner from '../components/GiftBanner.vue';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
 import { useAuth } from '../auth/useAuth';
+import { notifyLiveStarted } from '../data/profiles';
 import { copyToClipboard, isSvgCoverUrl } from './utils/utils';
 import { errorHandler } from './utils/errorHandler';
 import { initRoomEngineLanguage } from '../utils/utils';
@@ -376,7 +377,7 @@ const { loginUserInfo } = useLoginState();
 // Real display name from the Supabase account — used for the live title
 // so the screen never shows the raw Tencent u_xxx id, even when the
 // Tencent-side profile hasn't synced yet.
-const { displayName: authDisplayName } = useAuth();
+const { displayName: authDisplayName, user: authUser } = useAuth();
 const { currentLive, startLive, endLive, joinLive, subscribeEvent: subscribeLiveListEvent, unsubscribeEvent: unsubscribeLiveListEvent, updateLiveInfo } = useLiveListState();
 const roomEngine = useRoomEngine();
 const { audienceCount } = useLiveAudienceState();
@@ -951,6 +952,14 @@ const handleStartLive = async () => {
     // feed is actually published to viewers (the pre-live preview
     // started before joining doesn't guarantee in-room publishing).
     publishMobileCamera();
+    // Notify followers (native push) that this creator just went live.
+    if (authUser.value) {
+      void notifyLiveStarted(authUser.value.id, {
+        name: authDisplayName.value,
+        avatar: (authUser.value.user_metadata?.avatar_url as string) || null,
+        liveId: liveParams.value.liveId,
+      });
+    }
   } catch (error: any) {
     loading.value = false;
     if (typeof error.message === 'string'
