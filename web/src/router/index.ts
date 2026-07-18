@@ -171,6 +171,14 @@ async function restoreLoginIfNeeded(): Promise<void> {
 // the raw u_xxx userId. Runs once per app session, EVEN when the Tencent
 // login was restored from storage (the old code only did this on fresh
 // logins, so persisted sessions kept showing the raw id).
+// A real http(s) avatar generated from the user's name (colored initials),
+// used as a fallback so no one shows the generic default silhouette in the
+// live / viewer list / gift cards.
+function fallbackAvatarUrl(name: string): string {
+  const n = encodeURIComponent((name || 'User').trim().slice(0, 24) || 'User');
+  return `https://ui-avatars.com/api/?name=${n}&background=8b3dff&color=ffffff&bold=true&size=256`;
+}
+
 let selfInfoSynced = false;
 async function syncSelfInfoIfNeeded(): Promise<void> {
   if (selfInfoSynced) {
@@ -196,6 +204,13 @@ async function syncSelfInfoIfNeeded(): Promise<void> {
       } catch {
         // best-effort — go live with the default avatar if this fails
       }
+    }
+    // Tencent's setSelfInfo only accepts a real http(s) URL — a long data:
+    // URL (some older avatars) is rejected and the user falls back to the
+    // generic cartoon. In that case, or when there's no photo at all,
+    // generate a colored initials avatar so EVERYONE has a real picture.
+    if (!avatarUrl || avatarUrl.startsWith('data:')) {
+      avatarUrl = fallbackAvatarUrl(displayNameFor(supaSession.user));
     }
     await TUIRoomEngine.setSelfInfo({
       userName: displayNameFor(supaSession.user),

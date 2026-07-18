@@ -56,14 +56,11 @@ window.addEventListener(
 // without this, users can be stuck on old app behavior indefinitely even
 // though every new deploy is live on the server.
 if ('serviceWorker' in navigator) {
-  let reloadedForNewWorker = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloadedForNewWorker) {
-      return;
-    }
-    reloadedForNewWorker = true;
-    window.location.reload();
-  });
+  // NOTE: we deliberately do NOT auto-reload on 'controllerchange'. Doing so
+  // made the app load twice (a black flash) every time a new service worker
+  // version took control on startup. The fresh code is picked up naturally
+  // on the next cold start (navigations are network-first), so a forced
+  // reload isn't needed and just caused the double-load the user saw.
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch((error) => {
       console.warn('[pwa] service worker registration failed:', error);
