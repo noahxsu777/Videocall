@@ -62,9 +62,9 @@
     <div v-if="loadError" class="load-error">{{ loadError }}</div>
 
     <div class="photos-grid">
-      <div v-for="photo in photos" :key="photo.id" class="photo-cell">
-        <video v-if="photo.media_type === 'video'" :src="photo.image_url" muted playsinline preload="metadata" />
-        <img v-else :src="photo.image_url" :alt="photo.caption || 'foto'" />
+      <div v-for="photo in photos" :key="photo.id" class="photo-cell press-media">
+        <video v-if="photo.media_type === 'video'" class="hdr-media" :src="photo.image_url" muted playsinline preload="metadata" />
+        <img v-else class="hdr-media" :src="photo.image_url" :alt="photo.caption || 'foto'" />
         <span v-if="photo.media_type === 'video'" class="photo-play">▶</span>
         <button v-if="isOwnProfile" class="photo-del" @click="removePhoto(photo.id)">×</button>
       </div>

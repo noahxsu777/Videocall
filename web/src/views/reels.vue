@@ -21,7 +21,7 @@
         <video
           v-if="item.media_type === 'video'"
           :ref="(el) => registerVideo(item.id, el as HTMLVideoElement | null)"
-          class="reel-img press-media"
+          class="reel-img press-media hdr-media"
           :src="item.image_url"
           autoplay
           muted
@@ -29,7 +29,7 @@
           playsinline
           @click="toggleMute"
         />
-        <img v-else class="reel-img press-media" :src="item.image_url" :alt="item.caption || 'reel'" />
+        <img v-else class="reel-img press-media hdr-media" :src="item.image_url" :alt="item.caption || 'reel'" />
 
         <!-- Vertical action rail (like / comment), TikTok style -->
         <div class="rail">

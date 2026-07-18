@@ -28,6 +28,17 @@ video {
   -webkit-touch-callout: none;
   -webkit-user-drag: none;
   user-select: none;
+  // Let HDR-encoded photos/videos display their full dynamic range on
+  // capable screens instead of being tone-mapped down to SDR.
+  dynamic-range-limit: no-limit;
+}
+
+// "HDR+" render for content media (photos in the feed / grid and reel
+// videos): a subtle vivid boost so everything looks punchy and bright.
+// Kept light because uploaded photos are already enhanced at compression
+// time — this mainly lifts videos, which aren't re-encoded client-side.
+.hdr-media {
+  filter: saturate(1.07) contrast(1.03) brightness(1.02);
 }
 
 // …but keep normal selection + paste menu inside text fields.

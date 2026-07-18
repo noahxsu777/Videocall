@@ -189,6 +189,57 @@ export async function uploadMedia(
   return compressImageToDataUrl(file, maxSize, quality);
 }
 
+/**
+ * "HDR+" look, applied in-place to a canvas of the (already downscaled)
+ * image: an S-curve contrast boost, a shadow lift, and a vibrance bump so
+ * uploaded photos come out punchy and vivid like a phone's HDR mode —
+ * while still being JPEG-compressed. Runs one pass over the pixels; skips
+ * silently (leaving the plain image) if the browser blocks getImageData.
+ */
+function applyHdrPlus(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+  try {
+    const image = ctx.getImageData(0, 0, width, height);
+    const d = image.data;
+    const contrast = 1.14; // >1 deepens darks / brightens lights
+    const sat = 1.2; // vibrance / color pop
+    const gamma = 1 / 1.06; // gentle shadow/midtone lift
+    for (let i = 0; i < d.length; i += 4) {
+      let r = d[i] / 255;
+      let g = d[i + 1] / 255;
+      let b = d[i + 2] / 255;
+      // S-curve contrast around mid-grey.
+      r = (r - 0.5) * contrast + 0.5;
+      g = (g - 0.5) * contrast + 0.5;
+      b = (b - 0.5) * contrast + 0.5;
+      // Shadow/midtone lift.
+      r = Math.pow(Math.max(0, r), gamma);
+      g = Math.pow(Math.max(0, g), gamma);
+      b = Math.pow(Math.max(0, b), gamma);
+      // Saturation around perceived luma.
+      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      r = luma + (r - luma) * sat;
+      g = luma + (g - luma) * sat;
+      b = luma + (b - luma) * sat;
+      d[i] = Math.max(0, Math.min(255, r * 255));
+      d[i + 1] = Math.max(0, Math.min(255, g * 255));
+      d[i + 2] = Math.max(0, Math.min(255, b * 255));
+    }
+    ctx.putImageData(image, 0, 0);
+  } catch {
+    // Tainted canvas / blocked pixel access — keep the un-enhanced image.
+  }
+}
+
+function fitDimensions(w: number, h: number, maxSize: number): [number, number] {
+  if (w >= h && w > maxSize) {
+    return [maxSize, Math.round((h * maxSize) / w)];
+  }
+  if (h > w && h > maxSize) {
+    return [Math.round((w * maxSize) / h), maxSize];
+  }
+  return [w, h];
+}
+
 function compressImageToDataUrl(file: File, maxSize: number, quality: number): Promise<string> {
   return new Promise((resolve, reject) => {
     if (!file.type.startsWith('image/')) {
@@ -200,14 +251,7 @@ function compressImageToDataUrl(file: File, maxSize: number, quality: number): P
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        let { width, height } = img;
-        if (width >= height && width > maxSize) {
-          height = Math.round((height * maxSize) / width);
-          width = maxSize;
-        } else if (height > width && height > maxSize) {
-          width = Math.round((width * maxSize) / height);
-          height = maxSize;
-        }
+        const [width, height] = fitDimensions(img.width, img.height, maxSize);
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
@@ -216,7 +260,9 @@ function compressImageToDataUrl(file: File, maxSize: number, quality: number): P
           reject(new Error('Canvas no disponible.'));
           return;
         }
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, width, height);
+        applyHdrPlus(ctx, width, height);
         resolve(canvas.toDataURL('image/jpeg', quality));
       };
       img.onerror = () => reject(new Error('Imagen inválida.'));
@@ -352,14 +398,7 @@ function compressImageToBlob(file: File, maxSize: number, quality: number): Prom
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        let { width, height } = img;
-        if (width >= height && width > maxSize) {
-          height = Math.round((height * maxSize) / width);
-          width = maxSize;
-        } else if (height > width && height > maxSize) {
-          width = Math.round((width * maxSize) / height);
-          height = maxSize;
-        }
+        const [width, height] = fitDimensions(img.width, img.height, maxSize);
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
@@ -368,7 +407,9 @@ function compressImageToBlob(file: File, maxSize: number, quality: number): Prom
           reject(new Error('Canvas no disponible.'));
           return;
         }
+        ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(img, 0, 0, width, height);
+        applyHdrPlus(ctx, width, height);
         canvas.toBlob(
           blob => (blob ? resolve(blob) : reject(new Error('No se pudo procesar la imagen.'))),
           'image/jpeg',
