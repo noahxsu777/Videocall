@@ -340,6 +340,59 @@ export async function uploadVideo(userId: string, file: File): Promise<string> {
 }
 
 /**
+ * Guarantee the user's avatar is a real http(s) URL (which Tencent's
+ * setSelfInfo accepts) and return it. If the stored avatar is a legacy
+ * data: URL — which Tencent rejects, so the user showed the default
+ * silhouette — this uploads it to Storage, persists the resulting public
+ * URL back onto the profile + auth metadata (so it's done once), and
+ * returns it. Returns '' only when there is genuinely no avatar.
+ */
+export async function ensureRealAvatarUrl(userId: string): Promise<string> {
+  const client = requireClient();
+  let avatarUrl = '';
+  try {
+    const p = await getProfile(userId);
+    avatarUrl = p?.avatar_url || '';
+  } catch {
+    return '';
+  }
+  if (!avatarUrl) {
+    return '';
+  }
+  if (!avatarUrl.startsWith('data:')) {
+    return avatarUrl; // already a real URL
+  }
+  // Legacy inline data URL → upload to Storage for a short, real URL.
+  try {
+    const blob = await (await fetch(avatarUrl)).blob();
+    const path = `avatars/${userId}/${Date.now()}.jpg`;
+    const { error } = await client.storage.from(REELS_VIDEO_BUCKET).upload(path, blob, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: blob.type || 'image/jpeg',
+    });
+    if (error) {
+      return '';
+    }
+    const { data } = client.storage.from(REELS_VIDEO_BUCKET).getPublicUrl(path);
+    const publicUrl = data.publicUrl;
+    try {
+      await updateProfile(userId, { avatar_url: publicUrl });
+    } catch {
+      // best-effort
+    }
+    try {
+      await client.auth.updateUser({ data: { avatar_url: publicUrl } });
+    } catch {
+      // best-effort
+    }
+    return publicUrl;
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Compress + upload a live-cover image and return its public URL. The
  * cover is passed to Tencent's startLive({ coverUrl }) and shown in the
  * live list, so it must be a short URL (a big data URL would be rejected

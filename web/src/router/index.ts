@@ -6,7 +6,7 @@ import { isH5 } from '@/TUILiveKit/utils/environment';
 import { authReady, currentSession, consumeBannedFlag, tencentUserIdFor, displayNameFor } from '@/auth/useAuth';
 import { SDKAPPID, genTestUserSig } from '@/config/basic-info-config';
 import { isAdmin } from '@/data/admin';
-import { getProfile } from '@/data/profiles';
+import { ensureRealAvatarUrl } from '@/data/profiles';
 import { navLoading } from '@/composables/navLoading';
 
 const routes = [
@@ -193,23 +193,20 @@ async function syncSelfInfoIfNeeded(): Promise<void> {
     return;
   }
   try {
-    // Prefer the avatar on the auth metadata; fall back to the profiles
-    // table so avatars set before this sync existed still show up in the
-    // live without the user having to re-upload.
-    let avatarUrl = (supaSession.user.user_metadata?.avatar_url as string) || '';
+    // FORCE the real photo: ensureRealAvatarUrl migrates a legacy data: URL
+    // avatar to Storage (Tencent's setSelfInfo rejects data: URLs, which is
+    // why the real photo never showed) and returns a proper http(s) URL.
+    let avatarUrl = await ensureRealAvatarUrl(supaSession.user.id).catch(() => '');
     if (!avatarUrl) {
-      try {
-        const profile = await getProfile(supaSession.user.id);
-        avatarUrl = profile?.avatar_url || '';
-      } catch {
-        // best-effort — go live with the default avatar if this fails
+      // No profile photo — try the auth metadata if it's a real URL.
+      const meta = (supaSession.user.user_metadata?.avatar_url as string) || '';
+      if (meta && !meta.startsWith('data:')) {
+        avatarUrl = meta;
       }
     }
-    // Tencent's setSelfInfo only accepts a real http(s) URL — a long data:
-    // URL (some older avatars) is rejected and the user falls back to the
-    // generic cartoon. In that case, or when there's no photo at all,
-    // generate a colored initials avatar so EVERYONE has a real picture.
-    if (!avatarUrl || avatarUrl.startsWith('data:')) {
+    // Still nothing → colored initials avatar so no one shows the default
+    // silhouette.
+    if (!avatarUrl) {
       avatarUrl = fallbackAvatarUrl(displayNameFor(supaSession.user));
     }
     await TUIRoomEngine.setSelfInfo({
