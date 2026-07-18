@@ -141,7 +141,19 @@ export async function testPushNotification(userId: string): Promise<{ ok: boolea
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     });
-    const data = await res.json().catch(() => ({}));
+    const raw = await res.text();
+    let data: any = {};
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      // Non-JSON response = the serverless function crashed at the platform
+      // level before running. Show the real HTTP status + body so the cause
+      // is visible instead of a generic "(error)".
+      return {
+        ok: false,
+        message: `El servidor de notificaciones falló (HTTP ${res.status}: ${raw.slice(0, 80) || 'sin respuesta'}). Avísame con este mensaje exacto.`,
+      };
+    }
     if (data?.ok) {
       return { ok: true, message: '✅ Enviada. Deberías ver la notificación en unos segundos (si la app está en segundo plano).' };
     }
