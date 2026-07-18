@@ -236,12 +236,16 @@ onMounted(async () => {
 
 <style scoped>
 .saldo {
-  min-height: 100%;
-  padding: 68px 16px 32px;
+  /* Fixed height (not min-height): the app shell clips overflow, so the
+     page must scroll INSIDE itself — min-height just grew past the shell
+     and killed scrolling entirely. */
+  height: 100%;
+  padding: 54px 16px 40px;
   box-sizing: border-box;
   background: #010101;
   color: #fff;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .title {
   margin: 0 0 18px;
