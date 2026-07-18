@@ -78,7 +78,20 @@
             @click="handleCopyLiveID"
           />
         </div>
-        <div class="main-center-top-right">{{ audienceCount }} {{ t('People watching') }}</div>
+        <div class="main-center-top-right">
+          <span class="watching-count">{{ audienceCount }} {{ t('People watching') }}</span>
+          <!-- On mobile, End live lives up here as a small pill next to the
+               viewer count, freeing the bottom row for the creator tools
+               (co-guest / co-host / battles / modos). -->
+          <button
+            v-if="isMobile && isInLive"
+            class="top-end-live"
+            :disabled="loading"
+            @click="showEndLiveDialog"
+          >
+            {{ t('End live') }}
+          </button>
+        </div>
       </div>
       <!-- Live stats (host): time on air + total diamonds received. -->
       <div v-if="isMobile && isInLive" class="live-stats">
@@ -105,7 +118,7 @@
           feed takes over.
         -->
         <div
-          v-show="isMobile && !isCameraOff && coHostStatus !== CoHostStatus.Connected"
+          v-show="isMobile && !isCameraOff && !hasOthersOnScreen"
           class="mobile-camera-preview"
         >
           <video
@@ -189,7 +202,7 @@
               {{ t('Start live') }}
             </TUIButton>
             <TUIButton
-              v-else
+              v-else-if="!isMobile"
               color="red"
               :disabled="loading"
               @click="showEndLiveDialog"
@@ -393,6 +406,15 @@ const { connected: coGuestConnected } = useCoGuestState();
 const { subscribeEvent: subscribeBarrageEvent, unsubscribeEvent: unsubscribeBarrageEvent} = useBarrageState();
 
 const isInLive = computed(() => !!currentLive.value?.liveId);
+
+// True when someone OTHER than the host is on screen — a co-host/battle
+// partner, OR one or more co-guests who took a seat (the "Apply to Link"
+// grid). In all these cases the host must see TRTC's multi-tile
+// LiveCoreView (same as viewers), NOT their own solo camera overlay —
+// otherwise the host "stays alone" while everyone else sees the grid.
+const hasOthersOnScreen = computed(
+  () => coHostStatus.value === CoHostStatus.Connected || coGuestConnected.value.length > 1,
+);
 // Battle / co-host connected: on mobile we lift the two camera tiles up
 // and open a viewer-message area beneath them (see .is-battle CSS).
 const isBattle = computed(() => coHostStatus.value === CoHostStatus.Connected);
@@ -514,12 +536,23 @@ watch(
     if (status === CoHostStatus.Connected) {
       // Battle/co-host: drop our own self-view overlay so TRTC's tiles
       // (which show both participants) are visible, and apply our
-      // custom stacked layout. The engine applies its own landscape
-      // template when the connection forms; apply ours after it (twice,
-      // in case of a slow server echo overwriting the first).
+      // custom stacked layout. The engine applies its own LANDSCAPE
+      // template when the connection forms — on a phone that flips the
+      // whole screen to a horizontal strip, which the user never asked
+      // for. Force the room back to a PORTRAIT seat template so the local
+      // render stays vertical, then apply our custom stacked layout for
+      // the mixed/CDN stream. Re-apply on a delay to beat the server echo
+      // that re-sends the landscape template right after connecting.
       stopMobileCameraPreview();
-      setTimeout(() => applyMobileBattleLayout(), 500);
-      setTimeout(() => applyMobileBattleLayout(), 2000);
+      const keepPortrait = () => {
+        if (coHostStatus.value === CoHostStatus.Connected) {
+          void updateLiveInfo({ layoutTemplate: TUISeatLayoutTemplate.PortraitDynamic_Grid9 });
+        }
+      };
+      keepPortrait();
+      applyMobileBattleLayout();
+      setTimeout(() => { keepPortrait(); applyMobileBattleLayout(); }, 500);
+      setTimeout(() => { keepPortrait(); applyMobileBattleLayout(); }, 2000);
     } else if (prevStatus === CoHostStatus.Connected && status === CoHostStatus.Disconnected) {
       // Back to solo: restore the portrait grid template and bring our
       // own self-view overlay back.
@@ -528,6 +561,21 @@ watch(
     }
   },
 );
+// Co-guests joining/leaving a seat (the "Apply to Link" grid) must flip the
+// host between their solo camera overlay and TRTC's multi-tile grid, the
+// same way the co-host watch above does — otherwise the host keeps seeing
+// only themselves while viewers see the full grid.
+watch(hasOthersOnScreen, (others) => {
+  if (!isMobile) {
+    return;
+  }
+  if (others) {
+    stopMobileCameraPreview();
+  } else if (isInLive.value) {
+    startMobileCameraPreview();
+  }
+});
+
 const loading = ref(false);
 const liveParamsEditForm = ref({
   liveName: '',
@@ -779,8 +827,7 @@ const startMobileCameraPreview = async () => {
   // host's self-view over TRTC's own — which reverts to the cropped
   // render once live starts. Skipped only while camera-off or during a
   // co-host/battle (TRTC's tiles show everyone then).
-  if (!isMobile || previewStream || isCameraOff.value
-    || coHostStatus.value === CoHostStatus.Connected) {
+  if (!isMobile || previewStream || isCameraOff.value || hasOthersOnScreen.value) {
     return;
   }
   try {
@@ -1249,6 +1296,24 @@ onUnmounted(() => {
 
       .main-center-top-right {
         @include text-size-12;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .top-end-live {
+        border: none;
+        border-radius: 999px;
+        padding: 6px 14px;
+        font-size: 12px;
+        font-weight: 800;
+        color: #fff;
+        background: linear-gradient(135deg, #ff2e74, #ff5a3c);
+        box-shadow: 0 3px 12px rgba(255, 46, 116, 0.4);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .top-end-live:disabled {
+        opacity: 0.6;
       }
 
       &::after {
