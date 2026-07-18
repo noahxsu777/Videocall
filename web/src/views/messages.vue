@@ -131,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import GlassBackButton from '../components/GlassBackButton.vue';
 import VerifiedBadge from '../components/VerifiedBadge.vue';
@@ -249,6 +249,23 @@ async function scrollThreadDown() {
   }
 }
 
+async function openDeepLinkThread(peerId: string | undefined) {
+  if (!peerId || !myId || peerId === myId) {
+    return;
+  }
+  if (activePeer.value?.id === peerId) {
+    return; // already open on this thread
+  }
+  try {
+    const p = await getProfile(peerId);
+    if (p) {
+      openThreadWith(p);
+    }
+  } catch {
+    // ignore — stay on the list
+  }
+}
+
 async function openThreadWith(peer: Profile) {
   newOpen.value = false;
   activePeer.value = peer;
@@ -296,7 +313,10 @@ async function send() {
   sending.value = true;
   draft.value = '';
   try {
-    const m = await sendDirectMessage(myId, activePeer.value.id, text);
+    const m = await sendDirectMessage(myId, activePeer.value.id, text, 'text', {
+      name: displayName.value,
+      avatar: (user.value?.user_metadata?.avatar_url as string) || null,
+    });
     thread.value.push(m);
     scrollThreadDown();
   } catch (error: any) {
@@ -381,18 +401,14 @@ onMounted(async () => {
   window.addEventListener('offline', handleOffline);
   await loadList();
   // Deep link: /messages?user=<id> opens that thread directly (used by
-  // the "Mensaje" buttons on profiles and user sheets).
-  const peerId = route.query.user as string;
-  if (peerId && myId && peerId !== myId) {
-    try {
-      const p = await getProfile(peerId);
-      if (p) {
-        openThreadWith(p);
-      }
-    } catch {
-      // ignore — stay on the list
-    }
-  }
+  // the "Mensaje" buttons on profiles/user sheets AND by tapping a message
+  // notification). Watched so it also fires when the app is ALREADY on the
+  // messages screen and the query changes.
+  await openDeepLinkThread(route.query.user as string | undefined);
+  watch(
+    () => route.query.user,
+    (peerId) => { void openDeepLinkThread(peerId as string | undefined); },
+  );
   if (myId) {
     unsubscribe = subscribeInbox(myId, (m) => {
       if (activePeer.value && m.sender_id === activePeer.value.id) {

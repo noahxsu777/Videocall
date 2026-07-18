@@ -78,6 +78,11 @@ if ('serviceWorker' in navigator) {
     if (event.data?.type === 'incoming-call' && event.data.payload) {
       useIncomingCalls().restore(event.data.payload);
     }
+    // Tapping a message notification while the app is already open: jump
+    // straight into that conversation.
+    if (event.data?.type === 'open-thread' && event.data.senderId) {
+      void router.push({ path: '/messages', query: { user: event.data.senderId } });
+    }
   });
 }
 

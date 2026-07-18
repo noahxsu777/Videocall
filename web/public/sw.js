@@ -5,7 +5,7 @@
  *  - same-origin static assets (hashed js/css/img): cache first
  *  - everything else (Supabase, TRTC, websockets): untouched
  */
-const CACHE = 'hypecall-v32';
+const CACHE = 'hypecall-v33';
 
 // Precache the ENTIRE app (shell + every hashed route chunk) at install so
 // it runs fully offline, not just the pages visited while online. The list
@@ -117,25 +117,67 @@ self.addEventListener('push', (event) => {
   } catch {
     data = {};
   }
-  if (data.type !== 'incoming-call' || !data.callId) {
+
+  // Incoming call — rings, stays up until answered.
+  if (data.type === 'incoming-call' && data.callId) {
+    event.waitUntil(
+      self.registration.showNotification(`${data.callerName || 'Alguien'} te está llamando`, {
+        body: 'Videollamada entrante',
+        icon: './icons/icon-192.png',
+        badge: './icons/icon-192.png',
+        tag: `call-${data.callId}`,
+        requireInteraction: true,
+        vibrate: [300, 150, 300, 150, 300],
+        data,
+      }),
+    );
     return;
   }
-  event.waitUntil(
-    self.registration.showNotification(`${data.callerName || 'Alguien'} te está llamando`, {
-      body: 'Videollamada entrante',
-      icon: './icons/icon-192.png',
-      badge: './icons/icon-192.png',
-      tag: `call-${data.callId}`,
-      requireInteraction: true,
-      vibrate: [300, 150, 300, 150, 300],
-      data,
-    }),
-  );
+
+  // New direct message — native chat-style notification.
+  if (data.type === 'new-message' && data.senderId) {
+    event.waitUntil(
+      self.registration.showNotification(data.senderName || 'Nuevo mensaje', {
+        body: data.preview || 'Te envió un mensaje',
+        icon: data.senderAvatar || './icons/icon-192.png',
+        badge: './icons/icon-192.png',
+        // One notification per conversation; a newer message replaces the
+        // previous one and re-alerts (renotify) instead of stacking.
+        tag: `msg-${data.senderId}`,
+        renotify: true,
+        vibrate: [120, 60, 120],
+        data,
+      }),
+    );
+    return;
+  }
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const data = event.notification.data || {};
+
+  // Message tap: focus an open tab (and tell it to open the thread) or
+  // cold-open the app straight into that conversation.
+  if (data.type === 'new-message') {
+    event.waitUntil(
+      (async () => {
+        const target = `./#/messages?user=${data.senderId}`;
+        const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of allClients) {
+          if ('focus' in client) {
+            await client.focus();
+            client.postMessage({ type: 'open-thread', senderId: data.senderId });
+            return;
+          }
+        }
+        await self.clients.openWindow(target);
+      })(),
+    );
+    return;
+  }
+
+  // Call tap: focus + restore the ring overlay, or cold-open with the payload.
   event.waitUntil(
     (async () => {
       const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });

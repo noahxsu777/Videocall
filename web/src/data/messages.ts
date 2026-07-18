@@ -108,6 +108,7 @@ export async function sendDirectMessage(
   recipientId: string,
   content: string,
   kind = 'text',
+  senderInfo?: { name?: string; avatar?: string | null },
 ): Promise<DirectMessage> {
   const client = requireClient();
   const { data, error } = await client
@@ -118,7 +119,49 @@ export async function sendDirectMessage(
   if (error) {
     throw new Error(error.message);
   }
+  // Fire a native push so the recipient is notified even with the app
+  // closed/backgrounded (Realtime only reaches an already-open tab).
+  // Best-effort — never blocks or fails the send if push isn't configured.
+  void sendMessagePushNotification(recipientId, senderId, content, kind, senderInfo);
   return data as DirectMessage;
+}
+
+async function sendMessagePushNotification(
+  recipientId: string,
+  senderId: string,
+  content: string,
+  kind: string,
+  senderInfo?: { name?: string; avatar?: string | null },
+): Promise<void> {
+  try {
+    const client = requireClient();
+    const { data } = await client.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      return;
+    }
+    const preview =
+      kind === 'text'
+        ? content
+        : kind === 'image'
+          ? '📷 Foto'
+          : kind === 'video'
+            ? '🎥 Video'
+            : 'Nuevo mensaje';
+    await fetch('/api/notify-message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        recipientId,
+        senderId,
+        senderName: senderInfo?.name || '',
+        senderAvatar: senderInfo?.avatar || null,
+        preview,
+      }),
+    });
+  } catch (error) {
+    console.warn('[messages] push notify failed (message still delivered):', error);
+  }
 }
 
 /** Mark everything the peer sent me as read. */
