@@ -48,7 +48,7 @@ async function authenticate(req, supabase) {
  * Prunes dead subscriptions. Returns { sent, errors }.
  */
 async function sendToUsers(supabase, cfg, userIds, payload) {
-  const result = { sent: 0, errors: [] };
+  const result = { sent: 0, errors: [], pruned: 0 };
   if (!userIds.length) {
     return result;
   }
@@ -77,7 +77,10 @@ async function sendToUsers(supabase, cfg, userIds, payload) {
       result.sent += 1;
     } catch (err) {
       const code = err && err.statusCode;
-      if (code === 404 || code === 410) {
+      // 404/410 = dead endpoint. 403 = subscribed under a different VAPID
+      // key — permanently unusable with our key, so prune it too (the
+      // device re-subscribes with the current key on next app open).
+      if (code === 404 || code === 410 || code === 403) {
         staleIds.push(sub.id);
       } else {
         result.errors.push(String(code || (err && err.message) || err));
@@ -86,6 +89,7 @@ async function sendToUsers(supabase, cfg, userIds, payload) {
   }));
 
   if (staleIds.length) {
+    result.pruned = staleIds.length;
     await supabase.from('push_subscriptions').delete().in('id', staleIds);
   }
   return result;

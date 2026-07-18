@@ -14,6 +14,23 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
   return Uint8Array.from([...raw].map(char => char.charCodeAt(0)));
 }
 
+/** Compare the subscription's stored VAPID key with the current one. */
+function keysEqual(a: ArrayBuffer | null, b: Uint8Array): boolean {
+  if (!a) {
+    return false;
+  }
+  const av = new Uint8Array(a);
+  if (av.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < av.length; i++) {
+    if (av[i] !== b[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export const isPushSupported =
   typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window;
 
@@ -48,11 +65,33 @@ export async function subscribeToPush(userId: string): Promise<void> {
     }
 
     const registration = await navigator.serviceWorker.ready;
+    const appKey = urlBase64ToUint8Array(publicKey);
+    const client = requireClient();
     let subscription = await registration.pushManager.getSubscription();
+
+    // Self-heal a VAPID key mismatch: if this device subscribed under an
+    // OLD public key, the push service rejects every send with 403. The
+    // browser keeps returning that stale subscription forever, so detect
+    // the mismatch, drop it (browser + DB row) and subscribe fresh.
+    if (subscription && !keysEqual(subscription.options?.applicationServerKey ?? null, appKey)) {
+      const oldEndpoint = subscription.endpoint;
+      try {
+        await subscription.unsubscribe();
+      } catch {
+        // ignore — we'll subscribe fresh regardless
+      }
+      try {
+        await client.from('push_subscriptions').delete().eq('endpoint', oldEndpoint);
+      } catch {
+        // best-effort cleanup
+      }
+      subscription = null;
+    }
+
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey),
+        applicationServerKey: appKey,
       });
     }
 
@@ -60,7 +99,6 @@ export async function subscribeToPush(userId: string): Promise<void> {
     if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
       return;
     }
-    const client = requireClient();
     await client.from('push_subscriptions').upsert(
       {
         user_id: userId,
