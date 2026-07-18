@@ -1,8 +1,43 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { visualizer } from 'rollup-plugin-visualizer';
 
 const path = require('path');
+
+/**
+ * Emits `precache-manifest.json` listing every hashed asset the build
+ * produced, so the service worker can download the WHOLE app up front at
+ * install time and run fully offline — not just the routes you happened to
+ * visit online. Without this, lazy-loaded route chunks are missing on a
+ * cold offline start. Source maps are skipped (never needed at runtime).
+ */
+function precacheManifest(): Plugin {
+  return {
+    name: 'precache-manifest',
+    apply: 'build',
+    generateBundle(_options, bundle) {
+      const files = Object.keys(bundle)
+        .filter(name => !name.endsWith('.map'))
+        .map(name => `./${name}`);
+      // Public/static files that Vite copies verbatim (not in the rollup
+      // bundle) but that the app shell needs offline.
+      const staticFiles = [
+        './',
+        './index.html',
+        './manifest.webmanifest',
+        './favicon.ico',
+        './icons/icon-192.png',
+        './icons/icon-512.png',
+      ];
+      const urls = Array.from(new Set([...staticFiles, ...files]));
+      this.emitFile({
+        type: 'asset',
+        fileName: 'precache-manifest.json',
+        source: JSON.stringify({ urls }, null, 0),
+      });
+    },
+  };
+}
 
 /**
  * Find a Supabase credential in process.env regardless of how the host
@@ -73,6 +108,7 @@ export default defineConfig({
     visualizer({
       // open: true,
     }),
+    precacheManifest(),
   ],
   server: {
     open: true,

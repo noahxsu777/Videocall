@@ -5,10 +5,40 @@
  *  - same-origin static assets (hashed js/css/img): cache first
  *  - everything else (Supabase, TRTC, websockets): untouched
  */
-const CACHE = 'hypecall-v26';
+const CACHE = 'hypecall-v27';
 
-self.addEventListener('install', () => {
-  self.skipWaiting();
+// Precache the ENTIRE app (shell + every hashed route chunk) at install so
+// it runs fully offline, not just the pages visited while online. The list
+// is generated at build time (vite precacheManifest plugin →
+// precache-manifest.json). Each URL is fetched independently so one bad
+// asset can't abort the whole install.
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const res = await fetch('./precache-manifest.json', { cache: 'no-cache' });
+        if (res.ok) {
+          const { urls } = await res.json();
+          const cache = await caches.open(CACHE);
+          await Promise.allSettled(
+            (urls || []).map(async (url) => {
+              try {
+                const r = await fetch(url, { cache: 'no-cache' });
+                if (r.ok) {
+                  await cache.put(url, r.clone());
+                }
+              } catch {
+                // single asset failed — keep going
+              }
+            }),
+          );
+        }
+      } catch {
+        // manifest unavailable (dev, offline) — fall back to lazy caching
+      }
+      await self.skipWaiting();
+    })(),
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -34,14 +64,19 @@ self.addEventListener('fetch', (event) => {
   if (req.mode === 'navigate') {
     event.respondWith(
       (async () => {
+        const cache = await caches.open(CACHE);
         try {
           const fresh = await fetch(req);
-          const cache = await caches.open(CACHE);
           cache.put(req, fresh.clone());
           return fresh;
         } catch {
-          const cache = await caches.open(CACHE);
-          const hit = await cache.match(req, { ignoreSearch: true });
+          // Offline: serve the cached app shell. Hash routing means every
+          // route IS index.html, so any of these satisfies the navigation.
+          const hit =
+            (await cache.match(req, { ignoreSearch: true }))
+            || (await cache.match('./index.html'))
+            || (await cache.match('./'))
+            || (await cache.match('index.html'));
           return hit || Response.error();
         }
       })(),
