@@ -61,7 +61,7 @@
         </div>
       </div>
     </div>
-    <div class="main-center">
+    <div class="main-center" @touchstart.passive="onLiveTouchStart" @touchend.passive="onLiveTouchEnd">
       <div class="main-center-top">
         <div class="main-center-top-left">
           {{ currentLive?.liveName || liveParams.liveName }}
@@ -174,6 +174,40 @@
       <!-- Gifts received from the Tencent catalog, shown to the host with
            their diamond value. -->
       <GiftBanner v-if="isInLive" />
+
+      <!-- Swipe-left stats panel (host): live stats + diamonds + a nudge to
+           keep streaming more hours. -->
+      <template v-if="isMobile && isInLive">
+        <div v-if="statsPanelOpen" class="stats-backdrop" @click="statsPanelOpen = false" />
+        <transition name="stats-slide">
+          <aside v-if="statsPanelOpen" class="stats-panel">
+            <h3 class="stats-title">Tu transmisión</h3>
+            <div class="stats-grid">
+              <div class="stat-card">
+                <span class="stat-ico">⏱</span>
+                <span class="stat-val">{{ liveElapsedText }}</span>
+                <span class="stat-lbl">En vivo</span>
+              </div>
+              <div class="stat-card">
+                <span class="stat-ico">👁</span>
+                <span class="stat-val">{{ audienceCount }}</span>
+                <span class="stat-lbl">Viendo</span>
+              </div>
+              <div class="stat-card stat-card-diamonds">
+                <span class="stat-ico">💎</span>
+                <span class="stat-val">{{ diamondsReceived.toLocaleString() }}</span>
+                <span class="stat-lbl">Diamantes</span>
+              </div>
+            </div>
+            <div class="stats-encourage">
+              <span class="enc-emoji">✨</span>
+              <p>{{ encourageMessage }}</p>
+            </div>
+            <p class="stats-hint">Desliza a la derecha para cerrar →</p>
+          </aside>
+        </transition>
+      </template>
+
       <div class="main-center-bottom">
         <div class="main-center-bottom-content">
           <div class="main-center-bottom-left">
@@ -296,6 +330,9 @@ import TUIRoomEngine, {
   TRTCVideoFillMode,
   TRTCVideoRotation,
   TRTCVideoMirrorType,
+  TRTCVideoEncParam,
+  TRTCVideoResolution,
+  TRTCVideoResolutionMode,
 } from '@tencentcloud/tuiroom-engine-js';
 import {
   IconArrowStrokeBack,
@@ -436,6 +473,50 @@ function onGiftForStats(info: any) {
   const count = info?.giftCount || 1;
   diamondsReceived.value += (gift.coins || 0) * count;
 }
+
+// --- Swipe-left stats panel (host) ---------------------------------------
+// Swiping left over the live opens a panel with the session stats +
+// diamonds and a message nudging the creator to keep streaming (more hours
+// = more reach / rewards). Swipe right or tap the backdrop closes it.
+const statsPanelOpen = ref(false);
+let swipeStartX = 0;
+let swipeStartY = 0;
+function onLiveTouchStart(e: TouchEvent) {
+  if (e.touches.length !== 1) {
+    return;
+  }
+  swipeStartX = e.touches[0].clientX;
+  swipeStartY = e.touches[0].clientY;
+}
+function onLiveTouchEnd(e: TouchEvent) {
+  if (!isInLive.value) {
+    return;
+  }
+  const t = e.changedTouches[0];
+  if (!t) {
+    return;
+  }
+  const dx = t.clientX - swipeStartX;
+  const dy = t.clientY - swipeStartY;
+  if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.6) {
+    statsPanelOpen.value = dx < 0; // swipe left = open, right = close
+  }
+}
+
+// Motivational nudge that ramps up with the streamed time. Encourages the
+// creator to rack up live hours.
+const encourageMessage = computed(() => {
+  const min = Math.floor(liveElapsed.value / 60);
+  if (min < 15) {
+    return '¡Acabas de empezar! Las primeras horas son las que más te hacen crecer. 🚀';
+  }
+  if (min < 60) {
+    return `Llevas ${min} min en vivo. Sigue: mientras más tiempo transmites, más gente te descubre. 🔥`;
+  }
+  const h = Math.floor(min / 60);
+  const rem = min % 60;
+  return `¡${h}h ${rem}min al aire! Eres de los creadores dedicados — sigue sumando horas para subir de nivel y ganar más 💎.`;
+});
 watch(isInLive, (inLive) => {
   window.clearInterval(liveTimerId);
   if (inLive) {
@@ -816,6 +897,28 @@ watch(isMirrored, () => {
   }
 });
 
+// Force the PUBLISHED stream into a 9:16 portrait profile so the audience
+// sees the same framing the host does (fixes the "viewers see me zoomed in"
+// crop). Set directly on the TRTC cloud instance — the higher-level
+// updateVideoQuality/setVideoResolutionMode helpers cropped even harder.
+const applyPortraitEncoder = async () => {
+  try {
+    const trtcCloud = (roomEngine.instance as any)?.getTRTCCloud?.();
+    if (!trtcCloud) {
+      return;
+    }
+    const param = new TRTCVideoEncParam(
+      TRTCVideoResolution.TRTCVideoResolution_1280_720,
+      TRTCVideoResolutionMode.TRTCVideoResolutionModePortrait,
+      24,
+      1500,
+    );
+    await trtcCloud.setVideoEncoderParam(param);
+  } catch (error) {
+    console.warn('[LivePusherView] setVideoEncoderParam failed:', error);
+  }
+};
+
 // Own getUserMedia preview with explicit PORTRAIT constraints — the
 // SDK's startCameraTest takes no constraints and always captures
 // landscape, which can never fill a vertical phone screen.
@@ -942,12 +1045,19 @@ const publishMobileCamera = (): Promise<void> => {
               console.warn('[LivePusherView] switch to rear camera failed:', switchError);
             }
           }
+          // Publish in a PORTRAIT 9:16 profile (720x1280) so viewers get
+          // the same vertical framing the host sees. TRTC's default encoder
+          // profile is a squarer/landscape size that gets cropped hard into
+          // the viewer's portrait player — that crop was the "zoom" the
+          // audience saw. A 9:16 output matches the phone screen, so there's
+          // nothing left to crop.
+          await applyPortraitEncoder();
           // Fix the local self-view fit (see applyLocalRenderFit).
           // Twice — the seat player re-attaches the local view via
           // setLocalVideoView shortly after publishing, which can land
           // after our first call.
           await applyLocalRenderFit();
-          setTimeout(() => applyLocalRenderFit(), 1500);
+          setTimeout(() => { void applyPortraitEncoder(); applyLocalRenderFit(); }, 1500);
           return;
         } catch (error) {
           lastError = error;
@@ -1882,5 +1992,90 @@ onUnmounted(() => {
       height: auto !important;
     }
   }
+}
+
+// --- Swipe-left stats panel ------------------------------------------------
+.stats-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.25);
+}
+.stats-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  width: 80%;
+  max-width: 340px;
+  padding: 74px 18px 24px;
+  box-sizing: border-box;
+  background: linear-gradient(160deg, rgba(36, 18, 61, 0.96), rgba(13, 7, 24, 0.97));
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: -14px 0 40px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  color: #fff;
+}
+.stats-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 14px 6px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.stat-card-diamonds {
+  background: linear-gradient(135deg, rgba(255, 61, 129, 0.28), rgba(155, 45, 247, 0.24));
+  border-color: transparent;
+}
+.stat-ico { font-size: 20px; }
+.stat-val { font-size: 17px; font-weight: 800; }
+.stat-lbl { font-size: 11px; color: rgba(255, 255, 255, 0.6); }
+.stats-encourage {
+  display: flex;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(139, 61, 255, 0.22), rgba(255, 46, 116, 0.16));
+  border: 1px solid rgba(199, 155, 255, 0.35);
+}
+.enc-emoji { font-size: 22px; flex: 0 0 auto; }
+.stats-encourage p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: #fff;
+}
+.stats-hint {
+  margin: auto 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.45);
+}
+.stats-slide-enter-active,
+.stats-slide-leave-active {
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.28s ease;
+}
+.stats-slide-enter-from,
+.stats-slide-leave-to {
+  transform: translateX(100%);
+  opacity: 0.4;
 }
 </style>
