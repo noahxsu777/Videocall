@@ -72,12 +72,20 @@ function onGift(info: any) {
   }
   seen.set(key, now);
 
+  // The sender's avatar can arrive under different field names depending on
+  // the SDK message shape — try them all so the host's banner shows the
+  // profile photo instead of just an initial.
+  const s = info?.sender || info?.senderInfo || {};
+  const avatar =
+    s.avatarUrl || s.faceUrl || s.avatar || s.userAvatar || s.headUrl
+    || info?.avatarUrl || info?.faceUrl || '';
+
   const id = ++seq;
   const card = reactive<GiftCard>({
     id,
     sender,
     initial: sender.slice(0, 1).toUpperCase(),
-    avatar: info?.sender?.avatarUrl || '',
+    avatar,
     name: gift.name || 'un regalo',
     icon: gift.iconUrl || gift.imageUrl || gift.resourceUrl || gift.animationUrl || '',
     count,

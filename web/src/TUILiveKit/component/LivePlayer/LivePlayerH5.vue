@@ -64,7 +64,8 @@
         @open-user="handleOpenChatUser"
       />
     </div>
-    <!-- Gifts received (with diamond value), visible to every viewer too. -->
+    <!-- Gifts received (with diamond value), shown to viewers AND the host
+         the same way. -->
     <GiftBanner />
     <UserActionSheet v-model="chatUserSheet" :target="chatUserTarget" />
     <div ref="bottomBarRef" class="bottom">
