@@ -16,13 +16,17 @@ function precacheManifest(): Plugin {
     name: 'precache-manifest',
     apply: 'build',
     generateBundle(_options, bundle) {
-      // Live-only chunks (Tencent TRTC engine + the broadcast/watch views)
-      // are excluded: live streaming needs a connection anyway, and the
-      // engine alone is ~5 MB. These still get cached lazily the first time
-      // you open a live (which is always online).
-      const liveOnly = /(roomEngine|live-pusher|live-player|business-live-player|education-live-player|LiveHeader|LiveDeviceSelection)/;
+      // Exclude ONLY the live broadcast/watch *view* chunks — those are
+      // lazy route components and live streaming needs a connection anyway,
+      // so they can cache lazily the first time you open a live.
+      //
+      // NB: the Tencent engine chunk (roomEngine) is deliberately NOT
+      // excluded. It's imported at app startup (router + App.vue), so if
+      // it's missing from the cache the whole app fails to boot offline —
+      // that regression is exactly why "offline loaded nothing".
+      const liveViewsOnly = /(live-pusher|live-player|business-live-player|education-live-player)/;
       const files = Object.keys(bundle)
-        .filter(name => !name.endsWith('.map') && !liveOnly.test(name))
+        .filter(name => !name.endsWith('.map') && !liveViewsOnly.test(name))
         .map(name => `./${name}`);
       // Public/static files that Vite copies verbatim (not in the rollup
       // bundle) but that the app shell needs offline.

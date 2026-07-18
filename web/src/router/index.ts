@@ -122,6 +122,13 @@ function getActiveStylePreset(routeQuery: Record<string, any>): StylePreset {
 
 let restoreLoginPromise: Promise<void> | null = null;
 
+// Never let a slow/hanging network call freeze navigation on the boot
+// screen. Resolves with the promise's result, or just continues after `ms`
+// if it's taking too long (the work keeps going in the background).
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | void> {
+  return Promise.race([promise, new Promise<void>(resolve => setTimeout(resolve, ms))]);
+}
+
 // Log into the Tencent live/chat SDK using the authenticated Supabase
 // user (its id becomes the Tencent userID, its display name the
 // userName). userSig is still generated client-side from the SDK secret
@@ -211,8 +218,10 @@ router.beforeEach(async (to, _from, next) => {
     return;
   }
 
-  // Gate every route on a real Supabase session.
-  await authReady();
+  // Gate every route on a real Supabase session. Cap the wait so a token
+  // read that stalls offline (reopening the PWA from the recents screen
+  // with no connection) can't hang the app on the boot screen forever.
+  await withTimeout(authReady(), 4000);
   const supaSession = currentSession();
 
   if (to.path === '/login') {
@@ -239,8 +248,9 @@ router.beforeEach(async (to, _from, next) => {
 
   // /admin is gated on the profiles.is_admin flag — checked server-side
   // by every admin_* RPC too, but bouncing here avoids flashing the
-  // panel's shell before a non-admin's data fetches start failing.
-  if (to.path === '/admin' && !(await isAdmin(supaSession.user.id))) {
+  // panel's shell before a non-admin's data fetches start failing. Only
+  // when online — offline this is a network call that would hang the guard.
+  if (to.path === '/admin' && navigator.onLine && !(await isAdmin(supaSession.user.id))) {
     next({ path: '/live-list' });
     return;
   }
@@ -254,11 +264,18 @@ router.beforeEach(async (to, _from, next) => {
   // "the app logs me out every time I open it". Instead, let the user
   // into the app; only the live features that actually need Tencent will
   // be affected, and they surface their own errors.
-  await restoreLoginIfNeeded();
-  if (!useLoginState().loginUserInfo.value?.userId) {
-    console.warn('[router] Tencent SDK login unavailable — continuing with Supabase session only.');
-  } else {
-    await syncSelfInfoIfNeeded();
+  // Tencent SDK login needs the network. Offline (e.g. reopening the PWA
+  // from the recents screen with no connection) skip it entirely — live
+  // features can't work offline anyway, and the whole point is to still
+  // let the user into the cached app. Online, cap it with a timeout so a
+  // slow/hanging login never freezes the boot screen.
+  if (navigator.onLine) {
+    await withTimeout(restoreLoginIfNeeded(), 5000);
+    if (!useLoginState().loginUserInfo.value?.userId) {
+      console.warn('[router] Tencent SDK login unavailable — continuing with Supabase session only.');
+    } else {
+      await withTimeout(syncSelfInfoIfNeeded(), 4000);
+    }
   }
 
   if (isH5) {
