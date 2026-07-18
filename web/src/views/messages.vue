@@ -151,6 +151,7 @@ import {
   type Conversation,
   type DirectMessage,
 } from '../data/messages';
+import { swr } from '../data/offlineCache';
 
 const router = useRouter();
 const route = useRoute();
@@ -191,7 +192,19 @@ async function loadList() {
     return;
   }
   try {
-    conversations.value = await listConversations(myId);
+    // Show the last-cached conversation list instantly, then refresh it
+    // from the network in the background.
+    await swr(
+      myId,
+      'conversations',
+      () => listConversations(myId),
+      (list) => {
+        conversations.value = list;
+        // Cache paint already fills the screen — drop the skeleton now
+        // instead of waiting for the network round-trip.
+        loadingList.value = false;
+      },
+    );
   } catch (error) {
     console.warn('[messages] list failed:', error);
   } finally {
@@ -241,7 +254,21 @@ async function openThreadWith(peer: Profile) {
   activePeer.value = peer;
   thread.value = [];
   try {
-    thread.value = await fetchThread(myId, peer.id);
+    // Instantly show the last-cached messages for this peer, then pull the
+    // latest from the server so opening a chat feels immediate.
+    await swr(
+      myId,
+      `thread_${peer.id}`,
+      () => fetchThread(myId, peer.id),
+      (msgs) => {
+        // Guard against a slow network resolving after the user already
+        // switched to a different conversation.
+        if (activePeer.value?.id === peer.id) {
+          thread.value = msgs;
+          scrollThreadDown();
+        }
+      },
+    );
     await markThreadRead(myId, peer.id);
     loadList();
   } catch (error) {

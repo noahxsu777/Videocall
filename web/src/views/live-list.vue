@@ -55,6 +55,7 @@ import { LiveListView } from '../TUILiveKit';
 import { isH5 } from '../TUILiveKit/utils/environment';
 import { useAuth } from '../auth/useAuth';
 import { getProfile } from '../data/profiles';
+import { swr } from '../data/offlineCache';
 import EventBanner from '../components/EventBanner.vue';
 
 const router = useRouter();
@@ -123,10 +124,17 @@ onMounted(async () => {
     return;
   }
   try {
-    const p = await getProfile(user.value.id);
-    if (p?.avatar_url) {
-      avatarUrl.value = p.avatar_url;
-    }
+    // Paint the cached avatar instantly, refresh in the background.
+    await swr(
+      user.value.id,
+      'self_avatar',
+      () => getProfile(user.value!.id),
+      (p) => {
+        if (p?.avatar_url) {
+          avatarUrl.value = p.avatar_url;
+        }
+      },
+    );
   } catch {
     // Profile table may not exist yet — fall back to the initial.
   }

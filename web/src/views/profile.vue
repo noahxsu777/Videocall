@@ -104,6 +104,7 @@ import {
   type Profile,
   type Photo,
 } from '../data/profiles';
+import { swr } from '../data/offlineCache';
 
 const router = useRouter();
 const route = useRoute();
@@ -133,13 +134,24 @@ async function load() {
     return;
   }
   try {
-    if (isOwnProfile.value) {
-      await ensureProfile(id, displayName.value);
-    }
-    const [p, ph, c] = await Promise.all([getProfile(id), listPhotos(id), getFollowCounts(id)]);
-    profile.value = p;
-    photos.value = ph;
-    counts.value = c;
+    // Paint the last-cached profile instantly, then revalidate from the
+    // network in the background so a repeat visit is never a blank wait.
+    await swr(
+      user.value?.id || id,
+      `profile_${id}`,
+      async () => {
+        if (isOwnProfile.value) {
+          await ensureProfile(id, displayName.value);
+        }
+        const [p, ph, c] = await Promise.all([getProfile(id), listPhotos(id), getFollowCounts(id)]);
+        return { p, ph, c };
+      },
+      ({ p, ph, c }) => {
+        profile.value = p;
+        photos.value = ph;
+        counts.value = c;
+      },
+    );
     if (!isOwnProfile.value && user.value) {
       following.value = await isFollowing(user.value.id, id);
     }
