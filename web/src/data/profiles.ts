@@ -392,6 +392,31 @@ export async function ensureRealAvatarUrl(userId: string): Promise<string> {
   }
 }
 
+/** A colored initials avatar (real http URL) from a display name. */
+export function initialsAvatarUrl(name: string): string {
+  const n = encodeURIComponent((name || 'User').trim().slice(0, 24) || 'User');
+  return `https://ui-avatars.com/api/?name=${n}&background=8b3dff&color=ffffff&bold=true&size=256`;
+}
+
+/**
+ * The best avatar URL to push to Tencent's setSelfInfo for this user: their
+ * real photo (migrating a legacy data: URL to Storage if needed), or a
+ * colored initials avatar as a fallback. Guaranteed to be a real http(s)
+ * URL Tencent accepts — never empty and never a data: URL, so every place
+ * that calls setSelfInfo shows a picture in the live / audience list.
+ */
+export async function resolveTencentAvatar(userId: string, name: string): Promise<string> {
+  try {
+    const real = await ensureRealAvatarUrl(userId);
+    if (real && !real.startsWith('data:')) {
+      return real;
+    }
+  } catch {
+    // fall through to initials
+  }
+  return initialsAvatarUrl(name);
+}
+
 /**
  * Compress + upload a live-cover image and return its public URL. The
  * cover is passed to Tencent's startLive({ coverUrl }) and shown in the

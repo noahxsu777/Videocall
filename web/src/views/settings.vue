@@ -238,6 +238,7 @@ import {
   updateDisplayName,
   daysUntilNameChange,
   isVipActive,
+  resolveTencentAvatar,
 } from '../data/profiles';
 
 const router = useRouter();
@@ -351,10 +352,10 @@ async function save() {
       await updateDisplayName(user.value.id, newName);
       await supabase?.auth.updateUser({ data: { display_name: newName } });
       try {
-        // Keep the current avatar — passing '' here used to wipe it, so
-        // after any name change the user showed up as the default
-        // silhouette in lives.
-        await TUIRoomEngine.setSelfInfo({ userName: newName, avatarUrl: avatarUrl.value || '' });
+        // Resolve the real photo (or initials) so a name change never wipes
+        // the avatar back to the default silhouette.
+        const resolved = await resolveTencentAvatar(user.value.id, newName);
+        await TUIRoomEngine.setSelfInfo({ userName: newName, avatarUrl: resolved });
       } catch (error) {
         console.warn('[settings] setSelfInfo failed:', error);
       }

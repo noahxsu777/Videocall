@@ -27,6 +27,7 @@ import { TUIButton, TUIMessageBox, TUIToast, TOAST_TYPE, useUIKit } from '@tence
 import { useLoginState, useLiveListState, Avatar, UIKitModal } from 'tuikit-atomicx-vue3';
 import { errorHandler } from '../TUILiveKit/utils/errorHandler';
 import { useAuth, tencentUserIdFor, displayNameFor } from '../auth/useAuth';
+import { resolveTencentAvatar } from '../data/profiles';
 import { SDKAPPID, genTestUserSig } from '../config/basic-info-config';
 
 const { user: authUser, logout: authLogout } = useAuth();
@@ -66,7 +67,9 @@ async function handleLogin() {
       testEnv: localStorage.getItem('tuikit-live-env') === 'TestEnv',
     });
     try {
-      const avatarUrl = (authUser.value.user_metadata?.avatar_url as string) || '';
+      // Use the resolved real photo / initials avatar (never empty or a
+      // data: URL) so this never overrides the good avatar with a blank.
+      const avatarUrl = await resolveTencentAvatar(authUser.value.id, userName);
       await TUIRoomEngine.setSelfInfo({ userName, avatarUrl });
     } catch (error) {
       console.warn('[LiveHeader] setSelfInfo failed:', error);

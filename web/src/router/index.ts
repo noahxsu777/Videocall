@@ -6,7 +6,7 @@ import { isH5 } from '@/TUILiveKit/utils/environment';
 import { authReady, currentSession, consumeBannedFlag, tencentUserIdFor, displayNameFor } from '@/auth/useAuth';
 import { SDKAPPID, genTestUserSig } from '@/config/basic-info-config';
 import { isAdmin } from '@/data/admin';
-import { ensureRealAvatarUrl } from '@/data/profiles';
+import { resolveTencentAvatar } from '@/data/profiles';
 import { navLoading } from '@/composables/navLoading';
 
 const routes = [
@@ -167,18 +167,9 @@ async function restoreLoginIfNeeded(): Promise<void> {
 }
 
 // Push the real display name (and avatar) onto the Tencent user profile
-// so seat labels, PK titles, chat senders, etc. show the name instead of
-// the raw u_xxx userId. Runs once per app session, EVEN when the Tencent
-// login was restored from storage (the old code only did this on fresh
-// logins, so persisted sessions kept showing the raw id).
-// A real http(s) avatar generated from the user's name (colored initials),
-// used as a fallback so no one shows the generic default silhouette in the
-// live / viewer list / gift cards.
-function fallbackAvatarUrl(name: string): string {
-  const n = encodeURIComponent((name || 'User').trim().slice(0, 24) || 'User');
-  return `https://ui-avatars.com/api/?name=${n}&background=8b3dff&color=ffffff&bold=true&size=256`;
-}
-
+// so seat labels, the audience list, chat senders, etc. show the name +
+// photo instead of the raw u_xxx id and default silhouette. Runs once per
+// app session, EVEN when the Tencent login was restored from storage.
 let selfInfoSynced = false;
 async function syncSelfInfoIfNeeded(): Promise<void> {
   if (selfInfoSynced) {
@@ -193,22 +184,13 @@ async function syncSelfInfoIfNeeded(): Promise<void> {
     return;
   }
   try {
-    // FORCE the real photo: ensureRealAvatarUrl migrates a legacy data: URL
-    // avatar to Storage (Tencent's setSelfInfo rejects data: URLs, which is
-    // why the real photo never showed) and returns a proper http(s) URL.
-    let avatarUrl = await ensureRealAvatarUrl(supaSession.user.id).catch(() => '');
-    if (!avatarUrl) {
-      // No profile photo — try the auth metadata if it's a real URL.
-      const meta = (supaSession.user.user_metadata?.avatar_url as string) || '';
-      if (meta && !meta.startsWith('data:')) {
-        avatarUrl = meta;
-      }
-    }
-    // Still nothing → colored initials avatar so no one shows the default
-    // silhouette.
-    if (!avatarUrl) {
-      avatarUrl = fallbackAvatarUrl(displayNameFor(supaSession.user));
-    }
+    // resolveTencentAvatar FORCES a real http(s) photo (migrating a legacy
+    // data: URL to Storage) or a colored initials avatar — never empty or a
+    // data: URL, both of which Tencent rejects into the default silhouette.
+    const avatarUrl = await resolveTencentAvatar(
+      supaSession.user.id,
+      displayNameFor(supaSession.user),
+    );
     await TUIRoomEngine.setSelfInfo({
       userName: displayNameFor(supaSession.user),
       avatarUrl,
