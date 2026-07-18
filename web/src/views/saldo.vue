@@ -91,6 +91,18 @@
     </p>
 
     <p v-if="toast" class="toast">{{ toast }}</p>
+
+    <!-- Purchase result (returning from Stripe Checkout) -->
+    <div v-if="payResult" class="pay-backdrop" @click.self="payResult = null">
+      <div class="pay-modal">
+        <span class="pay-emoji">{{ payResult.ok ? '🎉' : '😕' }}</span>
+        <h3 class="pay-title">{{ payResult.title }}</h3>
+        <p class="pay-text">{{ payResult.text }}</p>
+        <button class="pay-close" :class="{ err: !payResult.ok }" @click="payResult = null">
+          {{ payResult.ok ? '¡Genial!' : 'Entendido' }}
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -214,17 +226,40 @@ async function handlePayout() {
   }
 }
 
+const payResult = ref<{ ok: boolean; title: string; text: string } | null>(null);
+
+const PAY_FAIL_TEXT =
+  'Intenta con otra tarjeta. Recuerda tener activadas las compras por '
+  + 'internet con tu banco, o confirmar la transacción por SMS o desde la '
+  + 'app de tu banco cuando te llegue el aviso.';
+
 onMounted(async () => {
   // Back from Stripe Checkout: credit the purchase (idempotent) BEFORE
   // loading balances so the new coins show immediately.
   const sid = route.query.sid as string | undefined;
   if (route.query.buy === 'success' && sid) {
     const result = await verifyCoinPurchase(sid).catch(
-      () => ({ ok: false, message: 'No se pudo verificar la compra.' }),
+      () => ({ ok: false, message: '' }),
     );
-    showToast(result.message);
+    if (result.ok) {
+      payResult.value = {
+        ok: true,
+        title: '¡Pago exitoso!',
+        text: result.message.replace('✅ ', ''),
+      };
+    } else {
+      payResult.value = {
+        ok: false,
+        title: 'No se pudo procesar el pago',
+        text: PAY_FAIL_TEXT,
+      };
+    }
   } else if (route.query.buy === 'cancel') {
-    showToast('Compra cancelada.');
+    payResult.value = {
+      ok: false,
+      title: 'Pago no completado',
+      text: PAY_FAIL_TEXT,
+    };
   } else if (route.query.stripe === 'done') {
     showToast('Datos enviados a Stripe. La verificación puede tardar unos minutos.');
   } else if (route.query.stripe === 'retry') {
@@ -380,5 +415,55 @@ onMounted(async () => {
   text-align: center;
   font-size: 13px;
   color: #c79bff;
+}
+
+/* Purchase-result modal */
+.pay-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.72);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.pay-modal {
+  width: 100%;
+  max-width: 340px;
+  padding: 28px 22px 22px;
+  border-radius: 24px;
+  background: linear-gradient(160deg, #24123d, #0d0718);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  text-align: center;
+}
+.pay-emoji { font-size: 44px; display: block; margin-bottom: 8px; }
+.pay-title {
+  margin: 0 0 10px;
+  font-size: 19px;
+  font-weight: 800;
+  color: #fff;
+}
+.pay-text {
+  margin: 0 0 18px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.75);
+}
+.pay-close {
+  width: 100%;
+  height: 46px;
+  border: none;
+  border-radius: 23px;
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.pay-close.err {
+  background: rgba(255, 255, 255, 0.12);
 }
 </style>

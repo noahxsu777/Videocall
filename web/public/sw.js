@@ -5,7 +5,7 @@
  *  - same-origin static assets (hashed js/css/img): cache first
  *  - everything else (Supabase, TRTC, websockets): untouched
  */
-const CACHE = 'hypecall-v58';
+const CACHE = 'hypecall-v59';
 
 // Precache the ENTIRE app (shell + every hashed route chunk) at install so
 // it runs fully offline, not just the pages visited while online. The list
