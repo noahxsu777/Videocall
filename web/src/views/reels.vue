@@ -649,7 +649,7 @@ onUnmounted(() => {
   z-index: 5;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 12px 16px 14px;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0));
   pointer-events: none;
@@ -660,6 +660,10 @@ onUnmounted(() => {
   font-weight: 800;
 }
 .reels-tabs {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 20px;
