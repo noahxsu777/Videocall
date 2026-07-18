@@ -5,7 +5,7 @@
  *  - same-origin static assets (hashed js/css/img): cache first
  *  - everything else (Supabase, TRTC, websockets): untouched
  */
-const CACHE = 'hypecall-v51';
+const CACHE = 'hypecall-v52';
 
 // Precache the ENTIRE app (shell + every hashed route chunk) at install so
 // it runs fully offline, not just the pages visited while online. The list
@@ -118,16 +118,27 @@ self.addEventListener('push', (event) => {
     data = {};
   }
 
+  // Native-look defaults for every notification:
+  //  - badge: monochrome white-on-transparent glyph, which Android shows in
+  //    the status bar like any native app (the colored logo rendered as a
+  //    generic gray dot there)
+  //  - timestamp: shows "hace X min" like native notifications
+  const NATIVE = {
+    badge: './icons/badge-96.png',
+    timestamp: Date.now(),
+  };
+
   // Incoming call — rings, stays up until answered.
   if (data.type === 'incoming-call' && data.callId) {
     event.waitUntil(
       self.registration.showNotification(`${data.callerName || 'Alguien'} te está llamando`, {
+        ...NATIVE,
         body: 'Videollamada entrante',
-        icon: './icons/icon-192.png',
-        badge: './icons/icon-192.png',
+        icon: data.callerAvatar || './icons/icon-192.png',
         tag: `call-${data.callId}`,
         requireInteraction: true,
         vibrate: [300, 150, 300, 150, 300],
+        actions: [{ action: 'open', title: '📞 Contestar' }],
         data,
       }),
     );
@@ -138,14 +149,15 @@ self.addEventListener('push', (event) => {
   if (data.type === 'new-message' && data.senderId) {
     event.waitUntil(
       self.registration.showNotification(data.senderName || 'Nuevo mensaje', {
+        ...NATIVE,
         body: data.preview || 'Te envió un mensaje',
         icon: data.senderAvatar || './icons/icon-192.png',
-        badge: './icons/icon-192.png',
         // One notification per conversation; a newer message replaces the
         // previous one and re-alerts (renotify) instead of stacking.
         tag: `msg-${data.senderId}`,
         renotify: true,
         vibrate: [120, 60, 120],
+        actions: [{ action: 'open', title: '💬 Abrir chat' }],
         data,
       }),
     );
@@ -156,12 +168,13 @@ self.addEventListener('push', (event) => {
   if (data.type === 'new-comment') {
     event.waitUntil(
       self.registration.showNotification(`${data.senderName || 'Alguien'} comentó tu publicación`, {
+        ...NATIVE,
         body: data.preview || '',
         icon: data.senderAvatar || './icons/icon-192.png',
-        badge: './icons/icon-192.png',
         tag: `comment-${data.photoId || 'x'}`,
         renotify: true,
         vibrate: [80, 40, 80],
+        actions: [{ action: 'open', title: '🎬 Ver publicación' }],
         data,
       }),
     );
@@ -172,12 +185,13 @@ self.addEventListener('push', (event) => {
   if (data.type === 'live-started' && data.streamerId) {
     event.waitUntil(
       self.registration.showNotification(`${data.streamerName || 'Alguien'} está en vivo 🔴`, {
+        ...NATIVE,
         body: 'Toca para entrar a la transmisión',
         icon: data.streamerAvatar || './icons/icon-192.png',
-        badge: './icons/icon-192.png',
         tag: `live-${data.streamerId}`,
         renotify: true,
         vibrate: [100, 50, 100],
+        actions: [{ action: 'open', title: '🔴 Entrar al live' }],
         data,
       }),
     );
