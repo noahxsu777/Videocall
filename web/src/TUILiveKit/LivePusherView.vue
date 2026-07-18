@@ -171,9 +171,13 @@
       <div v-if="isMobile && isInLive" class="mobile-barrage">
         <LiveChat :is-host="true" @open-user="onOpenChatUser" />
       </div>
-      <!-- Gifts received from the Tencent catalog, shown to the host with
-           their diamond value. -->
-      <GiftBanner v-if="isInLive" />
+      <!-- Received-gift display: use Tencent's OWN gift UI (with the
+           sender's avatar), the same the viewers see. LiveGift renders a
+           "send gift" button plus a GiftCardPlayer that it Teleports to
+           #app; the host shouldn't send gifts to their own live, so we
+           hide this wrapper (display:none) — that only hides the button,
+           the teleported receive display still shows app-wide. -->
+      <div v-if="isInLive" class="host-gift-receiver"><LiveGift /></div>
 
       <!-- Swipe-left stats panel (host): live stats + diamonds + a nudge to
            keep streaming more hours. -->
@@ -360,6 +364,7 @@ import {
   useLoginState,
   StreamMixer,
   LiveCoreView,
+  LiveGift,
   useDeviceState,
   useCoHostState,
   useBattleState,
@@ -384,7 +389,6 @@ import SettingButton from './component/SettingButton.vue';
 import SpeakerVolumeSetting from './component/SpeakerVolumeSetting.vue';
 import LivePusherNotification from './component/LivePusherNotification.vue';
 import LiveChat from '../components/LiveChat.vue';
-import GiftBanner from '../components/GiftBanner.vue';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
 import { useAuth } from '../auth/useAuth';
 import { notifyLiveStarted } from '../data/profiles';
@@ -1992,6 +1996,13 @@ onUnmounted(() => {
       height: auto !important;
     }
   }
+}
+
+// Host mounts Tencent's <LiveGift> only for its teleported received-gift
+// display; its own "send gift" button is hidden (the host doesn't gift
+// their own live). The GiftCardPlayer teleports to #app so it's unaffected.
+.host-gift-receiver {
+  display: none;
 }
 
 // --- Swipe-left stats panel ------------------------------------------------

@@ -64,9 +64,6 @@
         @open-user="handleOpenChatUser"
       />
     </div>
-    <!-- Gifts received (with diamond value), shown to viewers AND the host
-         the same way. -->
-    <GiftBanner />
     <UserActionSheet v-model="chatUserSheet" :target="chatUserTarget" />
     <div ref="bottomBarRef" class="bottom">
       <!-- All viewer actions in one tidy right-aligned row above the
@@ -204,7 +201,6 @@ import { useSeatApplication } from '../SeatApplication/useSeatApplication';
 import ShareLiveSheet from '../../../components/ShareLiveSheet.vue';
 import LiveQualitySheet from '../../../components/LiveQualitySheet.vue';
 import LiveChat from '../../../components/LiveChat.vue';
-import GiftBanner from '../../../components/GiftBanner.vue';
 import UserActionSheet, { type SheetTarget } from '../../../components/UserActionSheet.vue';
 import { initRoomEngineLanguage } from '../../../utils/utils';
 
