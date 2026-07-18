@@ -9,6 +9,7 @@
   "orientation": "portrait",
   "background_color": "#0d0718",
   "theme_color": "#0d0718",
+  "categories": ["social", "entertainment"],
   "icons": [
     {
       "src": "./icons/icon-192.png",
@@ -27,6 +28,22 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "./screenshots/promo-narrow.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Hype Call — lives, reels y mensajes"
+    },
+    {
+      "src": "./screenshots/promo-wide.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Hype Call — lives, reels y mensajes"
     }
   ]
 }

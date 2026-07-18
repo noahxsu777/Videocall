@@ -9,6 +9,7 @@
           <span class="gift-desc">envió {{ g.name }}<span v-if="g.count > 1"> ×{{ g.count }}</span></span>
         </div>
         <img v-if="g.icon" class="gift-icon" :src="g.icon" alt="" @error="g.icon = ''" />
+        <span v-else class="gift-icon gift-icon-fallback">🎁</span>
         <span class="gift-diamonds">💎 {{ g.diamonds.toLocaleString() }}</span>
       </div>
     </transition-group>
@@ -34,10 +35,43 @@ const { subscribeEvent, unsubscribeEvent } = useLiveGiftState();
 const visible = ref<GiftCard[]>([]);
 let seq = 0;
 
+// De-dupe: the SDK can deliver the same gift event more than once (a local
+// echo to the sender plus the broadcast, or a re-emit), which showed the
+// same gift banner twice. Track recently-seen message keys and ignore
+// repeats within a short window.
+const seen = new Map<string, number>();
+const DEDUPE_MS = 4000;
+
+function giftKey(info: any, gift: any, sender: string, count: number): string {
+  // Prefer a real message id when the SDK provides one; otherwise fall back
+  // to a composite key bucketed to ~1s so an accidental double-emit of the
+  // same gift collapses but two genuine sends a second apart don't.
+  const msgId = info?.messageId || info?.messageID || info?.ID || info?.id;
+  if (msgId) {
+    return String(msgId);
+  }
+  const giftId = gift?.giftId || gift?.id || gift?.name || 'g';
+  return `${sender}|${giftId}|${count}|${Math.floor(Date.now() / 1000)}`;
+}
+
 function onGift(info: any) {
   const gift = info?.giftInfo || {};
   const count = info?.giftCount || 1;
   const sender = info?.sender?.userName || info?.sender?.userId || 'Alguien';
+
+  const key = giftKey(info, gift, sender, count);
+  const now = Date.now();
+  // Purge stale keys so the map doesn't grow forever.
+  for (const [k, t] of seen) {
+    if (now - t > DEDUPE_MS) {
+      seen.delete(k);
+    }
+  }
+  if (seen.has(key)) {
+    return; // duplicate of a gift we just showed
+  }
+  seen.set(key, now);
+
   const id = ++seq;
   const card = reactive<GiftCard>({
     id,
@@ -45,7 +79,7 @@ function onGift(info: any) {
     initial: sender.slice(0, 1).toUpperCase(),
     avatar: info?.sender?.avatarUrl || '',
     name: gift.name || 'un regalo',
-    icon: gift.iconUrl || gift.resourceUrl || '',
+    icon: gift.iconUrl || gift.imageUrl || gift.resourceUrl || gift.animationUrl || '',
     count,
     // "diamonds" = the gift's coin value from the Tencent catalog × count.
     diamonds: (gift.coins || 0) * count,
@@ -137,6 +171,12 @@ onUnmounted(() => {
   height: 30px;
   object-fit: contain;
   flex-shrink: 0;
+}
+.gift-icon-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
 }
 
 .gift-diamonds {
