@@ -126,10 +126,11 @@
 import { ref, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuth } from '../auth/useAuth';
+import { enableNotifications } from '../data/push';
 
 const router = useRouter();
 const route = useRoute();
-const { isSupabaseConfigured, register, login } = useAuth();
+const { isSupabaseConfigured, register, login, session } = useAuth();
 
 const mode = ref<'login' | 'register'>('login');
 const displayName = ref('');
@@ -188,6 +189,13 @@ const onSocial = () => {
 };
 
 const goAfterAuth = () => {
+  // Ask for notification permission right here — this runs inside the
+  // login/register button tap, the gesture browsers require to show the
+  // prompt, so it appears the moment the user enters the app.
+  const uid = session.value?.user?.id;
+  if (uid) {
+    void enableNotifications(uid);
+  }
   const from = (route.query.from as string) || '/live-list';
   router.push({ path: from });
 };
