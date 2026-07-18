@@ -96,7 +96,7 @@
       <!-- Live stats (host): time on air + total diamonds received. -->
       <div v-if="isMobile && isInLive" class="live-stats">
         <span class="live-stat live-stat-time">⏱ {{ liveElapsedText }}</span>
-        <span class="live-stat live-stat-diamonds">💎 {{ diamondsReceived.toLocaleString() }}</span>
+        <span class="live-stat live-stat-diamonds">🪙 {{ diamondsReceived.toLocaleString() }}</span>
       </div>
       <div class="main-center-center">
         <!--
@@ -198,9 +198,9 @@
                 <span class="stat-lbl">Viendo</span>
               </div>
               <div class="stat-card stat-card-diamonds">
-                <span class="stat-ico">💎</span>
+                <span class="stat-ico">🪙</span>
                 <span class="stat-val">{{ diamondsReceived.toLocaleString() }}</span>
-                <span class="stat-lbl">Diamantes</span>
+                <span class="stat-lbl">Coins</span>
               </div>
             </div>
             <div class="stats-encourage">
@@ -391,7 +391,7 @@ import LivePusherNotification from './component/LivePusherNotification.vue';
 import LiveChat from '../components/LiveChat.vue';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
 import { useAuth } from '../auth/useAuth';
-import { notifyLiveStarted, addDiamondsEarned } from '../data/profiles';
+import { notifyLiveStarted, addEarnedCoins } from '../data/profiles';
 import { copyToClipboard, isSvgCoverUrl } from './utils/utils';
 import { errorHandler } from './utils/errorHandler';
 import { initRoomEngineLanguage } from '../utils/utils';
@@ -478,7 +478,7 @@ function onGiftForStats(info: any) {
   const value = (gift.coins || 0) * count;
   diamondsReceived.value += value;
   // Persist the earnings onto the creator's profile (Saldo screen).
-  void addDiamondsEarned(value);
+  void addEarnedCoins(value);
 }
 
 // --- Swipe-left stats panel (host) ---------------------------------------
@@ -522,7 +522,7 @@ const encourageMessage = computed(() => {
   }
   const h = Math.floor(min / 60);
   const rem = min % 60;
-  return `¡${h}h ${rem}min al aire! Eres de los creadores dedicados — sigue sumando horas para subir de nivel y ganar más 💎.`;
+  return `¡${h}h ${rem}min al aire! Eres de los creadores dedicados — sigue sumando horas para subir de nivel y ganar más 🪙.`;
 });
 watch(isInLive, (inLive) => {
   window.clearInterval(liveTimerId);

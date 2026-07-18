@@ -45,21 +45,32 @@ alter table public.profiles
   add column if not exists verification_requested boolean not null default false;
 alter table public.profiles
   add column if not exists verification_note text;
--- Saldo (ganancias del creador) + cuenta de retiro Stripe
-alter table public.profiles
-  add column if not exists diamonds_earned integer not null default 0;
+-- Saldo (moneda única: Coins) + cuenta de retiro Stripe
 alter table public.profiles
   add column if not exists stripe_account_id text;
 
 alter table public.profiles enable row level security;
 
--- Acumula diamantes ganados por regalos recibidos en un live (pantalla
--- Saldo). Ligado a auth.uid() para que nadie acredite a otra cuenta.
-create or replace function public.add_diamonds_earned(amount integer)
+-- Acumula los Coins ganados por regalos recibidos en un live directo al
+-- balance (modelo de moneda única: se compra, regala y retira lo mismo).
+-- Ligado a auth.uid() para que nadie acredite a otra cuenta.
+create or replace function public.add_earned_coins(amount integer)
 returns void language sql security definer set search_path = public as $$
-  update public.profiles set diamonds_earned = diamonds_earned + greatest(0, amount) where id = auth.uid();
+  update public.profiles set coins = coins + greatest(0, amount) where id = auth.uid();
 $$;
-grant execute on function public.add_diamonds_earned(integer) to authenticated;
+grant execute on function public.add_earned_coins(integer) to authenticated;
+
+-- Libro de compras de Coins (Stripe Checkout). La PK por sesión evita
+-- acreditar dos veces la misma compra. Sin políticas: solo el service
+-- role (api/stripe-checkout-verify.js) lee/escribe.
+create table if not exists public.coin_purchases (
+  session_id text primary key,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  coins      integer not null,
+  usd_cents  integer not null,
+  created_at timestamptz not null default now()
+);
+alter table public.coin_purchases enable row level security;
 
 -- "verified", "is_admin" and "banned" can't be set by a direct table
 -- update from the app — this trigger silently reverts them — EXCEPT

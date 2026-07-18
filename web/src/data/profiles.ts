@@ -393,23 +393,24 @@ export async function ensureRealAvatarUrl(userId: string): Promise<string> {
 }
 
 /**
- * Accumulate diamonds a creator earned from a received gift onto their
- * profile (shown in the Saldo screen). Server-side RPC keyed to auth.uid()
- * so nobody can credit someone else. Best-effort: logs and continues if
- * the migration hasn't been run yet.
+ * Credit the Coins a creator earned from a received gift straight onto
+ * their coin balance (single-currency model: gifts pay out in the same
+ * Coins users buy, so withdrawal is direct). Server-side RPC keyed to
+ * auth.uid() so nobody can credit someone else. Best-effort: logs and
+ * continues if the migration hasn't been run yet.
  */
-export async function addDiamondsEarned(amount: number): Promise<void> {
+export async function addEarnedCoins(amount: number): Promise<void> {
   if (!amount || amount <= 0) {
     return;
   }
   try {
     const client = requireClient();
-    const { error } = await client.rpc('add_diamonds_earned', { amount: Math.round(amount) });
+    const { error } = await client.rpc('add_earned_coins', { amount: Math.round(amount) });
     if (error) {
-      console.warn('[profiles] add_diamonds_earned failed (¿falta la migración SQL?):', error.message);
+      console.warn('[profiles] add_earned_coins failed (¿falta la migración SQL?):', error.message);
     }
   } catch (error) {
-    console.warn('[profiles] addDiamondsEarned failed:', error);
+    console.warn('[profiles] addEarnedCoins failed:', error);
   }
 }
 

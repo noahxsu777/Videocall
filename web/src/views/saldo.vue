@@ -3,34 +3,38 @@
     <GlassBackButton />
     <h1 class="title">Saldo</h1>
 
-    <!-- Earnings card: everything the creator earns from streaming -->
+    <!-- Single-currency balance: Coins (buy, gift, withdraw — the same). -->
     <div class="balance-card">
-      <span class="bc-label">Ganancias de tus transmisiones</span>
+      <span class="bc-label">Tu saldo</span>
       <div class="bc-amount">
-        <span class="bc-gem">💎</span>
-        <span class="bc-value">{{ diamonds.toLocaleString() }}</span>
+        <span class="bc-gem">🪙</span>
+        <span class="bc-value">{{ coins.toLocaleString() }}</span>
       </div>
-      <span class="bc-sub">diamantes recibidos en regalos</span>
+      <span class="bc-sub">Coins · compra, recibe regalos y retira con la misma moneda</span>
     </div>
 
-    <section class="group">
-      <div class="row">
-        <span class="row-key">🪙 Monedas (coins)</span>
-        <span class="row-val">{{ coins.toLocaleString() }}</span>
-      </div>
-      <div class="row">
-        <span class="row-key">💎 Diamantes ganados</span>
-        <span class="row-val">{{ diamonds.toLocaleString() }}</span>
-      </div>
-    </section>
+    <!-- Buy coins (Stripe Checkout) -->
+    <p class="section-title">Comprar Coins</p>
+    <div class="packs">
+      <button
+        v-for="pack in payout.packs"
+        :key="pack.id"
+        class="pack"
+        :disabled="busy"
+        @click="handleBuy(pack.id)"
+      >
+        <span class="pack-coins">🪙 {{ pack.coins.toLocaleString() }}</span>
+        <span class="pack-price">${{ pack.usd.toFixed(2) }}</span>
+      </button>
+    </div>
 
     <p class="hint">
-      Aquí se acumulan todas las ganancias que generas como creador cuando
-      transmites: cada regalo que recibes en un live suma sus diamantes a tu
-      saldo automáticamente.
+      Cada regalo que recibes en un live suma sus Coins a tu saldo
+      automáticamente — y son los mismos Coins que puedes retirar.
     </p>
 
     <!-- Withdrawals: connect a Stripe Express account, then cash out. -->
+    <p class="section-title">Retirar</p>
     <section class="group">
       <div class="row">
         <span class="row-key">Estado de retiros</span>
@@ -64,14 +68,14 @@
     <button
       v-else
       class="withdraw-btn"
-      :disabled="busy || diamonds < payout.minPayoutDiamonds"
+      :disabled="busy || coins < payout.minPayoutCoins"
       @click="handlePayout"
     >
-      {{ busy ? 'Procesando…' : `Retirar ganancias (mín. ${payout.minPayoutDiamonds.toLocaleString()} 💎)` }}
+      {{ busy ? 'Procesando…' : `Retirar (mín. ${payout.minPayoutCoins.toLocaleString()} 🪙)` }}
     </button>
 
     <p v-if="payout.configured" class="hint rate-hint">
-      {{ payout.diamondsPerUsd.toLocaleString() }} 💎 = $1 USD · Comisión de
+      {{ payout.coinsPerUsd.toLocaleString() }} 🪙 = $1 USD · Comisión de
       retiro: {{ payout.payoutFeePercent }}% · El dinero llega a la cuenta
       bancaria que registres en Stripe (funciona con bancos de Perú y muchos
       otros países).
@@ -87,20 +91,29 @@ import { useRoute } from 'vue-router';
 import GlassBackButton from '../components/GlassBackButton.vue';
 import { useAuth } from '../auth/useAuth';
 import { getProfile } from '../data/profiles';
-import { getPayoutStatus, connectPayoutAccount, requestPayout, type PayoutStatus } from '../data/payouts';
+import {
+  getPayoutStatus,
+  connectPayoutAccount,
+  requestPayout,
+  buyCoinPack,
+  verifyCoinPurchase,
+  DEFAULT_PACKS,
+  type PayoutStatus,
+} from '../data/payouts';
 
 const { user } = useAuth();
 const route = useRoute();
 const coins = ref(0);
-const diamonds = ref(0);
 const toast = ref('');
 const busy = ref(false);
 const payout = ref<PayoutStatus>({
   configured: false,
   connected: false,
-  diamonds: 0,
-  diamondsPerUsd: 200,
-  minPayoutDiamonds: 1000,
+  coins: 0,
+  coinsPerUsd: 200,
+  minPayoutCoins: 2000,
+  payoutFeePercent: 10,
+  packs: DEFAULT_PACKS,
 });
 
 const payoutStatusLabel = computed(() => {
@@ -117,15 +130,15 @@ const payoutStatusLabel = computed(() => {
 });
 
 const estimatedUsd = computed(() =>
-  (diamonds.value / (payout.value.diamondsPerUsd || 200)).toFixed(2));
+  (coins.value / (payout.value.coinsPerUsd || 200)).toFixed(2));
 const estimatedNetUsd = computed(() => {
-  const gross = diamonds.value / (payout.value.diamondsPerUsd || 200);
+  const gross = coins.value / (payout.value.coinsPerUsd || 200);
   return (gross * (1 - (payout.value.payoutFeePercent || 0) / 100)).toFixed(2);
 });
 
 function showToast(text: string) {
   toast.value = text;
-  window.setTimeout(() => { toast.value = ''; }, 4000);
+  window.setTimeout(() => { toast.value = ''; }, 4500);
 }
 
 async function refresh() {
@@ -135,14 +148,23 @@ async function refresh() {
   try {
     const p: any = await getProfile(user.value.id);
     coins.value = p?.coins ?? 0;
-    // Column added by the diamonds-earned migration; 0 until it's run.
-    diamonds.value = p?.diamonds_earned ?? 0;
   } catch (error) {
     console.warn('[saldo] load failed:', error);
   }
   payout.value = await getPayoutStatus();
-  if (payout.value.diamonds > diamonds.value) {
-    diamonds.value = payout.value.diamonds;
+  if (payout.value.configured) {
+    coins.value = payout.value.coins;
+  }
+}
+
+async function handleBuy(packId: string) {
+  busy.value = true;
+  try {
+    const url = await buyCoinPack(packId);
+    window.location.href = url; // Stripe Checkout
+  } catch (error: any) {
+    showToast(error?.message || 'No se pudo iniciar la compra.');
+    busy.value = false;
   }
 }
 
@@ -171,13 +193,22 @@ async function handlePayout() {
 }
 
 onMounted(async () => {
-  await refresh();
-  // Back from Stripe onboarding (?stripe=done / retry).
-  if (route.query.stripe === 'done') {
+  // Back from Stripe Checkout: credit the purchase (idempotent) BEFORE
+  // loading balances so the new coins show immediately.
+  const sid = route.query.sid as string | undefined;
+  if (route.query.buy === 'success' && sid) {
+    const result = await verifyCoinPurchase(sid).catch(
+      () => ({ ok: false, message: 'No se pudo verificar la compra.' }),
+    );
+    showToast(result.message);
+  } else if (route.query.buy === 'cancel') {
+    showToast('Compra cancelada.');
+  } else if (route.query.stripe === 'done') {
     showToast('Datos enviados a Stripe. La verificación puede tardar unos minutos.');
   } else if (route.query.stripe === 'retry') {
     showToast('Conexión interrumpida — toca de nuevo para continuar la verificación.');
   }
+  await refresh();
 });
 </script>
 
@@ -205,7 +236,7 @@ onMounted(async () => {
   border-radius: 22px;
   background: linear-gradient(135deg, #8b3dff, #ff2e74);
   box-shadow: 0 14px 40px rgba(139, 61, 255, 0.35);
-  margin-bottom: 18px;
+  margin-bottom: 20px;
 }
 .bc-label {
   font-size: 13px;
@@ -226,6 +257,42 @@ onMounted(async () => {
 .bc-sub {
   font-size: 12px;
   opacity: 0.8;
+  text-align: center;
+}
+.section-title {
+  margin: 0 4px 10px;
+  font-size: 15px;
+  font-weight: 800;
+}
+.packs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.pack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px;
+  border-radius: 16px;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background: #121214;
+  color: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.pack:active { border-color: #8b3dff; }
+.pack:disabled { opacity: 0.55; }
+.pack-coins {
+  font-size: 16px;
+  font-weight: 800;
+}
+.pack-price {
+  font-size: 13px;
+  color: #c79bff;
+  font-weight: 700;
 }
 .group {
   background: #121214;
@@ -241,8 +308,9 @@ onMounted(async () => {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 .row:last-child { border-bottom: none; }
-.row-key { font-size: 15px; }
-.row-val { font-size: 15px; font-weight: 700; }
+.row-key { font-size: 14px; }
+.row-val { font-size: 14px; font-weight: 700; }
+.row-val.ok { color: #34c759; }
 .hint {
   margin: 0 6px 18px;
   font-size: 13px;
@@ -262,7 +330,6 @@ onMounted(async () => {
 }
 .withdraw-btn:disabled { opacity: 0.55; }
 .withdraw-btn.dim { opacity: 0.55; }
-.row-val.ok { color: #34c759; }
 .rate-hint { margin-top: 14px; text-align: center; }
 .toast {
   margin-top: 14px;
