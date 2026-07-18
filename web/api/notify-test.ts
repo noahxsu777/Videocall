@@ -9,6 +9,16 @@ const DEFAULT_VAPID_PUBLIC_KEY =
   'BOF26O-X3sFWnutN81XVOwg7VdlMVetGvXCCpuU1cXvcPb8X8CpNHigfhM-U0YCMg7Om0aEd-JyGGnTo2WJSZAI';
 
 export default async function handler(req: any, res: any) {
+  try {
+    await run(req, res);
+  } catch (error: any) {
+    // Never let the function crash into an opaque 500 HTML page — surface
+    // the real error so the "Probar notificación" button can show it.
+    res.status(200).json({ ok: false, reason: 'exception', detail: String(error?.message || error) });
+  }
+}
+
+async function run(req: any, res: any) {
   if (req.method !== 'POST') {
     res.status(405).json({ ok: false, reason: 'method_not_allowed' });
     return;

@@ -152,8 +152,14 @@ export async function testPushNotification(userId: string): Promise<{ ok: boolea
         return { ok: false, message: 'Este dispositivo no está registrado para push. Da permiso de notificaciones y reintenta.' };
       case 'subscription_expired':
         return { ok: false, message: 'La suscripción de este dispositivo caducó. Reintenta (se volverá a registrar).' };
+      case 'exception':
+        return { ok: false, message: `Error del servidor: ${data?.detail || 'desconocido'}. (Suele ser una llave VAPID inválida o que no coincide con la pública.)` };
+      case 'send_failed': {
+        const detail = Array.isArray(data?.errors) && data.errors.length ? ` (${data.errors.join(', ')})` : '';
+        return { ok: false, message: `El servicio de push rechazó el envío${detail}. Casi siempre es que VAPID_PRIVATE_KEY no coincide con la pública — usa exactamente la que te pasé.` };
+      }
       default:
-        return { ok: false, message: `No se pudo enviar (${data?.reason || 'error'}). Revisa las variables de entorno del servidor.` };
+        return { ok: false, message: `No se pudo enviar (${data?.reason || 'error'})${data?.detail ? ': ' + data.detail : ''}.` };
     }
   } catch (error: any) {
     return { ok: false, message: `Error de red al probar: ${error?.message || error}` };
