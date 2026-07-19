@@ -41,7 +41,15 @@
     </div>
 
     <div class="live-list-scroll">
-      <LiveListView @live-room-click="handleLiveRoomClick" />
+      <!-- Skeleton cards while Tencent's live list initializes -->
+      <div v-if="listSkeleton" class="ll-sk">
+        <div v-for="n in 6" :key="n" class="ll-sk-card">
+          <div class="sk ll-sk-cover" />
+          <div class="sk ll-sk-line" style="width: 70%" />
+          <div class="sk ll-sk-line" style="width: 45%" />
+        </div>
+      </div>
+      <LiveListView v-show="!listSkeleton" @live-room-click="handleLiveRoomClick" />
     </div>
   </div>
 </template>
@@ -118,6 +126,11 @@ function handleLiveRoomClick(liveInfo: LiveInfo) {
     router.push({ path: '/live-player', query });
   }
 }
+
+// Cosmetic skeleton over the Tencent list while it boots — the SDK gives
+// no reliable "loaded" signal, so drop the shimmer after a short beat.
+const listSkeleton = ref(true);
+window.setTimeout(() => { listSkeleton.value = false; }, 1200);
 
 onMounted(async () => {
   if (!user.value) {
@@ -342,6 +355,17 @@ onMounted(async () => {
 }
 
 /* ---------- Live list ---------- */
+/* Skeleton cards mimicking the live grid */
+.ll-sk {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 4px 14px 20px;
+}
+.ll-sk-card { display: flex; flex-direction: column; gap: 8px; }
+.ll-sk-cover { aspect-ratio: 3 / 4; border-radius: 16px; }
+.ll-sk-line { height: 11px; border-radius: 6px; }
+
 .live-list-scroll {
   position: relative;
   z-index: 1;

@@ -100,6 +100,12 @@
       </p>
 
       <div ref="threadEl" class="thread-list">
+        <!-- Skeleton bubbles while a (never-cached) thread loads -->
+        <template v-if="threadLoading && !thread.length">
+          <div v-for="n in 6" :key="'sk' + n" class="bubble-row" :class="{ mine: n % 2 === 0 }">
+            <div class="sk th-sk-bubble" :style="{ width: (44 + ((n * 17) % 30)) + '%' }" />
+          </div>
+        </template>
         <div
           v-for="m in thread"
           :key="m.id"
@@ -266,10 +272,13 @@ async function openDeepLinkThread(peerId: string | undefined) {
   }
 }
 
+const threadLoading = ref(false);
+
 async function openThreadWith(peer: Profile) {
   newOpen.value = false;
   activePeer.value = peer;
   thread.value = [];
+  threadLoading.value = true;
   try {
     // Instantly show the last-cached messages for this peer, then pull the
     // latest from the server so opening a chat feels immediate.
@@ -282,6 +291,7 @@ async function openThreadWith(peer: Profile) {
         // switched to a different conversation.
         if (activePeer.value?.id === peer.id) {
           thread.value = msgs;
+          threadLoading.value = false;
           scrollThreadDown();
         }
       },
@@ -291,6 +301,7 @@ async function openThreadWith(peer: Profile) {
   } catch (error) {
     console.warn('[messages] thread failed:', error);
   }
+  threadLoading.value = false;
   scrollThreadDown();
 }
 
@@ -695,6 +706,7 @@ onUnmounted(() => {
   padding: 14px 14px 8px;
 }
 .bubble-row { display: flex; }
+.th-sk-bubble { height: 38px; border-radius: 18px; margin-bottom: 2px; }
 .bubble-row.mine { justify-content: flex-end; }
 .bubble {
   max-width: 78%;

@@ -13,7 +13,7 @@
       </button>
     </div>
 
-    <div v-if="loading" class="state-msg">Cargando…</div>
+    <ListSkeleton v-if="loading" :rows="7" />
     <div v-else-if="loadError" class="state-msg err">{{ loadError }}</div>
 
     <template v-else>
@@ -88,6 +88,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import GlassBackButton from '../components/GlassBackButton.vue';
+import ListSkeleton from '../components/ListSkeleton.vue';
 import VerifiedBadge from '../components/VerifiedBadge.vue';
 import {
   listVisitors,
