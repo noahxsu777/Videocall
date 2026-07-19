@@ -13,6 +13,24 @@ const app = createApp(App);
 app.use(router);
 app.mount('#app');
 
+// Dismiss the splash (index.html #app-boot) only when the FIRST screen is
+// actually rendered — router.isReady() resolves after the initial route's
+// lazy chunk loaded and the auth guard finished. Removing it any earlier
+// (or letting Vue wipe it at mount) left a black gap the user saw on every
+// cold start. Fade out for a smooth hand-off; 8s failsafe so a hung guard
+// can never trap the app behind the splash forever.
+function dismissSplash() {
+  const boot = document.getElementById('app-boot');
+  if (!boot) {
+    return;
+  }
+  boot.style.transition = 'opacity 0.3s ease';
+  boot.style.opacity = '0';
+  window.setTimeout(() => boot.remove(), 320);
+}
+void router.isReady().then(dismissSplash);
+window.setTimeout(dismissSplash, 8000);
+
 // iPhone-style rubber-band bounce when scroll lists reach their edges.
 installElasticBounce();
 
