@@ -8,6 +8,26 @@
       <span v-else class="top-btn" />
     </header>
 
+    <!-- Instagram-style skeleton while the profile loads the first time
+         (cached repeat visits paint instantly and skip this). -->
+    <div v-if="!profile && !loadError" class="p-sk">
+      <div class="p-sk-head">
+        <div class="sk p-sk-avatar" />
+        <div class="p-sk-stats">
+          <div v-for="n in 3" :key="n" class="sk p-sk-stat" />
+        </div>
+      </div>
+      <div class="sk p-sk-line" style="width: 42%" />
+      <div class="sk p-sk-line" style="width: 62%" />
+      <div class="p-sk-actions">
+        <div class="sk p-sk-btn" />
+        <div class="sk p-sk-btn" />
+      </div>
+      <div class="p-sk-grid">
+        <div v-for="n in 9" :key="n" class="sk p-sk-cell" />
+      </div>
+    </div>
+
     <section class="profile-head">
       <div class="avatar-wrap" @click="isOwnProfile && pickAvatar()">
         <img v-if="profile?.avatar_url" :src="profile.avatar_url" class="avatar" alt="avatar" />
@@ -259,6 +279,7 @@ watch(() => route.fullPath, load);
 
 <style scoped>
 .profile {
+  position: relative;
   height: 100%;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -286,6 +307,36 @@ watch(() => route.fullPath, load);
   font-size: 16px;
   font-weight: 700;
 }
+
+/* Loading skeleton overlay (covers everything below the top bar). */
+.p-sk {
+  position: absolute;
+  top: 58px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  background: #010101;
+  padding: 16px;
+}
+.p-sk-head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+.p-sk-avatar { width: 84px; height: 84px; border-radius: 50%; flex-shrink: 0; }
+.p-sk-stats { flex: 1; display: flex; gap: 12px; }
+.p-sk-stat { flex: 1; height: 44px; border-radius: 12px; }
+.p-sk-line { height: 13px; border-radius: 7px; margin-bottom: 10px; }
+.p-sk-actions { display: flex; gap: 10px; margin: 14px 0 18px; }
+.p-sk-btn { flex: 1; height: 40px; border-radius: 20px; }
+.p-sk-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+}
+.p-sk-cell { aspect-ratio: 1; border-radius: 4px; }
 
 .profile-head {
   display: flex;

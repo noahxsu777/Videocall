@@ -3,6 +3,16 @@
     <GlassBackButton />
     <h1 class="title">Estadísticas</h1>
 
+    <!-- Skeleton while sessions load -->
+    <div v-if="pageLoading" class="e-sk">
+      <div class="e-sk-cards">
+        <div v-for="n in 3" :key="n" class="sk e-sk-card" />
+      </div>
+      <div class="sk e-sk-streak" />
+      <div class="sk e-sk-chart" />
+      <div class="sk e-sk-chart" />
+    </div>
+
     <!-- Totals -->
     <div class="cards">
       <div class="card">
@@ -61,6 +71,7 @@ import { listLiveSessions, computeStreaks, type LiveSession } from '../data/stat
 
 const { user } = useAuth();
 const sessions = ref<LiveSession[]>([]);
+const pageLoading = ref(true);
 
 const totalCoins = computed(() => sessions.value.reduce((a, s) => a + s.coins_earned, 0));
 const totalHoursText = computed(() => {
@@ -161,11 +172,13 @@ onMounted(async () => {
   if (user.value) {
     sessions.value = await listLiveSessions(user.value.id);
   }
+  pageLoading.value = false;
 });
 </script>
 
 <style scoped>
 .stats-page {
+  position: relative;
   height: 100%;
   padding: 54px 16px 40px;
   box-sizing: border-box;
@@ -180,6 +193,26 @@ onMounted(async () => {
   font-size: 20px;
   font-weight: 800;
 }
+/* Loading skeleton overlay */
+.e-sk {
+  position: absolute;
+  top: 96px;
+  left: 16px;
+  right: 16px;
+  bottom: 0;
+  z-index: 5;
+  background: #010101;
+}
+.e-sk-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.e-sk-card { height: 84px; border-radius: 16px; }
+.e-sk-streak { height: 88px; border-radius: 18px; margin-bottom: 20px; }
+.e-sk-chart { height: 140px; border-radius: 16px; margin-bottom: 16px; }
+
 .cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

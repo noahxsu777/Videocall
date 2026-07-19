@@ -49,7 +49,7 @@
     rgba(255, 255, 255, 0.07) 60%,
     transparent
   );
-  animation: sk-shimmer 1.25s ease-in-out infinite;
+  animation: sk-shimmer 0.75s linear infinite;
 }
 @keyframes sk-shimmer {
   100% { transform: translateX(100%); }

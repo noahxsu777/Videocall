@@ -3,6 +3,18 @@
     <GlassBackButton />
     <h1 class="title">Saldo</h1>
 
+    <!-- Skeleton while balances load -->
+    <div v-if="pageLoading" class="s-sk">
+      <div class="sk s-sk-card" />
+      <div class="sk s-sk-pill" />
+      <div class="s-sk-grid">
+        <div v-for="n in 4" :key="n" class="sk s-sk-pack" />
+      </div>
+      <div class="sk s-sk-row" />
+      <div class="sk s-sk-row" />
+      <div class="sk s-sk-btn" />
+    </div>
+
     <!-- TikTok-style: earnings shown as MONEY (auto-converted from the
          coins received in lives); the rechargeable Coins live in their own
          pill below. -->
@@ -164,6 +176,7 @@ const route = useRoute();
 const coins = ref(0);
 const earnedCoins = ref(0);
 const toast = ref('');
+const pageLoading = ref(true);
 const packsSection = ref<HTMLElement | null>(null);
 const txTab = ref<'compras' | 'retiros'>('compras');
 const purchases = ref<PurchaseRow[]>([]);
@@ -318,6 +331,7 @@ onMounted(async () => {
     showToast('Conexión interrumpida — toca de nuevo para continuar la verificación.');
   }
   await refresh();
+  pageLoading.value = false;
 });
 </script>
 
@@ -326,6 +340,7 @@ onMounted(async () => {
   /* Fixed height (not min-height): the app shell clips overflow, so the
      page must scroll INSIDE itself — min-height just grew past the shell
      and killed scrolling entirely. */
+  position: relative;
   height: 100%;
   padding: 54px 16px 40px;
   box-sizing: border-box;
@@ -340,6 +355,28 @@ onMounted(async () => {
   font-size: 20px;
   font-weight: 800;
 }
+/* Loading skeleton overlay */
+.s-sk {
+  position: absolute;
+  top: 96px;
+  left: 16px;
+  right: 16px;
+  bottom: 0;
+  z-index: 5;
+  background: #010101;
+}
+.s-sk-card { height: 130px; border-radius: 22px; margin-bottom: 14px; }
+.s-sk-pill { height: 48px; border-radius: 999px; margin-bottom: 18px; }
+.s-sk-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.s-sk-pack { height: 74px; border-radius: 16px; }
+.s-sk-row { height: 48px; border-radius: 14px; margin-bottom: 10px; }
+.s-sk-btn { height: 50px; border-radius: 25px; margin-top: 8px; }
+
 .balance-card {
   display: flex;
   flex-direction: column;

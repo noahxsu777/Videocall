@@ -154,6 +154,16 @@
             </div>
             <button v-if="canDeleteComment(c)" class="cmt-del" @click="removeComment(c)">🗑️</button>
           </div>
+          <!-- Instagram-style shimmer while comments load -->
+          <template v-if="commentsLoading && !comments.length">
+            <div v-for="n in 4" :key="'sk' + n" class="cmt">
+              <span class="sk cmt-sk-avatar" />
+              <div class="cmt-body">
+                <div class="sk cmt-sk-line" style="width: 35%" />
+                <div class="sk cmt-sk-line" style="width: 80%" />
+              </div>
+            </div>
+          </template>
           <p v-if="!comments.length && !commentsLoading" class="cmt-empty">Sé el primero en comentar 💬</p>
         </div>
         <div class="cmt-input">
@@ -1063,6 +1073,8 @@ onUnmounted(() => {
 .cmt-name { font-size: 12.5px; font-weight: 700; color: #9a9aa2; }
 .cmt-text { margin: 2px 0 0; font-size: 14.5px; line-height: 1.4; word-break: break-word; }
 .cmt-empty { text-align: center; color: #6d6d78; margin-top: 30px; }
+.cmt-sk-avatar { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; }
+.cmt-sk-line { height: 11px; border-radius: 6px; margin-bottom: 7px; }
 
 .cmt-input {
   flex-shrink: 0;

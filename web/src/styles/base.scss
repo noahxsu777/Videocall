@@ -97,6 +97,35 @@ body {
   filter: brightness(0.9);
 }
 
+// --- Skeleton shimmer (Instagram-style, fast) -----------------------------
+// Global so every screen can compose loading placeholders from plain divs:
+// <div class="sk" style="width:..;height:.."/>. The highlight sweeps fast
+// (0.75s) like Instagram's, not a slow pulse.
+.sk {
+  position: relative;
+  overflow: hidden;
+  background: #15151b;
+  border-radius: 8px;
+}
+.sk::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.08) 40%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.08) 60%,
+    transparent
+  );
+  animation: sk-shimmer 0.75s linear infinite;
+}
+@keyframes sk-shimmer {
+  100% { transform: translateX(100%); }
+}
+
 // --- Safe-area helpers ----------------------------------------------------
 // Utility classes for padding around the notch / home indicator so content
 // clears the hardware cutouts on modern phones (viewport-fit=cover is set).
