@@ -204,11 +204,14 @@ async function loadList() {
       myId,
       'conversations',
       () => listConversations(myId),
-      (list) => {
+      (list, fromCache) => {
         conversations.value = list;
-        // Cache paint already fills the screen — drop the skeleton now
-        // instead of waiting for the network round-trip.
-        loadingList.value = false;
+        // Drop the skeleton as soon as there's something to show. A cached
+        // EMPTY list keeps the skeleton up (otherwise "no tienes chats"
+        // flashed while the network was still loading the real list).
+        if (!fromCache || list.length) {
+          loadingList.value = false;
+        }
       },
     );
   } catch (error) {

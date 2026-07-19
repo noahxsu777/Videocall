@@ -31,6 +31,22 @@ function dismissSplash() {
 void router.isReady().then(dismissSplash);
 window.setTimeout(dismissSplash, 8000);
 
+// Warm the other tabs in the background once the first screen is up:
+// import their lazy chunks now so switching to Mensajes / Perfil / Reels /
+// Saldo etc. is instant (the SW caches the files, but parsing/executing
+// the module still costs time on first navigation — this pays that cost
+// while the user is idle on the first screen).
+void router.isReady().then(() => {
+  window.setTimeout(() => {
+    void import('@/views/messages.vue');
+    void import('@/views/profile.vue');
+    void import('@/views/reels.vue');
+    void import('@/views/settings.vue');
+    void import('@/views/saldo.vue');
+    void import('@/views/estadisticas.vue');
+  }, 1500);
+});
+
 // iPhone-style rubber-band bounce when scroll lists reach their edges.
 installElasticBounce();
 
