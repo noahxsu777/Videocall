@@ -54,7 +54,7 @@
     <div class="profile-meta">
       <div class="name">
         {{ profile?.display_name || '—' }}
-        <VerifiedBadge v-if="profile?.verified" :size="16" />
+        <VerifiedBadge v-if="profile?.verified" :size="20" />
         <span v-if="isVip" class="vip-badge">⭐ VIP</span>
       </div>
       <div v-if="profile?.username" class="username">@{{ profile.username }}</div>

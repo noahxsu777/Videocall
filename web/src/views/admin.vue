@@ -41,7 +41,7 @@
               <div class="user-info">
                 <div class="user-name-row">
                   <span class="user-name">{{ u.display_name || u.username || 'Sin nombre' }}</span>
-                  <VerifiedBadge v-if="u.verified" :size="13" />
+                  <VerifiedBadge v-if="u.verified" :size="16" />
                   <span v-if="u.is_admin" class="chip chip-admin">ADMIN</span>
                   <span v-if="u.banned" class="chip chip-banned">BANEADO</span>
                 </div>

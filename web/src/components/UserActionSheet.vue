@@ -12,7 +12,7 @@
           <div class="su-meta">
             <div class="su-name">
               {{ target.name }}
-              <VerifiedBadge v-if="targetIsVerified" :size="15" />
+              <VerifiedBadge v-if="targetIsVerified" :size="18" />
               <span v-if="targetIsVip" class="su-vip">⭐ VIP</span>
             </div>
             <div v-if="counts" class="su-counts">

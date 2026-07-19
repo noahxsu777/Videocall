@@ -148,7 +148,7 @@
             <div class="cmt-body">
               <span class="cmt-name">
                 {{ c.author?.display_name || c.author?.username || 'Usuario' }}
-                <VerifiedBadge v-if="c.author?.verified" :size="12" />
+                <VerifiedBadge v-if="c.author?.verified" :size="15" />
               </span>
               <p class="cmt-text">{{ c.content }}</p>
             </div>

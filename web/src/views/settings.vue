@@ -67,7 +67,7 @@
         </button>
         <button class="row row-tap" @click="router.push('/verified')">
           <span class="ic ic-verified">
-            <VerifiedBadge :size="16" />
+            <VerifiedBadge :size="19" />
           </span>
           <span class="row-key">{{ verified ? 'Cuenta verificada' : 'Obtener verificación' }}</span>
           <span class="row-val verified-val">{{ verified ? '✓' : '🪙' }}</span>

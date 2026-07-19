@@ -62,7 +62,7 @@
         <span class="convo-mid">
           <span class="convo-name">
             {{ c.peer.display_name || c.peer.username || 'Usuario' }}
-            <VerifiedBadge v-if="c.peer.verified" :size="13" />
+            <VerifiedBadge v-if="c.peer.verified" :size="17" />
           </span>
           <span class="convo-snippet" :class="{ unread: c.unread }">
             {{ c.last.kind === 'call' ? '📹 Videollamada' : c.last.content }}
@@ -86,7 +86,7 @@
           </span>
           <span class="thread-name">
             {{ activePeer.display_name || activePeer.username || 'Usuario' }}
-            <VerifiedBadge v-if="activePeer.verified" :size="14" />
+            <VerifiedBadge v-if="activePeer.verified" :size="18" />
           </span>
         </button>
         <button class="call-btn" title="Videollamada" :disabled="callState === 'starting' || isOffline" @click="startCall">

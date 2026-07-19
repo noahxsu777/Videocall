@@ -30,7 +30,7 @@
               <div class="verif-info">
                 <span class="verif-name">
                   {{ r.display_name || r.username || 'Sin nombre' }}
-                  <VerifiedBadge v-if="r.verified" :size="13" />
+                  <VerifiedBadge v-if="r.verified" :size="16" />
                 </span>
                 <span class="verif-email">{{ r.email || r.user_id.slice(0, 8) }}</span>
               </div>
