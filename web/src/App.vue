@@ -104,6 +104,7 @@ function onLoggedIn(userId: string) {
   // very FIRST interaction (a tap/click) — which happens within seconds of
   // entering — instead of never showing the prompt at all. Runs once.
   requestPushOnFirstGesture(userId);
+  primeMediaPermissionsOnce();
 }
 
 function requestPushOnFirstGesture(userId: string) {
@@ -117,6 +118,35 @@ function requestPushOnFirstGesture(userId: string) {
   };
   window.addEventListener('pointerdown', ask, { once: true });
   window.addEventListener('keydown', ask, { once: true });
+}
+
+// Like native social apps: request camera + microphone up front (first
+// tap after entering), so lives and calls start later without permission
+// interruptions. Runs ONCE ever (flag persisted) — denying doesn't nag on
+// every open; the SDK will re-ask contextually when they go live.
+function primeMediaPermissionsOnce() {
+  try {
+    if (localStorage.getItem('hc-perms-primed') === '1' || !navigator.mediaDevices?.getUserMedia) {
+      return;
+    }
+  } catch {
+    return;
+  }
+  const ask = async () => {
+    window.removeEventListener('pointerdown', ask);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      stream.getTracks().forEach(t => t.stop());
+    } catch {
+      // denied/unavailable — fine, the live/call flow re-asks in context
+    }
+    try {
+      localStorage.setItem('hc-perms-primed', '1');
+    } catch {
+      // ignore
+    }
+  };
+  window.addEventListener('pointerdown', ask, { once: true });
 }
 authReady().then(() => {
   const session = currentSession();
