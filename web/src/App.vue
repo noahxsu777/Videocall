@@ -11,6 +11,18 @@
       <IncomingCallOverlay />
       <PullToRefresh v-if="allowPullToRefresh" />
       <InstallPrompt />
+      <!-- New version installed while the app was open: one tap applies it
+           (never auto-reload — that caused the black double-load). Hidden
+           during lives/calls so an update can't tempt anyone mid-stream. -->
+      <Transition name="upd-pop">
+        <button
+          v-if="updateAvailable && allowPullToRefresh"
+          class="update-pill"
+          @click="applyUpdate"
+        >
+          ⬆️ Nueva versión — Toca para actualizar
+        </button>
+      </Transition>
     </div>
   </UIKitProvider>
 </template>
@@ -26,6 +38,7 @@ import IncomingCallOverlay from './components/IncomingCallOverlay.vue';
 import PullToRefresh from './components/PullToRefresh.vue';
 import InstallPrompt from './components/InstallPrompt.vue';
 import { navLoading, refreshKey } from './composables/navLoading';
+import { updateAvailable } from './composables/appUpdate';
 import { authReady, currentSession } from './auth/useAuth';
 import { useIncomingCalls } from './calls/useIncomingCalls';
 import { subscribeToPush, enableNotifications } from './data/push';
@@ -92,6 +105,10 @@ watch(
   },
   { immediate: true },
 );
+
+function applyUpdate() {
+  window.location.reload();
+}
 
 function onLoggedIn(userId: string) {
   startIncomingCallListener();
@@ -198,6 +215,34 @@ watch(currentSession, (session) => {
 .app-shell.has-bottom-nav {
   padding-bottom: 84px;
   box-sizing: border-box;
+}
+
+/* "Nueva versión" pill */
+.update-pill {
+  position: fixed;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6500;
+  border: none;
+  border-radius: 999px;
+  padding: 11px 18px;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
+  box-shadow: 0 10px 30px rgba(139, 61, 255, 0.5);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.upd-pop-enter-active,
+.upd-pop-leave-active {
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease;
+}
+.upd-pop-enter-from,
+.upd-pop-leave-to {
+  transform: translateX(-50%) translateY(-30px);
+  opacity: 0;
 }
 
 /* Native-feel screen transition: a quick fade + subtle rise. */

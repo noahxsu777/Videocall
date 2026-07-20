@@ -8,6 +8,7 @@ import { enResource, zhResource } from './i18n';
 import { useIncomingCalls } from './calls/useIncomingCalls';
 import { haptic } from './composables/feedback';
 import { installElasticBounce } from './composables/elasticBounce';
+import { updateAvailable } from './composables/appUpdate';
 
 const app = createApp(App);
 app.use(router);
@@ -117,11 +118,29 @@ window.addEventListener(
 if ('serviceWorker' in navigator) {
   // NOTE: we deliberately do NOT auto-reload on 'controllerchange'. Doing so
   // made the app load twice (a black flash) every time a new service worker
-  // version took control on startup. The fresh code is picked up naturally
-  // on the next cold start (navigations are network-first), so a forced
-  // reload isn't needed and just caused the double-load the user saw.
+  // version took control on startup. Instead: when a new version takes over
+  // an OPEN session, we flip updateAvailable and App.vue shows an
+  // "Actualizar" pill — one tap applies it, no closing the app.
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController) {
+      updateAvailable.value = true;
+    }
+  });
+
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch((error) => {
+    navigator.serviceWorker.register('./sw.js').then((registration) => {
+      // Actively look for new versions while the app stays open: every 3
+      // minutes and whenever the app returns to the foreground. Without
+      // this, a long-lived session only discovers updates on a cold start.
+      const check = () => registration.update().catch(() => {});
+      window.setInterval(check, 3 * 60 * 1000);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          check();
+        }
+      });
+    }).catch((error) => {
       console.warn('[pwa] service worker registration failed:', error);
     });
   });
