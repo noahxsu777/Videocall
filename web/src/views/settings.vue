@@ -196,6 +196,10 @@
           <span class="row-key">Probar notificación</span>
           <span class="row-val">{{ testingPush ? 'Enviando…' : 'Enviar prueba' }}</span>
         </button>
+        <button class="row row-tap" :disabled="askingPerms" @click="handleRequestAllPerms">
+          <span class="row-key">Permisos completos</span>
+          <span class="row-val">{{ askingPerms ? 'Solicitando…' : '📷 🎤 🔔' }}</span>
+        </button>
         <p v-if="pushMsg" class="push-msg" :class="{ ok: pushOk }">{{ pushMsg }}</p>
       </section>
 
@@ -269,6 +273,47 @@ async function handleEnablePush() {
   pushOk.value = result.ok;
   pushMsg.value = result.message;
 }
+// One-tap full permission request (camera + mic + notifications) — for
+// users who installed the app before the automatic first-entry priming
+// existed, or who dismissed a prompt and want to grant everything now.
+const askingPerms = ref(false);
+async function handleRequestAllPerms() {
+  if (askingPerms.value) {
+    return;
+  }
+  askingPerms.value = true;
+  pushMsg.value = '';
+  const parts: string[] = [];
+  try {
+    if (user.value) {
+      const r = await enableNotifications(user.value.id);
+      parts.push(r.ok ? 'Notificaciones ✓' : 'Notificaciones ✗');
+    }
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      s.getTracks().forEach(t => t.stop());
+      parts.push('Cámara ✓', 'Micrófono ✓');
+    } catch {
+      // One of the two failed — probe the mic alone to tell which.
+      try {
+        const a = await navigator.mediaDevices.getUserMedia({ audio: true });
+        a.getTracks().forEach(t => t.stop());
+        parts.push('Cámara ✗', 'Micrófono ✓');
+      } catch {
+        parts.push('Cámara ✗', 'Micrófono ✗');
+      }
+    }
+    try {
+      localStorage.setItem('hc-perms-primed', '1');
+    } catch { /* ignore */ }
+    const allOk = !parts.some(p => p.includes('✗'));
+    pushOk.value = allOk;
+    pushMsg.value = parts.join(' · ') + (allOk ? '' : ' — Los rechazados se activan en los ajustes del navegador para este sitio.');
+  } finally {
+    askingPerms.value = false;
+  }
+}
+
 async function handleTestPush() {
   if (!user.value || testingPush.value) {
     return;
