@@ -41,7 +41,11 @@
     </div>
 
     <div class="live-list-scroll">
-      <!-- Skeleton cards while Tencent's live list initializes -->
+      <!-- LiveListView must stay VISIBLE while it initializes: hiding it
+           (v-show/display:none) made it measure a 0-height container and
+           render an empty "No More" list. The skeleton is an OVERLAY on
+           top instead. -->
+      <LiveListView @live-room-click="handleLiveRoomClick" />
       <div v-if="listSkeleton" class="ll-sk">
         <div v-for="n in 6" :key="n" class="ll-sk-card">
           <div class="sk ll-sk-cover" />
@@ -49,7 +53,6 @@
           <div class="sk ll-sk-line" style="width: 45%" />
         </div>
       </div>
-      <LiveListView v-show="!listSkeleton" @live-room-click="handleLiveRoomClick" />
     </div>
   </div>
 </template>
@@ -355,12 +358,18 @@ onMounted(async () => {
 }
 
 /* ---------- Live list ---------- */
-/* Skeleton cards mimicking the live grid */
+/* Skeleton cards mimicking the live grid — an OVERLAY so the real list
+   underneath stays visible/measurable while it boots. */
 .ll-sk {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: #0b0f1a;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   padding: 4px 14px 20px;
+  align-content: start;
 }
 .ll-sk-card { display: flex; flex-direction: column; gap: 8px; }
 .ll-sk-cover { aspect-ratio: 3 / 4; border-radius: 16px; }
