@@ -463,6 +463,11 @@ export async function uploadAvatarImage(userId: string, file: File): Promise<str
   return uploadImageToBucket(userId, file, 'avatars', 256);
 }
 
+/** Upload a chat photo (DMs) and return its public URL. */
+export async function uploadChatImage(userId: string, file: File): Promise<string> {
+  return uploadImageToBucket(userId, file, 'chat', 1080);
+}
+
 async function uploadImageToBucket(
   userId: string,
   file: File,

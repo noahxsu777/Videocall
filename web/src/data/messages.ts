@@ -145,9 +145,11 @@ async function sendMessagePushNotification(
         ? content
         : kind === 'image'
           ? '📷 Foto'
-          : kind === 'video'
-            ? '🎥 Video'
-            : 'Nuevo mensaje';
+          : kind === 'gif'
+            ? 'GIF 🎞️'
+            : kind === 'video'
+              ? '🎥 Video'
+              : 'Nuevo mensaje';
     await fetch('/api/notify-message', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

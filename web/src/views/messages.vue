@@ -65,7 +65,7 @@
             <VerifiedBadge v-if="c.peer.verified" :size="17" />
           </span>
           <span class="convo-snippet" :class="{ unread: c.unread }">
-            {{ c.last.kind === 'call' ? '📹 Videollamada' : c.last.content }}
+            {{ c.last.kind === 'call' ? '📹 Videollamada' : c.last.kind === 'image' ? '📷 Foto' : c.last.kind === 'gif' ? 'GIF 🎞️' : c.last.content }}
           </span>
         </span>
         <span class="convo-right">
@@ -117,12 +117,23 @@
             <span v-if="m.sender_id === myId">Videollamada iniciada</span>
             <button v-else class="call-join" @click="joinCall(m)">Unirse a la videollamada</button>
           </div>
+          <img
+            v-else-if="m.kind === 'image' || m.kind === 'gif'"
+            class="bubble-media"
+            :src="m.content"
+            alt=""
+            loading="lazy"
+          />
           <div v-else class="bubble">{{ m.content }}</div>
         </div>
         <p v-if="!thread.length" class="thread-empty">Di hola 👋</p>
       </div>
 
       <div class="thread-input">
+        <button class="attach-btn" :disabled="isOffline || sendingMedia" @click="chatPhotoInput?.click()">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+        </button>
+        <button class="attach-btn gif-btn" :disabled="isOffline || sendingMedia" @click="openGifPicker">GIF</button>
         <input
           v-model="draft"
           class="thread-field"
@@ -131,6 +142,33 @@
           @keyup.enter="send"
         />
         <button class="thread-send" :disabled="!draft.trim() || sending || isOffline" @click="send">➤</button>
+        <input ref="chatPhotoInput" type="file" accept="image/*" hidden @change="onChatPhotoSelected" />
+      </div>
+
+      <!-- GIF picker (Giphy) -->
+      <div v-if="gifOpen" class="gif-backdrop" @click.self="gifOpen = false">
+        <div class="gif-sheet">
+          <div class="gif-head">
+            <input
+              v-model="gifQuery"
+              class="gif-search"
+              type="text"
+              placeholder="Buscar en GIPHY…"
+              @input="onGifQuery"
+            />
+            <button class="gif-close" @click="gifOpen = false">✕</button>
+          </div>
+          <div class="gif-grid">
+            <template v-if="gifLoading && !gifResults.length">
+              <div v-for="n in 9" :key="'gsk' + n" class="sk gif-sk" />
+            </template>
+            <button v-for="g in gifResults" :key="g.id" class="gif-cell" @click="sendGif(g)">
+              <img :src="g.preview" alt="GIF" loading="lazy" />
+            </button>
+          </div>
+          <p v-if="!gifLoading && !gifResults.length" class="gif-empty">Sin resultados.</p>
+          <p class="gif-credit">Powered by GIPHY</p>
+        </div>
       </div>
     </div>
   </div>
@@ -144,7 +182,7 @@ import VerifiedBadge from '../components/VerifiedBadge.vue';
 import CallSettingsSheet from '../components/CallSettingsSheet.vue';
 import ListSkeleton from '../components/ListSkeleton.vue';
 import { useAuth } from '../auth/useAuth';
-import { getProfile, type Profile } from '../data/profiles';
+import { getProfile, uploadChatImage, type Profile } from '../data/profiles';
 import { getCallRate, getCoins, ringUser } from '../data/calls';
 import {
   listConversations,
@@ -276,6 +314,92 @@ async function openDeepLinkThread(peerId: string | undefined) {
 }
 
 const threadLoading = ref(false);
+
+// --- Photos + GIFs in DMs -------------------------------------------------
+const chatPhotoInput = ref<HTMLInputElement | null>(null);
+const sendingMedia = ref(false);
+const gifOpen = ref(false);
+const gifQuery = ref('');
+const gifResults = ref<{ id: string; preview: string; full: string }[]>([]);
+const gifLoading = ref(false);
+let gifDebounce = 0;
+
+// Giphy public beta key as fallback; set VITE_GIPHY_KEY in Vercel for a
+// production key from developers.giphy.com.
+const GIPHY_KEY = (import.meta.env.VITE_GIPHY_KEY as string) || 'dc6zaTOxFJmzC';
+
+function mySenderInfo() {
+  return {
+    name: displayName.value,
+    avatar: (user.value?.user_metadata?.avatar_url as string) || null,
+  };
+}
+
+async function onChatPhotoSelected(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  (e.target as HTMLInputElement).value = '';
+  if (!file || !activePeer.value || !myId || sendingMedia.value) {
+    return;
+  }
+  sendingMedia.value = true;
+  try {
+    const url = await uploadChatImage(myId, file);
+    const m = await sendDirectMessage(myId, activePeer.value.id, url, 'image', mySenderInfo());
+    thread.value.push(m);
+    scrollThreadDown();
+  } catch (error: any) {
+    callError.value = `No se pudo enviar la foto: ${error?.message || error}`;
+  } finally {
+    sendingMedia.value = false;
+  }
+}
+
+async function fetchGifs(query: string) {
+  gifLoading.value = true;
+  try {
+    const endpoint = query
+      ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(query)}&limit=24&rating=pg-13`
+      : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=24&rating=pg-13`;
+    const res = await fetch(endpoint);
+    const data = await res.json();
+    gifResults.value = (data?.data || []).map((g: any) => ({
+      id: g.id,
+      preview: g.images?.fixed_width?.url || g.images?.original?.url,
+      full: g.images?.downsized_medium?.url || g.images?.fixed_width?.url || g.images?.original?.url,
+    })).filter((g: any) => g.preview && g.full);
+  } catch (error) {
+    console.warn('[messages] giphy fetch failed:', error);
+    gifResults.value = [];
+  } finally {
+    gifLoading.value = false;
+  }
+}
+
+function openGifPicker() {
+  gifOpen.value = true;
+  gifQuery.value = '';
+  gifResults.value = [];
+  void fetchGifs('');
+}
+
+function onGifQuery() {
+  window.clearTimeout(gifDebounce);
+  gifDebounce = window.setTimeout(() => void fetchGifs(gifQuery.value.trim()), 350);
+}
+
+async function sendGif(g: { full: string }) {
+  if (!activePeer.value || !myId) {
+    return;
+  }
+  gifOpen.value = false;
+  try {
+    const m = await sendDirectMessage(myId, activePeer.value.id, g.full, 'gif', mySenderInfo());
+    thread.value.push(m);
+    scrollThreadDown();
+  } catch (error: any) {
+    callError.value = `No se pudo enviar el GIF: ${error?.message || error}`;
+  }
+}
 
 async function openThreadWith(peer: Profile) {
   newOpen.value = false;
@@ -710,6 +834,90 @@ onUnmounted(() => {
 }
 .bubble-row { display: flex; }
 .th-sk-bubble { height: 38px; border-radius: 18px; margin-bottom: 2px; }
+
+/* Photo / GIF bubbles */
+.bubble-media {
+  max-width: 68%;
+  max-height: 280px;
+  border-radius: 16px;
+  object-fit: cover;
+}
+.attach-btn {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 19px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.attach-btn:disabled { opacity: 0.4; }
+.gif-btn { font-size: 11px; font-weight: 800; letter-spacing: 0.5px; }
+
+/* Giphy picker */
+.gif-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+}
+.gif-sheet {
+  width: 100%;
+  max-height: 70vh;
+  background: #121214;
+  border-radius: 22px 22px 0 0;
+  padding: 14px 12px calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+}
+.gif-head { display: flex; gap: 8px; margin-bottom: 10px; }
+.gif-search {
+  flex: 1;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  padding: 0 14px;
+  font-size: 14px;
+  outline: none;
+}
+.gif-close {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+}
+.gif-grid {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+.gif-cell {
+  padding: 0;
+  border: none;
+  background: #1a1a20;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  aspect-ratio: 1;
+}
+.gif-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gif-sk { aspect-ratio: 1; border-radius: 10px; }
+.gif-empty { text-align: center; color: #8a8a93; font-size: 13px; margin: 16px 0; }
+.gif-credit { text-align: center; color: #55555e; font-size: 10.5px; margin: 8px 0 0; }
 .bubble-row.mine { justify-content: flex-end; }
 .bubble {
   max-width: 78%;
