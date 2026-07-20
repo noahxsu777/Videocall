@@ -1003,7 +1003,14 @@ const toggleMobileCameraFacing = async () => {
   try {
     if (isInLive.value) {
       await switchCamera({ isFrontCamera: isFrontCameraActive.value });
+      // switchCamera reopens the device on the engine's side, which resets
+      // the encoder back to its default (cropped/landscape) profile — the
+      // exact "camera zooms in" the viewer/host saw right after flipping
+      // cameras during a battle. Re-apply our 9:16 portrait profile (and
+      // do it again on a delay in case a slow device echoes the reset).
+      await applyPortraitEncoder();
       await applyLocalRenderFit();
+      setTimeout(() => { void applyPortraitEncoder(); void applyLocalRenderFit(); }, 800);
     } else {
       await stopMobileCameraPreview();
       await startMobileCameraPreview();
