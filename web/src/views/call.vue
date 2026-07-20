@@ -34,12 +34,22 @@
     <div class="top-bar">
       <span class="top-name">{{ peerName || 'Usuario' }}</span>
       <span v-if="state === 'connected'" class="top-timer">{{ durationLabel }}</span>
+      <!-- Host (callee) sees what they're earning live during the call. -->
+      <span v-if="!isPayer && state === 'connected'" class="top-earn">🪙 +{{ coinsEarned.toLocaleString() }}</span>
     </div>
 
     <!-- Coin meter (payer only) -->
     <div v-if="isPayer && state === 'connected'" class="coin-meter">
       💰 {{ ratePerMinute }}/min · Saldo {{ myCoins }}
     </div>
+
+    <!-- Gift received toast (host side) -->
+    <Transition name="gift-pop">
+      <div v-if="giftToast" class="gift-toast">
+        <span class="gift-toast-ico">{{ giftToast.icon }}</span>
+        <span class="gift-toast-text">{{ peerName || 'Alguien' }} te envió +{{ giftToast.coins }} 🪙</span>
+      </div>
+    </Transition>
 
     <!-- Bottom controls -->
     <div v-if="state !== 'ended'" class="bottom-controls">
@@ -77,10 +87,43 @@
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1 21 6l-4 3.9"/><path d="M3 12a9 9 0 0 1 15-6.7L21 6"/><path d="m7 21.9-4-3.9 4-3.9"/><path d="M21 12a9 9 0 0 1-15 6.7L3 18"/></svg>
       </button>
 
+      <!-- Gift button: the payer can tip the host on top of the per-minute
+           rate, same idea as gifting a streamer during a live. -->
+      <button
+        v-if="isPayer && state === 'connected'"
+        class="ctrl-btn gift-btn"
+        @click="giftSheetOpen = true"
+      >
+        <span class="gift-btn-emoji">🎁</span>
+      </button>
+
       <button class="ctrl-btn hangup" @click="hangup">
         <svg viewBox="0 0 24 24" width="26" height="26" fill="#fff"><path d="M12 3C6.8 3 2.7 5.4 1 9.2c-.3.7-.1 1.5.5 2l2.7 2.2c.6.5 1.4.5 2 .1l2-1.4c.4-.3.6-.8.5-1.3l-.5-2c1.7-.6 3.7-.6 5.4 0l-.5 2c-.1.5.1 1 .5 1.3l2 1.4c.6.4 1.4.4 2-.1l2.7-2.2c.6-.5.8-1.3.5-2C21.3 5.4 17.2 3 12 3Z" transform="rotate(135 12 12)"/></svg>
       </button>
     </div>
+
+    <!-- Gift picker sheet -->
+    <Transition name="sheet">
+      <div v-if="giftSheetOpen" class="gift-sheet-backdrop" @click.self="giftSheetOpen = false">
+        <div class="gift-sheet">
+          <div class="gift-sheet-grab" />
+          <p class="gift-sheet-title">Enviar regalo · Saldo {{ myCoins.toLocaleString() }} 🪙</p>
+          <div class="gift-options">
+            <button
+              v-for="g in GIFT_PRESETS"
+              :key="g.coins"
+              class="gift-option"
+              :disabled="sendingGift || myCoins < g.coins"
+              @click="sendGift(g)"
+            >
+              <span class="gift-option-ico">{{ g.icon }}</span>
+              <span class="gift-option-coins">{{ g.coins }} 🪙</span>
+            </button>
+          </div>
+          <button class="gift-sheet-cancel" @click="giftSheetOpen = false">Cancelar</button>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -140,6 +183,10 @@ const facingMode = ref<'user' | 'environment'>('user');
 
 const ratePerMinute = ref(100);
 const myCoins = ref(0);
+// What the HOST (callee) has earned so far this call — per-minute charges
+// plus any gifts — updated live from 'earn'/'gift' broadcasts on the
+// signaling channel, no polling needed.
+const coinsEarned = ref(0);
 const elapsedSeconds = ref(0);
 const durationLabel = computed(() => {
   const m = Math.floor(elapsedSeconds.value / 60).toString().padStart(2, '0');
@@ -152,6 +199,21 @@ const ICE_SERVERS: RTCIceServer[] = [
   { urls: 'stun:stun1.l.google.com:19302' },
 ];
 const BILL_INTERVAL_SECONDS = 10;
+
+// --- Gifts during a call: the payer can tip the host on top of the
+// per-minute rate. Reuses the same atomic transfer_call_coins RPC as
+// billing, so gifts land straight in the host's withdrawable balance and
+// show up in Transacciones -> Ganancias like any other call earning.
+const GIFT_PRESETS = [
+  { icon: '🌹', coins: 50 },
+  { icon: '🎉', coins: 100 },
+  { icon: '💎', coins: 500 },
+  { icon: '👑', coins: 1000 },
+];
+const giftSheetOpen = ref(false);
+const sendingGift = ref(false);
+const giftToast = ref<{ icon: string; coins: number } | null>(null);
+let giftToastTimer: number | null = null;
 
 let pc: RTCPeerConnection | null = null;
 let localStream: MediaStream | null = null;
@@ -219,9 +281,18 @@ function onConnected() {
 function startBilling() {
   billingTimer = window.setInterval(async () => {
     const perTick = ratePerMinute.value * (BILL_INTERVAL_SECONDS / 60);
+    const before = myCoins.value;
     try {
       const newBalance = await transferCoins(myId.value, peerId, perTick);
       myCoins.value = newBalance;
+      // The RPC caps the charge at whatever the payer actually had, so the
+      // real amount charged (and thus what the host earned) can be less
+      // than perTick on the last tick before running out — broadcast the
+      // true diff so the host's live counter never overshoots.
+      const actuallyCharged = Math.max(0, before - newBalance);
+      if (actuallyCharged > 0) {
+        channel?.send({ type: 'broadcast', event: 'signal', payload: { type: 'earn', coins: actuallyCharged } });
+      }
       if (newBalance <= 0) {
         endCall('no-coins');
       }
@@ -229,6 +300,27 @@ function startBilling() {
       console.warn('[call] billing tick failed:', error);
     }
   }, BILL_INTERVAL_SECONDS * 1000);
+}
+
+async function sendGift(preset: { icon: string; coins: number }) {
+  if (sendingGift.value || myCoins.value < preset.coins) {
+    return;
+  }
+  sendingGift.value = true;
+  try {
+    const newBalance = await transferCoins(myId.value, peerId, preset.coins);
+    myCoins.value = newBalance;
+    channel?.send({
+      type: 'broadcast',
+      event: 'signal',
+      payload: { type: 'gift', icon: preset.icon, coins: preset.coins },
+    });
+    giftSheetOpen.value = false;
+  } catch (error) {
+    console.warn('[call] gift send failed:', error);
+  } finally {
+    sendingGift.value = false;
+  }
 }
 
 async function createAndSendOffer() {
@@ -289,9 +381,33 @@ async function handleSignal(payload: any) {
     case 'hangup':
       endCall('peer-hangup');
       break;
+    case 'earn':
+      // Host side only: the payer just billed a tick — bump the live
+      // earnings counter without needing to poll the DB.
+      if (!isPayer.value && typeof payload.coins === 'number') {
+        coinsEarned.value += payload.coins;
+      }
+      break;
+    case 'gift':
+      if (!isPayer.value && typeof payload.coins === 'number') {
+        coinsEarned.value += payload.coins;
+        showGiftToast(payload.icon || '🎁', payload.coins);
+      }
+      break;
     default:
       break;
   }
+}
+
+function showGiftToast(icon: string, coins: number) {
+  if (giftToastTimer) {
+    window.clearTimeout(giftToastTimer);
+  }
+  giftToast.value = { icon, coins };
+  giftToastTimer = window.setTimeout(() => {
+    giftToast.value = null;
+    giftToastTimer = null;
+  }, 3200);
 }
 
 function cleanup() {
@@ -306,6 +422,10 @@ function cleanup() {
   if (noAnswerTimer) {
     window.clearTimeout(noAnswerTimer);
     noAnswerTimer = null;
+  }
+  if (giftToastTimer) {
+    window.clearTimeout(giftToastTimer);
+    giftToastTimer = null;
   }
   localStream?.getTracks().forEach((track) => track.stop());
   pc?.close();
@@ -615,4 +735,125 @@ onUnmounted(() => {
   border-radius: 32px;
   background: #ff3b30;
 }
+
+/* Host's live earnings counter, next to the call timer. */
+.top-earn {
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: rgba(52, 199, 89, 0.18);
+  border: 1px solid rgba(52, 199, 89, 0.4);
+  color: #6fe08a;
+  font-size: 12.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* Gift toast (host receives a tip) */
+.gift-toast {
+  position: absolute;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 22px;
+  background: linear-gradient(90deg, rgba(255, 61, 129, 0.9), rgba(155, 45, 247, 0.85));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.gift-toast-ico { font-size: 20px; }
+.gift-pop-enter-active,
+.gift-pop-leave-active {
+  transition: transform 0.3s cubic-bezier(0.2, 1.2, 0.3, 1), opacity 0.3s ease;
+}
+.gift-pop-enter-from,
+.gift-pop-leave-to {
+  transform: translateX(-50%) translateY(-16px);
+  opacity: 0;
+}
+
+/* Gift button (bottom controls) */
+.gift-btn { background: rgba(255, 200, 87, 0.22); }
+.gift-btn-emoji { font-size: 24px; line-height: 1; }
+
+/* Gift picker sheet */
+.gift-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(0, 0, 0, 0.55);
+}
+.gift-sheet {
+  width: 100%;
+  background: #17171c;
+  border-radius: 22px 22px 0 0;
+  padding: 10px 18px calc(20px + env(safe-area-inset-bottom, 0));
+}
+.gift-sheet-grab {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.25);
+  margin: 6px auto 14px;
+}
+.gift-sheet-title {
+  margin: 0 0 14px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+}
+.gift-options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.gift-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 6px;
+  border-radius: 16px;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  cursor: pointer;
+}
+.gift-option:disabled { opacity: 0.4; }
+.gift-option-ico { font-size: 26px; }
+.gift-option-coins { font-size: 12px; font-weight: 700; color: #ffe0a3; }
+.gift-sheet-cancel {
+  width: 100%;
+  height: 46px;
+  border: none;
+  border-radius: 23px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sheet-enter-active,
+.sheet-leave-active {
+  transition: opacity 0.2s ease;
+}
+.sheet-enter-active .gift-sheet,
+.sheet-leave-active .gift-sheet {
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sheet-enter-from,
+.sheet-leave-to { opacity: 0; }
+.sheet-enter-from .gift-sheet,
+.sheet-leave-to .gift-sheet { transform: translateY(100%); }
 </style>
