@@ -104,6 +104,18 @@ end;
 $$;
 grant execute on function public.transfer_call_coins(uuid, integer) to authenticated;
 
+-- Totales de ganancias por fuente (Live vs Videollamadas), ALL-time — la
+-- pantalla Saldo los muestra como dos montos en dólares separados.
+create or replace function public.get_earnings_totals()
+returns table(source text, total integer)
+language sql stable security definer set search_path = public as $$
+  select source, sum(coins)::integer as total
+  from public.coin_earnings
+  where user_id = auth.uid()
+  group by source;
+$$;
+grant execute on function public.get_earnings_totals() to authenticated;
+
 -- Libro de compras de Coins (Stripe Checkout). La PK por sesión evita
 -- acreditar dos veces la misma compra. Sin políticas: solo el service
 -- role (api/stripe-checkout-verify.js) lee/escribe.

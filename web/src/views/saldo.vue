@@ -15,16 +15,29 @@
       <div class="sk s-sk-btn" />
     </div>
 
-    <!-- TikTok-style: earnings shown as MONEY (auto-converted from the
-         coins received in lives); the rechargeable Coins live in their own
-         pill below. -->
+    <!-- TikTok-style: earnings shown as MONEY (auto-converted from coins),
+         split by source — Live gifts and Video calls are separate income
+         streams and each gets its own dollar total. -->
     <div class="balance-card">
-      <span class="bc-label">Saldo estimado (USD)</span>
+      <span class="bc-label">Saldo total estimado (USD)</span>
       <div class="bc-amount">
         <span class="bc-gem">$</span>
         <span class="bc-value">{{ estimatedUsd }}</span>
       </div>
-      <span class="bc-sub">Lo que ganas en tus lives se convierte en dólares automáticamente</span>
+      <span class="bc-sub">Lo que ganas en lives y videollamadas se convierte en dólares automáticamente</span>
+    </div>
+
+    <div class="earn-grid">
+      <div class="earn-card">
+        <span class="earn-ico">🔴</span>
+        <span class="earn-usd">${{ liveUsd }}</span>
+        <span class="earn-label">Ganancias de Live</span>
+      </div>
+      <div class="earn-card">
+        <span class="earn-ico">📹</span>
+        <span class="earn-usd">${{ callUsd }}</span>
+        <span class="earn-label">Ganancias de Videollamadas</span>
+      </div>
     </div>
 
     <button class="coins-pill" @click="scrollToPacks">
@@ -179,12 +192,14 @@ import {
   verifyCoinPurchase,
   listPurchases,
   listEarnings,
+  getEarningsTotals,
   listPayouts,
   DEFAULT_PACKS,
   type PayoutStatus,
   type PurchaseRow,
   type PayoutRow,
   type EarningRow,
+  type EarningsTotals,
 } from '../data/payouts';
 
 const { user } = useAuth();
@@ -198,6 +213,7 @@ const txTab = ref<'ganancias' | 'compras' | 'retiros'>('ganancias');
 const purchases = ref<PurchaseRow[]>([]);
 const payouts = ref<PayoutRow[]>([]);
 const earnings = ref<EarningRow[]>([]);
+const earningsTotals = ref<EarningsTotals>({ liveCoins: 0, callCoins: 0 });
 
 function scrollToPacks() {
   packsSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -239,6 +255,10 @@ const estimatedNetUsd = computed(() => {
   const gross = earnedCoins.value / (payout.value.coinsPerUsd || 200);
   return (gross * (1 - (payout.value.payoutFeePercent || 0) / 100)).toFixed(2);
 });
+const liveUsd = computed(() =>
+  (earningsTotals.value.liveCoins / (payout.value.coinsPerUsd || 200)).toFixed(2));
+const callUsd = computed(() =>
+  (earningsTotals.value.callCoins / (payout.value.coinsPerUsd || 200)).toFixed(2));
 
 function showToast(text: string) {
   toast.value = text;
@@ -266,10 +286,11 @@ async function refresh() {
     }
   }
   if (user.value) {
-    [purchases.value, payouts.value, earnings.value] = await Promise.all([
+    [purchases.value, payouts.value, earnings.value, earningsTotals.value] = await Promise.all([
       listPurchases(user.value.id),
       listPayouts(user.value.id),
       listEarnings(user.value.id),
+      getEarningsTotals(),
     ]);
   }
 }
@@ -427,6 +448,26 @@ onMounted(async () => {
   opacity: 0.8;
   text-align: center;
 }
+.earn-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.earn-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 10px;
+  border-radius: 18px;
+  background: #121214;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.earn-ico { font-size: 20px; }
+.earn-usd { font-size: 19px; font-weight: 800; color: #34c759; }
+.earn-label { font-size: 11.5px; color: #8a8a93; text-align: center; }
+
 .coins-pill {
   display: flex;
   align-items: center;

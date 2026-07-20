@@ -71,6 +71,34 @@ export interface EarningRow {
   created_at: string;
 }
 
+export interface EarningsTotals {
+  liveCoins: number;
+  callCoins: number;
+}
+
+/**
+ * Total coins earned per source (ALL-time, not just the last 50 in
+ * listEarnings) — used to show 'Ganancias de Live' and 'Ganancias de
+ * Videollamadas' as separate dollar amounts. Backed by a SQL aggregate RPC
+ * (get_earnings_totals) since PostgREST's client can't GROUP BY directly.
+ */
+export async function getEarningsTotals(): Promise<EarningsTotals> {
+  const totals: EarningsTotals = { liveCoins: 0, callCoins: 0 };
+  const { data, error } = await supabase!.rpc('get_earnings_totals');
+  if (error) {
+    console.warn('[payouts] getEarningsTotals failed (¿falta la migración SQL?):', error.message);
+    return totals;
+  }
+  for (const row of (data || []) as { source: string; total: number }[]) {
+    if (row.source === 'live') {
+      totals.liveCoins = row.total || 0;
+    } else if (row.source === 'call') {
+      totals.callCoins = row.total || 0;
+    }
+  }
+  return totals;
+}
+
 /** The user's earnings (gifts in lives + paid video calls). */
 export async function listEarnings(userId: string): Promise<EarningRow[]> {
   const { data, error } = await supabase!
