@@ -129,6 +129,11 @@ export function useAuth() {
       password: params.password,
       options: {
         data: { display_name: params.displayName },
+        // Confirmation-email links must land on the real app, not the
+        // Supabase default (localhost:3000 → ERR_CONNECTION_REFUSED).
+        // The origin must also be whitelisted in Supabase → Auth → URL
+        // Configuration → Redirect URLs.
+        emailRedirectTo: window.location.origin,
       },
     });
     if (error) {
