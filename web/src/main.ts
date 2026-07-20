@@ -50,6 +50,31 @@ void router.isReady().then(() => {
 // iPhone-style rubber-band bounce when scroll lists reach their edges.
 installElasticBounce();
 
+// Keep the screen ON the whole time the app is in the foreground (Wake
+// Lock API) — like Bigo/TikTok during lives, the phone never dims or
+// locks mid-stream. The OS releases the lock when the app goes to the
+// background; we re-acquire it whenever the app becomes visible again.
+// Best-effort: unsupported browsers / battery-saver denials are ignored.
+let screenWakeLock: any = null;
+async function acquireWakeLock() {
+  try {
+    if ('wakeLock' in navigator && document.visibilityState === 'visible') {
+      screenWakeLock = await (navigator as any).wakeLock.request('screen');
+      screenWakeLock.addEventListener?.('release', () => {
+        screenWakeLock = null;
+      });
+    }
+  } catch {
+    // denied (battery saver) or unsupported — the screen just dims as usual
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !screenWakeLock) {
+    void acquireWakeLock();
+  }
+});
+void acquireWakeLock();
+
 // Suppress the browser's native long-press context menu (the "Copiar
 // imagen / Descargar imagen / Abrir en Chrome…" popup) so the PWA feels
 // like a native app. Text fields are exempted so the paste menu still
