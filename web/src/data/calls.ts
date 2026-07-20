@@ -52,16 +52,26 @@ export async function transferCoins(payerId: string, payeeId: string, amount: nu
     return getCoins(payerId);
   }
   const client = requireClient();
+  // Atomic server-side transfer: deducts the caller's spendable coins,
+  // credits the callee's WITHDRAWABLE earnings (earned_coins) and writes a
+  // coin_earnings ledger row (Transacciones → Ganancias). The old direct
+  // table updates couldn't credit the payee at all — RLS only lets a user
+  // update their OWN profile row — and left no transaction record.
+  const { data, error } = await client.rpc('transfer_call_coins', {
+    payee: payeeId,
+    amount: rounded,
+  });
+  if (!error && typeof data === 'number') {
+    return data;
+  }
+  console.warn('[calls] transfer_call_coins RPC failed (¿falta la migración SQL?):', error?.message);
+  // Legacy fallback (pre-migration): at least charge the payer.
   const payerCoins = await getCoins(payerId);
   const charge = Math.min(payerCoins, rounded);
   if (charge <= 0) {
     return payerCoins;
   }
-  const payeeCoins = await getCoins(payeeId);
-  await Promise.all([
-    client.from('profiles').update({ coins: payerCoins - charge }).eq('id', payerId),
-    client.from('profiles').update({ coins: payeeCoins + charge }).eq('id', payeeId),
-  ]);
+  await client.from('profiles').update({ coins: payerCoins - charge }).eq('id', payerId);
   return payerCoins - charge;
 }
 

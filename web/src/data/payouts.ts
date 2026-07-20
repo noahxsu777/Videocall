@@ -64,6 +64,28 @@ export async function listPurchases(userId: string): Promise<PurchaseRow[]> {
   return (data || []) as PurchaseRow[];
 }
 
+export interface EarningRow {
+  id: string;
+  source: string; // 'live' | 'call'
+  coins: number;
+  created_at: string;
+}
+
+/** The user's earnings (gifts in lives + paid video calls). */
+export async function listEarnings(userId: string): Promise<EarningRow[]> {
+  const { data, error } = await supabase!
+    .from('coin_earnings')
+    .select('id, source, coins, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) {
+    console.warn('[payouts] listEarnings failed:', error.message);
+    return [];
+  }
+  return (data || []) as EarningRow[];
+}
+
 /** The user's withdrawals (Transacciones tab). Needs the RLS policy. */
 export async function listPayouts(userId: string): Promise<PayoutRow[]> {
   const { data, error } = await supabase!

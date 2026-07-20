@@ -105,6 +105,9 @@
     <!-- Transactions: purchases and withdrawals, separate tabs. -->
     <p class="section-title">Transacciones</p>
     <div class="tx-tabs">
+      <button class="tx-tab" :class="{ active: txTab === 'ganancias' }" @click="txTab = 'ganancias'">
+        Ganancias
+      </button>
       <button class="tx-tab" :class="{ active: txTab === 'compras' }" @click="txTab = 'compras'">
         Compras
       </button>
@@ -113,7 +116,18 @@
       </button>
     </div>
 
-    <section v-if="txTab === 'compras'" class="group">
+    <section v-if="txTab === 'ganancias'" class="group">
+      <div v-for="e in earnings" :key="e.id" class="row tx-row">
+        <div class="tx-main">
+          <span class="tx-title">{{ e.source === 'call' ? '📹 Videollamada' : '🎁 Regalos en live' }}</span>
+          <span class="tx-date">{{ formatDate(e.created_at) }}</span>
+        </div>
+        <span class="row-val ok">+{{ e.coins.toLocaleString() }} 🪙</span>
+      </div>
+      <p v-if="!earnings.length" class="tx-empty">Aún no tienes ganancias — transmite o recibe videollamadas.</p>
+    </section>
+
+    <section v-else-if="txTab === 'compras'" class="group">
       <div v-for="p in purchases" :key="p.session_id" class="row tx-row">
         <div class="tx-main">
           <span class="tx-title">🪙 +{{ p.coins.toLocaleString() }} Coins</span>
@@ -164,11 +178,13 @@ import {
   buyCoinPack,
   verifyCoinPurchase,
   listPurchases,
+  listEarnings,
   listPayouts,
   DEFAULT_PACKS,
   type PayoutStatus,
   type PurchaseRow,
   type PayoutRow,
+  type EarningRow,
 } from '../data/payouts';
 
 const { user } = useAuth();
@@ -178,9 +194,10 @@ const earnedCoins = ref(0);
 const toast = ref('');
 const pageLoading = ref(true);
 const packsSection = ref<HTMLElement | null>(null);
-const txTab = ref<'compras' | 'retiros'>('compras');
+const txTab = ref<'ganancias' | 'compras' | 'retiros'>('ganancias');
 const purchases = ref<PurchaseRow[]>([]);
 const payouts = ref<PayoutRow[]>([]);
+const earnings = ref<EarningRow[]>([]);
 
 function scrollToPacks() {
   packsSection.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -249,9 +266,10 @@ async function refresh() {
     }
   }
   if (user.value) {
-    [purchases.value, payouts.value] = await Promise.all([
+    [purchases.value, payouts.value, earnings.value] = await Promise.all([
       listPurchases(user.value.id),
       listPayouts(user.value.id),
+      listEarnings(user.value.id),
     ]);
   }
 }

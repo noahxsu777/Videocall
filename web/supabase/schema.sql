@@ -56,13 +56,53 @@ alter table public.profiles
 
 alter table public.profiles enable row level security;
 
+-- Libro de ganancias (pestaña Transacciones → Ganancias): regalos en
+-- lives y videollamadas cobradas. Solo lectura propia; escriben los RPCs.
+create table if not exists public.coin_earnings (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  source     text not null default 'live', -- 'live' | 'call'
+  coins      integer not null,
+  created_at timestamptz not null default now()
+);
+alter table public.coin_earnings enable row level security;
+drop policy if exists "users read own earnings" on public.coin_earnings;
+create policy "users read own earnings"
+  on public.coin_earnings for select using (auth.uid() = user_id);
+
 -- Acumula los Coins ganados por regalos recibidos en un live al bolsillo
--- RETIRABLE. Ligado a auth.uid() para que nadie acredite a otra cuenta.
+-- RETIRABLE y lo registra en el libro. Ligado a auth.uid().
 create or replace function public.add_earned_coins(amount integer)
-returns void language sql security definer set search_path = public as $$
-  update public.profiles set earned_coins = earned_coins + greatest(0, amount) where id = auth.uid();
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  if auth.uid() is null then raise exception 'not_authenticated'; end if;
+  if amount <= 0 then return; end if;
+  update public.profiles set earned_coins = earned_coins + amount where id = auth.uid();
+  insert into public.coin_earnings (user_id, source, coins) values (auth.uid(), 'live', amount);
+end;
 $$;
 grant execute on function public.add_earned_coins(integer) to authenticated;
+
+-- Cobro de videollamada: descuenta coins GASTABLES del que llama
+-- (auth.uid()), acredita coins RETIRABLES al que recibe y lo registra en
+-- el libro. Atómico y a prueba de RLS (el cliente no puede tocar la fila
+-- de otro usuario directamente). Devuelve el nuevo saldo del pagador.
+create or replace function public.transfer_call_coins(payee uuid, amount integer)
+returns integer language plpgsql security definer set search_path = public as $$
+declare payer uuid := auth.uid(); bal integer; charge integer;
+begin
+  if payer is null then raise exception 'not_authenticated'; end if;
+  if payee = payer then raise exception 'self_transfer'; end if;
+  select coins into bal from public.profiles where id = payer for update;
+  charge := least(coalesce(bal, 0), greatest(0, amount));
+  if charge <= 0 then return coalesce(bal, 0); end if;
+  update public.profiles set coins = coins - charge where id = payer;
+  update public.profiles set earned_coins = earned_coins + charge where id = payee;
+  insert into public.coin_earnings (user_id, source, coins) values (payee, 'call', charge);
+  return bal - charge;
+end;
+$$;
+grant execute on function public.transfer_call_coins(uuid, integer) to authenticated;
 
 -- Libro de compras de Coins (Stripe Checkout). La PK por sesión evita
 -- acreditar dos veces la misma compra. Sin políticas: solo el service
