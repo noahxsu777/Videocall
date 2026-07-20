@@ -20,6 +20,13 @@ const router = useRouter();
 const route = useRoute();
 const { liveId } = route.query;
 
+// A share link without a liveId (or one mangled by an old login redirect)
+// would render an empty player ("Live Is Empty") — send those viewers to
+// the live list instead, where they can see who IS streaming.
+if (!liveId) {
+  router.replace({ path: '/live-list' });
+}
+
 function leaveLive() {
   router.push({ path: '/live-list' });
 }

@@ -196,8 +196,11 @@ const goAfterAuth = () => {
   if (uid) {
     void enableNotifications(uid);
   }
+  // `from` is a fullPath (may include ?liveId=... from a shared live
+  // link) — push it as a raw location string so the query is parsed,
+  // not swallowed by { path } (which ignores query strings).
   const from = (route.query.from as string) || '/live-list';
-  router.push({ path: from });
+  router.push(from);
 };
 
 const handleSubmit = async () => {

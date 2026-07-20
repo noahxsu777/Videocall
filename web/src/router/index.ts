@@ -233,7 +233,8 @@ router.beforeEach(async (to, _from, next) => {
   if (to.path === '/login') {
     // Already logged in? Skip the auth screen.
     if (supaSession) {
-      next({ path: (to.query.from as string) || '/live-list' });
+      // Raw location string so a from=/live-player?liveId=x keeps its query.
+      next((to.query.from as string) || '/live-list');
     } else {
       next();
     }
@@ -244,7 +245,10 @@ router.beforeEach(async (to, _from, next) => {
     // A banned account gets silently signed out during the session-restore
     // check in useAuth.ts — surface that here with a visible reason
     // instead of just dropping the user back on a blank login screen.
-    const query: Record<string, string> = { from: to.path };
+    // fullPath (not path) so query params survive the login round-trip —
+    // e.g. a shared /live-player?liveId=x link must keep its liveId, or
+    // the viewer lands on an empty player after registering.
+    const query: Record<string, string> = { from: to.fullPath };
     if (consumeBannedFlag()) {
       query.banned = '1';
     }
