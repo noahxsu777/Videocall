@@ -133,8 +133,52 @@ defineExpose({ open: handleCoGuest });
   mask-image: url('../icons/setting-icon.svg');
 }
 
+// Reskin the Tencent kit's default blue theme with the app's own
+// pink→purple brand accent, scoped to this dialog only (every control
+// inside — select borders, the "Test" buttons, the volume slider, the
+// mic level bars — reads its color off these same CSS custom
+// properties, so overriding them here is enough to recolor all of it
+// without fighting each control's own stylesheet).
 :deep(.setting-dialog) {
   width: 600px;
+  --text-color-link: #ff4f8b;
+  --text-color-link-hover: #ff699b;
+  --text-color-link-active: #e63d78;
+  --button-color-primary-default: #ff4f8b;
+  --button-color-primary-hover: #ff699b;
+  --button-color-primary-active: #e63d78;
+  --slider-color-filled: #ff4f8b;
+  --bg-color-dialog: #121214;
+  --bg-color-dialog-module: #1a1a20;
+  --bg-color-operate: rgba(255, 255, 255, 0.06);
+  --stroke-color-primary: rgba(255, 255, 255, 0.14);
+  --stroke-color-module: rgba(255, 255, 255, 0.28);
+  --text-color-primary: #fff;
+  --text-color-secondary: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+:deep(.setting-dialog .tui-dialog-header) {
+  padding-bottom: 4px;
+}
+
+:deep(.setting-dialog .tui-dialog-title) {
+  font-size: 18px;
+  font-weight: 800;
+  background: linear-gradient(90deg, #ff4f8b, #9b2df7);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+:deep(.setting-dialog .select-content) {
+  border-radius: 14px !important;
+}
+
+:deep(.setting-dialog .tui-button) {
+  border-radius: 999px !important;
+  font-weight: 700 !important;
 }
 
 .setting-panel {
@@ -149,9 +193,22 @@ defineExpose({ open: handleCoGuest });
     margin-bottom: 32px;
 
     .section-title {
-      font-size: 18px;
-      font-weight: bold;
-      margin-bottom: 16px;
+      position: relative;
+      font-size: 16px;
+      font-weight: 800;
+      margin-bottom: 18px;
+      padding-left: 12px;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 2px;
+        bottom: 2px;
+        width: 3px;
+        border-radius: 2px;
+        background: linear-gradient(180deg, #ff4f8b, #9b2df7);
+      }
     }
 
     .row {
@@ -186,7 +243,7 @@ defineExpose({ open: handleCoGuest });
 
 .divider {
   height: 1px;
-  background: var(--uikit-color-gray-4);
+  background: rgba(255, 255, 255, 0.1);
   margin-bottom: 32px;
 }
 </style>
