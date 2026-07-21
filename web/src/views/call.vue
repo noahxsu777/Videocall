@@ -43,15 +43,19 @@
       💰 {{ ratePerMinute }}/min · Saldo {{ myCoins }}
     </div>
 
-    <!-- Gift received toast (host side) -->
+    <!-- Center gift animation — plays for both sides, same idea as the
+         big Tencent gift animation shown to everyone in a live room. -->
     <Transition name="gift-pop">
       <div v-if="giftToast" class="gift-toast">
         <span class="gift-toast-ico">
           <img v-if="giftToast.kind === 'image'" :src="giftToast.icon" alt="" />
-          <LottieIcon v-else-if="giftToast.kind === 'lottie'" :src="giftToast.icon" :size="28" />
+          <img v-else-if="giftToast.kind === 'gif'" :src="giftToast.icon" alt="" class="gift-toast-gif" />
+          <LottieIcon v-else-if="giftToast.kind === 'lottie'" :src="giftToast.icon" :size="120" />
           <template v-else>{{ giftToast.icon }}</template>
         </span>
-        <span class="gift-toast-text">{{ peerName || 'Alguien' }} te envió +{{ giftToast.coins }} 🪙</span>
+        <span class="gift-toast-text">
+          {{ giftToast.fromMe ? 'Enviaste' : `${peerName || 'Alguien'} te envió` }} +{{ giftToast.coins }} 🪙
+        </span>
       </div>
     </Transition>
 
@@ -127,11 +131,45 @@
               </span>
               <span class="gift-option-coins">{{ g.coins }} 🪙</span>
             </button>
+            <button
+              class="gift-option"
+              :disabled="sendingGift || myCoins < GIF_GIFT_COST"
+              @click="openGifGiftPicker"
+            >
+              <span class="gift-option-ico gift-option-gif-ico">GIF</span>
+              <span class="gift-option-coins">{{ GIF_GIFT_COST }} 🪙</span>
+            </button>
           </div>
           <button class="gift-sheet-cancel" @click="giftSheetOpen = false">Cancelar</button>
         </div>
       </div>
     </Transition>
+
+    <!-- GIF gift picker (Giphy) -->
+    <div v-if="gifPickerOpen" class="gif-backdrop" @click.self="gifPickerOpen = false">
+      <div class="gif-sheet">
+        <div class="gif-head">
+          <input
+            v-model="gifQuery"
+            class="gif-search"
+            type="text"
+            placeholder="Buscar en GIPHY…"
+            @input="onGifQuery"
+          />
+          <button class="gif-close" @click="gifPickerOpen = false">✕</button>
+        </div>
+        <div class="gif-grid">
+          <template v-if="gifLoading && !gifResults.length">
+            <div v-for="n in 9" :key="'csk' + n" class="sk gif-sk" />
+          </template>
+          <button v-for="g in gifResults" :key="g.id" class="gif-cell" @click="sendGifGift(g)">
+            <img :src="g.preview" alt="GIF" loading="lazy" />
+          </button>
+        </div>
+        <p v-if="!gifLoading && !gifResults.length" class="gif-empty">Sin resultados.</p>
+        <p class="gif-credit">Powered by GIPHY · {{ GIF_GIFT_COST }} 🪙 por GIF</p>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -213,7 +251,7 @@ const BILL_INTERVAL_SECONDS = 10;
 // per-minute rate. Reuses the same atomic transfer_call_coins RPC as
 // billing, so gifts land straight in the host's withdrawable balance and
 // show up in Transacciones -> Ganancias like any other call earning.
-type GiftKind = 'emoji' | 'image' | 'lottie';
+type GiftKind = 'emoji' | 'image' | 'lottie' | 'gif';
 interface GiftPreset { kind: GiftKind; icon: string; coins: number }
 const GIFT_PRESETS: GiftPreset[] = [
   { kind: 'image', icon: 'https://cdn3.emoji.gg/emojis/2071-heart-eyes.png', coins: 50 },
@@ -224,8 +262,20 @@ const GIFT_PRESETS: GiftPreset[] = [
 ];
 const giftSheetOpen = ref(false);
 const sendingGift = ref(false);
-const giftToast = ref<{ kind: GiftKind; icon: string; coins: number } | null>(null);
+// Center gift animation — shown to both sides, like the big gift animation
+// in a live room, instead of a small notification pill.
+const giftToast = ref<{ kind: GiftKind; icon: string; coins: number; fromMe: boolean } | null>(null);
 let giftToastTimer: number | null = null;
+
+// Any GIPHY gif can be sent as a gift for a flat price, animated center-screen
+// just like the fixed-coin presets.
+const GIF_GIFT_COST = 100;
+const gifPickerOpen = ref(false);
+const gifQuery = ref('');
+const gifResults = ref<{ id: string; preview: string; full: string }[]>([]);
+const gifLoading = ref(false);
+let gifDebounce = 0;
+const GIPHY_KEY = (import.meta.env.VITE_GIPHY_KEY as string) || 'dc6zaTOxFJmzC';
 
 let pc: RTCPeerConnection | null = null;
 let localStream: MediaStream | null = null;
@@ -328,11 +378,56 @@ async function sendGift(preset: GiftPreset) {
       payload: { type: 'gift', kind: preset.kind, icon: preset.icon, coins: preset.coins },
     });
     giftSheetOpen.value = false;
+    // Play the animation on the sender's own screen too — the receiver
+    // gets theirs from the broadcast in handleSignal().
+    showGiftToast(preset.kind, preset.icon, preset.coins, true);
   } catch (error) {
     console.warn('[call] gift send failed:', error);
   } finally {
     sendingGift.value = false;
   }
+}
+
+async function fetchGifs(query: string) {
+  gifLoading.value = true;
+  try {
+    const endpoint = query
+      ? `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(query)}&limit=24&rating=pg-13`
+      : `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=24&rating=pg-13`;
+    const res = await fetch(endpoint);
+    const data = await res.json();
+    gifResults.value = (data?.data || []).map((g: any) => ({
+      id: g.id,
+      preview: g.images?.fixed_width?.url || g.images?.original?.url,
+      full: g.images?.downsized_medium?.url || g.images?.fixed_width?.url || g.images?.original?.url,
+    })).filter((g: any) => g.preview && g.full);
+  } catch (error) {
+    console.warn('[call] giphy fetch failed:', error);
+    gifResults.value = [];
+  } finally {
+    gifLoading.value = false;
+  }
+}
+
+function openGifGiftPicker() {
+  if (sendingGift.value || myCoins.value < GIF_GIFT_COST) {
+    return;
+  }
+  giftSheetOpen.value = false;
+  gifPickerOpen.value = true;
+  gifQuery.value = '';
+  gifResults.value = [];
+  void fetchGifs('');
+}
+
+function onGifQuery() {
+  window.clearTimeout(gifDebounce);
+  gifDebounce = window.setTimeout(() => void fetchGifs(gifQuery.value.trim()), 350);
+}
+
+async function sendGifGift(g: { full: string }) {
+  gifPickerOpen.value = false;
+  await sendGift({ kind: 'gif', icon: g.full, coins: GIF_GIFT_COST });
 }
 
 async function createAndSendOffer() {
@@ -403,7 +498,7 @@ async function handleSignal(payload: any) {
     case 'gift':
       if (!isPayer.value && typeof payload.coins === 'number') {
         coinsEarned.value += payload.coins;
-        showGiftToast(payload.kind || 'emoji', payload.icon || '🎁', payload.coins);
+        showGiftToast(payload.kind || 'emoji', payload.icon || '🎁', payload.coins, false);
       }
       break;
     default:
@@ -411,11 +506,11 @@ async function handleSignal(payload: any) {
   }
 }
 
-function showGiftToast(kind: GiftKind, icon: string, coins: number) {
+function showGiftToast(kind: GiftKind, icon: string, coins: number, fromMe: boolean) {
   if (giftToastTimer) {
     window.clearTimeout(giftToastTimer);
   }
-  giftToast.value = { kind, icon, coins };
+  giftToast.value = { kind, icon, coins, fromMe };
   giftToastTimer = window.setTimeout(() => {
     giftToast.value = null;
     giftToastTimer = null;
@@ -760,39 +855,57 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-/* Gift toast (host receives a tip) */
+/* Center gift animation — big, plays over the video like a live-room gift. */
 .gift-toast {
   position: absolute;
-  top: 100px;
+  top: 50%;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -50%);
   z-index: 20;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  border-radius: 22px;
-  background: linear-gradient(90deg, rgba(255, 61, 129, 0.9), rgba(155, 45, 247, 0.85));
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  gap: 12px;
+  padding: 26px 30px;
+  border-radius: 26px;
+  background: rgba(20, 10, 26, 0.4);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
   color: #fff;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
+  text-align: center;
   white-space: nowrap;
+  pointer-events: none;
 }
 .gift-toast-ico {
-  font-size: 20px;
+  font-size: 72px;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-height: 100px;
 }
-.gift-toast-ico img { width: 24px; height: 24px; object-fit: contain; }
-.gift-pop-enter-active,
+.gift-toast-ico img { width: 100px; height: 100px; object-fit: contain; }
+.gift-toast-gif { width: 150px !important; height: auto !important; border-radius: 14px; }
+.gift-toast-text {
+  padding: 5px 14px;
+  border-radius: 16px;
+  background: linear-gradient(90deg, rgba(255, 61, 129, 0.9), rgba(155, 45, 247, 0.85));
+}
+.gift-pop-enter-active {
+  transition: transform 0.4s cubic-bezier(0.2, 1.5, 0.3, 1), opacity 0.25s ease;
+}
 .gift-pop-leave-active {
-  transition: transform 0.3s cubic-bezier(0.2, 1.2, 0.3, 1), opacity 0.3s ease;
+  transition: transform 0.25s ease, opacity 0.25s ease;
 }
-.gift-pop-enter-from,
+.gift-pop-enter-from {
+  transform: translate(-50%, -50%) scale(0.3);
+  opacity: 0;
+}
 .gift-pop-leave-to {
-  transform: translateX(-50%) translateY(-16px);
+  transform: translate(-50%, -50%) scale(1.15);
   opacity: 0;
 }
 
@@ -856,6 +969,14 @@ onUnmounted(() => {
   height: 34px;
 }
 .gift-option-ico img { width: 30px; height: 30px; object-fit: contain; }
+.gift-option-gif-ico {
+  font-size: 13px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #6a8bff, #b06aff);
+  color: #fff;
+}
 .gift-option-coins { font-size: 12px; font-weight: 700; color: #ffe0a3; }
 .gift-sheet-cancel {
   width: 100%;
@@ -881,4 +1002,65 @@ onUnmounted(() => {
 .sheet-leave-to { opacity: 0; }
 .sheet-enter-from .gift-sheet,
 .sheet-leave-to .gift-sheet { transform: translateY(100%); }
+
+/* GIF gift picker (Giphy) */
+.gif-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5100;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+}
+.gif-sheet {
+  width: 100%;
+  max-height: 70vh;
+  background: #121214;
+  border-radius: 22px 22px 0 0;
+  padding: 14px 12px calc(14px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+}
+.gif-head { display: flex; gap: 8px; margin-bottom: 10px; }
+.gif-search {
+  flex: 1;
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  padding: 0 14px;
+  font-size: 14px;
+  outline: none;
+}
+.gif-close {
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+}
+.gif-grid {
+  flex: 1;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+.gif-cell {
+  padding: 0;
+  border: none;
+  background: #1a1a20;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  aspect-ratio: 1;
+}
+.gif-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gif-sk { aspect-ratio: 1; border-radius: 10px; }
+.gif-empty { text-align: center; color: #8a8a93; font-size: 13px; margin: 16px 0; }
+.gif-credit { text-align: center; color: #55555e; font-size: 10.5px; margin: 8px 0 0; }
 </style>
