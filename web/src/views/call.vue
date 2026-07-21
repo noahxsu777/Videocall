@@ -43,18 +43,18 @@
       💰 {{ ratePerMinute }}/min · Saldo {{ myCoins }}
     </div>
 
-    <!-- Center gift animation — plays for both sides, same idea as the
-         big Tencent gift animation shown to everyone in a live room. -->
-    <Transition name="gift-pop">
+    <!-- Gift animation — transparent, slides in from the left with the
+         sender + quantity, same idea as a live-room gift banner. -->
+    <Transition name="gift-slide">
       <div v-if="giftToast" class="gift-toast">
         <span class="gift-toast-ico">
           <img v-if="giftToast.kind === 'image'" :src="giftToast.icon" alt="" />
           <img v-else-if="giftToast.kind === 'gif'" :src="giftToast.icon" alt="" class="gift-toast-gif" />
-          <LottieIcon v-else-if="giftToast.kind === 'lottie'" :src="giftToast.icon" :size="120" />
+          <LottieIcon v-else-if="giftToast.kind === 'lottie'" :src="giftToast.icon" :size="56" />
           <template v-else>{{ giftToast.icon }}</template>
         </span>
         <span class="gift-toast-text">
-          {{ giftToast.fromMe ? 'Enviaste' : `${peerName || 'Alguien'} te envió` }} +{{ giftToast.coins }} 🪙
+          <b>{{ giftToast.fromMe ? 'Tú' : (peerName || 'Alguien') }}</b> ha enviado x1
         </span>
       </div>
     </Transition>
@@ -855,57 +855,51 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-/* Center gift animation — big, plays over the video like a live-room gift. */
+/* Gift animation — transparent banner sliding in from the left edge,
+   like a live-room gift notification. */
 .gift-toast {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 42%;
+  left: 14px;
+  right: 70px;
   z-index: 20;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 26px 30px;
-  border-radius: 26px;
-  background: rgba(20, 10, 26, 0.4);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+  gap: 10px;
+  background: transparent;
   color: #fff;
   font-size: 14px;
-  font-weight: 700;
-  text-align: center;
-  white-space: nowrap;
+  font-weight: 600;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.7), 0 0 10px rgba(0, 0, 0, 0.4);
   pointer-events: none;
 }
 .gift-toast-ico {
-  font-size: 72px;
+  flex-shrink: 0;
+  font-size: 40px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 100px;
+  min-width: 48px;
+  min-height: 48px;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
 }
-.gift-toast-ico img { width: 100px; height: 100px; object-fit: contain; }
-.gift-toast-gif { width: 150px !important; height: auto !important; border-radius: 14px; }
-.gift-toast-text {
-  padding: 5px 14px;
-  border-radius: 16px;
-  background: linear-gradient(90deg, rgba(255, 61, 129, 0.9), rgba(155, 45, 247, 0.85));
+.gift-toast-ico img { width: 48px; height: 48px; object-fit: contain; }
+.gift-toast-gif { width: 84px !important; height: auto !important; border-radius: 10px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
+.gift-toast-text { font-size: 14px; }
+.gift-toast-text b { font-weight: 800; }
+.gift-slide-enter-active {
+  transition: transform 0.4s cubic-bezier(0.2, 1.3, 0.3, 1), opacity 0.25s ease;
 }
-.gift-pop-enter-active {
-  transition: transform 0.4s cubic-bezier(0.2, 1.5, 0.3, 1), opacity 0.25s ease;
+.gift-slide-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
 }
-.gift-pop-leave-active {
-  transition: transform 0.25s ease, opacity 0.25s ease;
-}
-.gift-pop-enter-from {
-  transform: translate(-50%, -50%) scale(0.3);
+.gift-slide-enter-from {
+  transform: translateX(-60px);
   opacity: 0;
 }
-.gift-pop-leave-to {
-  transform: translate(-50%, -50%) scale(1.15);
+.gift-slide-leave-to {
+  transform: translateX(-30px);
   opacity: 0;
 }
 
