@@ -577,27 +577,60 @@ function toggleSpeaker() {
   speakerOn.value = !speakerOn.value;
 }
 
+// Grabs a fresh camera track and swaps it into the live peer connection
+// via replaceTrack — no renegotiation needed, so it's safe to call
+// mid-call without disrupting the other side.
+async function replaceLocalVideoTrack() {
+  const newStream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: facingMode.value, width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: false,
+  });
+  const newTrack = newStream.getVideoTracks()[0];
+  const sender = pc?.getSenders().find(s => s.track?.kind === 'video');
+  await sender?.replaceTrack(newTrack);
+  const oldTrack = localStream?.getVideoTracks()[0];
+  if (localStream && oldTrack) {
+    localStream.removeTrack(oldTrack);
+    oldTrack.stop();
+    localStream.addTrack(newTrack);
+  }
+  if (localVideoEl.value) {
+    localVideoEl.value.srcObject = localStream;
+  }
+}
+
 async function flipCamera() {
   facingMode.value = facingMode.value === 'user' ? 'environment' : 'user';
   try {
-    const newStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: facingMode.value, width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false,
-    });
-    const newTrack = newStream.getVideoTracks()[0];
-    const sender = pc?.getSenders().find(s => s.track?.kind === 'video');
-    await sender?.replaceTrack(newTrack);
-    const oldTrack = localStream?.getVideoTracks()[0];
-    if (localStream && oldTrack) {
-      localStream.removeTrack(oldTrack);
-      oldTrack.stop();
-      localStream.addTrack(newTrack);
-    }
-    if (localVideoEl.value) {
-      localVideoEl.value.srcObject = localStream;
-    }
+    await replaceLocalVideoTrack();
   } catch (error) {
     console.warn('[call] flip camera failed:', error);
+  }
+}
+
+// Mobile browsers can suspend/mute the camera track while the tab is
+// backgrounded (switching apps, locking the phone); on return the local
+// preview — and the frame the other person receives — can keep showing
+// the last frame forever. Reacquire the camera if the track looks dead.
+function isLocalVideoTrackHealthy() {
+  const track = localStream?.getVideoTracks()[0];
+  return !!track && track.readyState === 'live' && !track.muted;
+}
+
+async function refreshCameraIfStale() {
+  if (state.value !== 'connected' || !camOn.value || isLocalVideoTrackHealthy()) {
+    return;
+  }
+  try {
+    await replaceLocalVideoTrack();
+  } catch (error) {
+    console.warn('[call] camera resume refresh failed:', error);
+  }
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    void refreshCameraIfStale();
   }
 }
 
@@ -652,9 +685,12 @@ onMounted(async () => {
       endCall('no-answer');
     }
   }, 35000);
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 });
 
 onUnmounted(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
   if (state.value !== 'ended' && channel) {
     try {
       channel.send({ type: 'broadcast', event: 'signal', payload: { type: 'hangup' } });

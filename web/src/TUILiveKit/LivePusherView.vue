@@ -1044,6 +1044,31 @@ const stopMobileCameraPreview = async () => {
   }
 };
 
+// Mobile browsers can suspend/mute the camera track while the tab is
+// backgrounded (switching apps, locking the phone). The <video> keeps
+// painting its last frame forever on return — startMobileCameraPreview()
+// is normally a no-op once previewStream is set, so nothing ever
+// reacquired it. On resume, check the track is actually still live and,
+// if not, tear down and restart the preview.
+const isPreviewStreamHealthy = () => {
+  const track = previewStream?.getVideoTracks?.()[0];
+  return !!track && track.readyState === 'live' && !track.muted;
+};
+
+const refreshCameraAfterResume = async () => {
+  if (!isMobile || isCameraOff.value || hasOthersOnScreen.value || isPreviewStreamHealthy()) {
+    return;
+  }
+  await stopMobileCameraPreview();
+  await startMobileCameraPreview();
+};
+
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'visible') {
+    void refreshCameraAfterResume();
+  }
+};
+
 // Front/rear camera toggle — pre-live restarts our preview stream with
 // the other facing mode; in-live delegates to the engine's switch.
 const toggleMobileCameraFacing = async () => {
@@ -1372,12 +1397,14 @@ onMounted(async () => {
   autoStartCameraFallbackTimer = window.setTimeout(() => {
     startMobileCameraPreview();
   }, 2000);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 });
 
 onUnmounted(() => {
   if (autoStartCameraFallbackTimer !== null) {
     window.clearTimeout(autoStartCameraFallbackTimer);
   }
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
   stopMobileCameraPreview();
   unsubscribeLiveListEvent(LiveListEvent.onLiveEnded, handleLiveEnded);
   unsubscribeBarrageEvent(BarrageEvent.onCustomMessageReceived, handleCustomMessageReceived);
