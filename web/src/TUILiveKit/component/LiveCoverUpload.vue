@@ -7,62 +7,32 @@
       :accept="acceptedCoverFileTypes"
       @change="handleCoverFileChange"
     >
-    <div v-if="uploadEnabled" class="cover-card-list">
-      <div
-        class="cover-card cover-card-landscape"
-        :class="{ active: coverType === 'landscape', filled: hasLandscapeCover }"
-        @click="handleCardClick('landscape')"
-        @dragover.prevent="handleDragOver"
-        @drop.prevent="handleDrop($event, 'landscape')"
+    <div
+      v-if="uploadEnabled"
+      class="cover-card"
+      :class="{ filled: hasCover }"
+      @click="handleCardClick"
+      @dragover.prevent="handleDragOver"
+      @drop.prevent="handleDrop"
+    >
+      <img
+        v-if="hasCover"
+        class="cover-preview-image"
+        :src="coverUrlModel"
+        alt="cover preview"
       >
-        <div class="cover-card-tag">{{ t('Landscape cover') }}</div>
-        <img
-          v-if="hasLandscapeCover"
-          class="cover-preview-image"
-          :src="coverUrlModel"
-          alt="landscape cover preview"
-        >
-        <div v-else class="cover-placeholder">
-          <div class="cover-placeholder-title">{{ t('Click to upload cover image') }}</div>
-        </div>
-        <button
-          v-if="hasLandscapeCover"
-          class="cover-remove-btn"
-          type="button"
-          :title="t('Remove cover')"
-          @click.stop="handleRemoveCover"
-        >
-          <IconClose :size="12" />
-        </button>
+      <div v-else class="cover-placeholder">
+        <div class="cover-placeholder-title">{{ t('Click to upload cover image') }}</div>
       </div>
-
-      <div
-        class="cover-card cover-card-portrait"
-        :class="{ active: coverType === 'portrait', filled: hasPortraitCover }"
-        @click="handleCardClick('portrait')"
-        @dragover.prevent="handleDragOver"
-        @drop.prevent="handleDrop($event, 'portrait')"
+      <button
+        v-if="hasCover"
+        class="cover-remove-btn"
+        type="button"
+        :title="t('Remove cover')"
+        @click.stop="handleRemoveCover"
       >
-        <div class="cover-card-tag">{{ t('Portrait cover') }}</div>
-        <img
-          v-if="hasPortraitCover"
-          class="cover-preview-image"
-          :src="coverUrlModel"
-          alt="portrait cover preview"
-        >
-        <div v-else class="cover-placeholder">
-          <div class="cover-placeholder-title">{{ t('Click to upload cover image') }}</div>
-        </div>
-        <button
-          v-if="hasPortraitCover"
-          class="cover-remove-btn"
-          type="button"
-          :title="t('Remove cover')"
-          @click.stop="handleRemoveCover"
-        >
-          <IconClose :size="12" />
-        </button>
-      </div>
+        <IconClose :size="12" />
+      </button>
     </div>
 
     <div class="cover-tip">{{ coverUploadHint }}</div>
@@ -119,7 +89,6 @@ const { t } = useUIKit();
 const { user } = useAuth();
 const coverFileInputRef = ref<HTMLInputElement>();
 const isUploading = ref(false);
-const pendingCoverType = ref<CoverType>('landscape');
 const detectCoverTypeTaskId = ref(0);
 
 const coverUrlModel = computed({
@@ -127,14 +96,12 @@ const coverUrlModel = computed({
   set: (value: string) => emit('update:modelValue', value),
 });
 const acceptedCoverFileTypes = computed(() => props.allowedMimeTypes.join(','));
-const coverType = computed(() => props.coverType);
 const uploadEnabled = computed(() => props.uploadEnabled);
 const coverUploadHint = computed(() =>
-  t('Please select landscape (16:9) or portrait (9:16) cover, file size cannot exceed {size}MB')
+  t('File size cannot exceed {size}MB')
     .replace('{size}', String(props.maxSizeMb))
 );
-const hasLandscapeCover = computed(() => props.coverType === 'landscape' && !!props.modelValue);
-const hasPortraitCover = computed(() => props.coverType === 'portrait' && !!props.modelValue);
+const hasCover = computed(() => !!props.modelValue);
 
 function parseUploadErrorMessage(error: unknown) {
   const err = error as { response?: { data?: { message?: string } }; message?: string };
@@ -190,12 +157,11 @@ function showUploadUnavailableTip() {
   });
 }
 
-function triggerFileSelect(type: CoverType) {
-  pendingCoverType.value = type;
+function triggerFileSelect() {
   coverFileInputRef.value?.click();
 }
 
-function handleCardClick(type: CoverType) {
+function handleCardClick() {
   if (isUploading.value) {
     return;
   }
@@ -203,7 +169,7 @@ function handleCardClick(type: CoverType) {
     showUploadUnavailableTip();
     return;
   }
-  triggerFileSelect(type);
+  triggerFileSelect();
 }
 
 function handleDragOver(event: DragEvent) {
@@ -212,7 +178,7 @@ function handleDragOver(event: DragEvent) {
   }
 }
 
-async function handleDrop(event: DragEvent, type: CoverType) {
+async function handleDrop(event: DragEvent) {
   if (isUploading.value) {
     return;
   }
@@ -224,10 +190,10 @@ async function handleDrop(event: DragEvent, type: CoverType) {
   if (!selectedFile) {
     return;
   }
-  await processUploadFile(selectedFile, type);
+  await processUploadFile(selectedFile);
 }
 
-async function processUploadFile(selectedFile: File, type: CoverType) {
+async function processUploadFile(selectedFile: File) {
   try {
     // Only the format matters now — we accept any photo from the gallery,
     // compress it client-side and upload it to Supabase Storage. We no
@@ -244,12 +210,12 @@ async function processUploadFile(selectedFile: File, type: CoverType) {
 
     isUploading.value = true;
 
-    let finalType = type;
+    let finalType: CoverType = 'landscape';
     try {
       const { width, height } = await getImageSize(selectedFile);
       finalType = resolveCoverTypeByRatio(width, height);
     } catch {
-      // couldn't read dimensions — keep the card the user tapped
+      // couldn't read dimensions — keep the default
     }
 
     const url = await uploadCover(user.value.id, selectedFile);
@@ -274,7 +240,7 @@ async function handleCoverFileChange(event: Event) {
   if (!selectedFile || isUploading.value) {
     return;
   }
-  await processUploadFile(selectedFile, pendingCoverType.value);
+  await processUploadFile(selectedFile);
 }
 
 function handleRemoveCover() {
@@ -325,53 +291,25 @@ watch(
   display: none;
 }
 
-.cover-card-list {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
 .cover-card {
   position: relative;
   overflow: hidden;
-  border-radius: 10px;
-  border: 1px dashed var(--stroke-color-primary);
-  background: var(--bg-color-dialog, rgba(255, 255, 255, 0.02));
+  width: 100%;
+  height: 150px;
+  border-radius: 14px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
-  transition: border-color .2s ease, box-shadow .2s ease;
+  transition: border-color .2s ease;
 }
 
-.cover-card.active {
-  border-style: solid;
-  border-color: var(--button-color-primary, #3778ff);
-  box-shadow: 0 0 0 1px rgba(55, 120, 255, 0.25);
+.cover-card:hover {
+  border-color: rgba(255, 255, 255, 0.32);
 }
 
 .cover-card.filled {
   border-style: solid;
-}
-
-.cover-card-landscape {
-  width: 216px;
-  height: 122px;
-}
-
-.cover-card-portrait {
-  width: 100px;
-  height: 178px;
-}
-
-.cover-card-tag {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 2;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.35);
-  color: #fff;
-  font-size: 11px;
-  line-height: 16px;
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .cover-preview-image {
@@ -398,11 +336,6 @@ watch(
   word-break: break-word;
   overflow-wrap: anywhere;
   color: $text-color2;
-}
-
-.cover-card-portrait .cover-placeholder-title {
-  // Keep the portrait placeholder copy at two lines, matching the Electron layout more closely.
-  width: 56px;
 }
 
 .cover-remove-btn {
