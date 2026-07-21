@@ -75,6 +75,8 @@ const coGuestPanelVisible = ref(false);
 const handleCoGuest = () => {
   coGuestPanelVisible.value = true;
 };
+
+defineExpose({ open: handleCoGuest });
 </script>
 
 <style lang="scss" scoped>

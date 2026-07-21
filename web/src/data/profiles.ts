@@ -798,7 +798,7 @@ async function sendCommentPushNotification(
 /** Fire a native push to a creator's followers that they've gone live. */
 export async function notifyLiveStarted(
   streamerId: string,
-  info: { name?: string; avatar?: string | null; liveId?: string },
+  info: { name?: string; avatar?: string | null; liveId?: string; message?: string },
 ): Promise<void> {
   try {
     const client = requireClient();
@@ -815,6 +815,7 @@ export async function notifyLiveStarted(
         streamerName: info.name || '',
         streamerAvatar: info.avatar || null,
         liveId: info.liveId || null,
+        message: info.message || '',
       }),
     });
   } catch (error) {

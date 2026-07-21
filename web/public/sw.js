@@ -5,7 +5,7 @@
  *  - same-origin static assets (hashed js/css/img): cache first
  *  - everything else (Supabase, TRTC, websockets): untouched
  */
-const CACHE = 'hypecall-v83';
+const CACHE = 'hypecall-v84';
 
 // Precache the ENTIRE app (shell + every hashed route chunk) at install so
 // it runs fully offline, not just the pages visited while online. The list
@@ -189,7 +189,7 @@ self.addEventListener('push', (event) => {
     event.waitUntil(
       self.registration.showNotification(`${data.streamerName || 'Alguien'} está en vivo 🔴`, {
         ...NATIVE,
-        body: 'Toca para entrar a la transmisión',
+        body: data.message || 'Toca para entrar a la transmisión',
         icon: data.streamerAvatar || './icons/icon-192.png',
         tag: `live-${data.streamerId}`,
         renotify: true,

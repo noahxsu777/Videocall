@@ -97,6 +97,8 @@ const handleConfirm = () => {
   });
   settingPanelVisible.value = false;
 };
+
+defineExpose({ open: handleIconClick });
 </script>
 
 <style lang="scss" scoped>

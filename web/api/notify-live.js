@@ -2,7 +2,7 @@
 const { sendToUsers, makeHandler } = require('./_push');
 
 module.exports = makeHandler(async ({ req, res, cfg, supabase, user }) => {
-  const { streamerId, streamerName, streamerAvatar, liveId } = req.body || {};
+  const { streamerId, streamerName, streamerAvatar, liveId, message } = req.body || {};
   if (!streamerId) {
     res.status(400).json({ ok: false, reason: 'missing_fields' });
     return;
@@ -26,6 +26,7 @@ module.exports = makeHandler(async ({ req, res, cfg, supabase, user }) => {
     liveId: liveId || null,
     streamerName: streamerName || 'Alguien',
     streamerAvatar: streamerAvatar || null,
+    message: (message || '').trim().slice(0, 120) || null,
   });
   res.status(200).json({ ok: true, sent: result.sent, errors: result.errors });
 });

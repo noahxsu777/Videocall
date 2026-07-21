@@ -67,6 +67,7 @@
           {{ currentLive?.liveName || liveParams.liveName }}
           <LiveSettingButton
             v-if="loginUserInfo?.userId"
+            ref="liveSettingButtonRef"
             :live-name="currentLive?.liveName || liveParams.liveName"
             :cover-url="currentLive?.coverUrl || liveParams.coverUrl"
             @confirm="handleLiveSettingConfirm"
@@ -135,7 +136,7 @@
         basic filters, and toggle the camera off/on. Work both pre-live
         (our preview stream) and in-live (engine switch / close+republish).
       -->
-      <div v-if="isMobile" class="mobile-camera-actions">
+      <div v-if="isMobile" class="mobile-camera-actions" :class="{ 'shifted-down': !isInLive }">
         <div class="camera-action-btn" :class="{ 'is-off': isCameraOff }" @click="toggleMobileCameraOff">
           <IconCameraOn v-if="!isCameraOff" size="22" />
           <IconCameraOff v-else size="22" />
@@ -146,10 +147,30 @@
         <div class="camera-action-btn" :class="{ 'is-on': isMirrored }" @click="isMirrored = !isMirrored">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M8 7 4 12l4 5"/><path d="m16 7 4 5-4 5"/></svg>
         </div>
-        <div class="camera-action-btn" :class="{ 'is-on': camFilter !== 'none' }" @click="filterPickerVisible = !filterPickerVisible">
+        <div v-if="isInLive" class="camera-action-btn" :class="{ 'is-on': camFilter !== 'none' }" @click="filterPickerVisible = !filterPickerVisible">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 9v6l8 6 8-6V9z"/><path d="M12 3v18M4 9l16 0"/></svg>
         </div>
       </div>
+      <!-- Tango-style pre-live action stack: effects, share, settings.
+           Only shown before the creator taps "Iniciar directo" — once
+           live, the controls above take over the same screen corner. -->
+      <div v-if="isMobile && !isInLive" class="pre-live-actions">
+        <button class="pre-live-action-btn" :class="{ 'is-on': camFilter !== 'none' }" @click="filterPickerVisible = !filterPickerVisible">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="#fff"><path d="M12 2 13.8 8.2 20 10 13.8 11.8 12 18 10.2 11.8 4 10 10.2 8.2 12 2Z"/><path d="M19 14 19.9 16.6 22.5 17.5 19.9 18.4 19 21 18.1 18.4 15.5 17.5 18.1 16.6 19 14Z"/></svg>
+        </button>
+        <button class="pre-live-action-btn" @click="preLiveShareOpen = true">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 7 5 5-5 5"/><path d="M22 12H9a5 5 0 0 0-5 5v1"/></svg>
+        </button>
+        <button class="pre-live-action-btn" @click="settingButtonRef?.open?.()">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+        </button>
+      </div>
+      <ShareLiveSheet
+        v-if="isMobile"
+        v-model="preLiveShareOpen"
+        :live-id="liveParams.liveId"
+        :host-name="authDisplayName"
+      />
       <!-- Basic filter picker (host-side look; see CAMERA_FILTERS note) -->
       <div v-if="isMobile && filterPickerVisible" class="filter-picker">
         <button
@@ -239,6 +260,27 @@
       </template>
 
       <div class="main-center-bottom">
+        <!-- Tango-style pre-live card: cover thumbnail + notification
+             message sent to followers when the live actually starts. -->
+        <div v-if="isMobile && !isInLive" class="pre-live-card">
+          <button class="pre-live-cover" @click="liveSettingButtonRef?.open?.()">
+            <img v-if="liveParams.coverUrl" :src="liveParams.coverUrl" alt="" />
+            <span v-else class="pre-live-cover-placeholder">🎬</span>
+            <span class="pre-live-cover-edit">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            </span>
+          </button>
+          <div class="pre-live-notify">
+            <span class="pre-live-notify-label">Notificación para los seguidores</span>
+            <input
+              v-model="liveStartMessage"
+              class="pre-live-notify-input"
+              type="text"
+              maxlength="120"
+              placeholder="Inicié la transmisión"
+            />
+          </div>
+        </div>
         <div class="main-center-bottom-content">
           <div class="main-center-bottom-left">
             <div class="main-center-bottom-tools">
@@ -247,7 +289,7 @@
               <CoGuestButton />
               <CoHostButton />
               <LayoutSwitch />
-              <SettingButton />
+              <SettingButton ref="settingButtonRef" />
             </div>
           </div>
           <div class="main-center-bottom-right">
@@ -416,6 +458,7 @@ import SpeakerVolumeSetting from './component/SpeakerVolumeSetting.vue';
 import LivePusherNotification from './component/LivePusherNotification.vue';
 import LiveChat from '../components/LiveChat.vue';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
+import ShareLiveSheet from '../components/ShareLiveSheet.vue';
 import { useAuth } from '../auth/useAuth';
 import { notifyLiveStarted, addEarnedCoins } from '../data/profiles';
 import { recordLiveSession } from '../data/stats';
@@ -838,6 +881,14 @@ const CAMERA_FILTERS = [
 const camFilter = ref('none');
 const isMirrored = ref(false);
 const filterPickerVisible = ref(false);
+
+// Tango-style pre-live screen: share sheet, refs to trigger the existing
+// settings/cover dialogs from the new floating icon stack, and the custom
+// message sent to followers in the "you're live" push notification.
+const preLiveShareOpen = ref(false);
+const settingButtonRef = ref<{ open?: () => void } | null>(null);
+const liveSettingButtonRef = ref<{ open?: () => void } | null>(null);
+const liveStartMessage = ref('');
 const camVideoStyle = computed(() => ({
   filter: camFilter.value,
   transform: isMirrored.value ? 'scaleX(-1)' : 'none',
@@ -1167,6 +1218,7 @@ const handleStartLive = async () => {
         name: authDisplayName.value,
         avatar: (authUser.value.user_metadata?.avatar_url as string) || null,
         liveId: liveParams.value.liveId,
+        message: liveStartMessage.value.trim(),
       });
     }
   } catch (error: any) {
@@ -1761,6 +1813,42 @@ onUnmounted(() => {
           background: rgba(220, 53, 69, 0.65) !important;
         }
       }
+
+      // Pre-live: sits below the new Tango-style action stack instead of
+      // under the top bar, so the two don't overlap.
+      &.shifted-down {
+        top: 166px !important;
+      }
+    }
+
+    // Tango-style pre-live stack (effects / share / settings), transparent
+    // circular buttons with just an icon — no card, no labels.
+    .pre-live-actions {
+      position: absolute !important;
+      top: 12px !important;
+      right: 12px !important;
+      z-index: 4 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 14px !important;
+      pointer-events: auto !important;
+
+      .pre-live-action-btn {
+        width: 36px;
+        height: 36px;
+        border: none;
+        background: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        cursor: pointer;
+        filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.5));
+
+        &.is-on svg {
+          filter: drop-shadow(0 0 4px rgba(255, 200, 87, 0.9));
+        }
+      }
     }
 
     // Live stats overlay (time on air + diamonds), pinned top-left just
@@ -1855,6 +1943,82 @@ onUnmounted(() => {
         display: none !important;
       }
 
+      // Tango-style pre-live card: cover thumbnail (editable) + the
+      // follower notification message, above the tools/start row.
+      .pre-live-card {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        padding: 0 16px 12px !important;
+
+        .pre-live-cover {
+          position: relative;
+          flex-shrink: 0;
+          width: 52px;
+          height: 68px;
+          border-radius: 10px;
+          overflow: hidden;
+          border: none;
+          padding: 0;
+          cursor: pointer;
+          background: linear-gradient(160deg, #3a3a44, #1c1c22);
+
+          img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+          }
+          .pre-live-cover-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+          }
+          .pre-live-cover-edit {
+            position: absolute;
+            right: 3px;
+            bottom: 3px;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.55);
+          }
+        }
+
+        .pre-live-notify {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 5px;
+        }
+        .pre-live-notify-label {
+          font-size: 12.5px;
+          color: rgba(255, 255, 255, 0.7);
+        }
+        .pre-live-notify-input {
+          width: 100%;
+          height: 38px;
+          padding: 0 14px;
+          border-radius: 19px;
+          border: 1px solid rgba(255, 255, 255, 0.25);
+          background: rgba(255, 255, 255, 0.06);
+          color: #fff;
+          font-size: 13.5px;
+          outline: none;
+
+          &::placeholder {
+            color: rgba(255, 255, 255, 0.45);
+          }
+        }
+      }
+
       .main-center-bottom-content {
         height: auto !important;
         flex-direction: column !important;
@@ -1885,6 +2049,10 @@ onUnmounted(() => {
         .main-center-bottom-right {
           width: 100% !important;
 
+          // Pink → purple gradient pill, matching the brand gradient used
+          // across the app (login screen, gift banners). This block only
+          // ever renders the "Iniciar directo" button on mobile — once
+          // live, End live moves to the top pill instead.
           :deep(button) {
             width: 70% !important;
             max-width: 320px !important;
@@ -1892,6 +2060,10 @@ onUnmounted(() => {
             margin: 0 auto !important;
             border-radius: 24px !important;
             font-size: 16px !important;
+            background: linear-gradient(90deg, #ff3d70, #9b2df7) !important;
+            border: none !important;
+            color: #fff !important;
+            font-weight: 700 !important;
           }
         }
       }
