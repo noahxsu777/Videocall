@@ -267,7 +267,7 @@
             <img v-if="liveParams.coverUrl" :src="liveParams.coverUrl" alt="" />
             <span v-else class="pre-live-cover-placeholder">🎬</span>
             <span class="pre-live-cover-edit">
-              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
             </span>
           </button>
           <div class="pre-live-notify">
@@ -1954,9 +1954,9 @@ onUnmounted(() => {
         .pre-live-cover {
           position: relative;
           flex-shrink: 0;
-          width: 52px;
-          height: 68px;
-          border-radius: 10px;
+          width: 88px;
+          height: 116px;
+          border-radius: 14px;
           overflow: hidden;
           border: none;
           padding: 0;
@@ -1975,14 +1975,14 @@ onUnmounted(() => {
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 22px;
+            font-size: 34px;
           }
           .pre-live-cover-edit {
             position: absolute;
-            right: 3px;
-            bottom: 3px;
-            width: 18px;
-            height: 18px;
+            right: 5px;
+            bottom: 5px;
+            width: 26px;
+            height: 26px;
             border-radius: 50%;
             display: flex;
             align-items: center;
