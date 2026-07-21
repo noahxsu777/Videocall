@@ -140,7 +140,8 @@ defineExpose({ open: handleCoGuest });
 // properties, so overriding them here is enough to recolor all of it
 // without fighting each control's own stylesheet).
 :deep(.setting-dialog) {
-  width: 600px;
+  width: 440px;
+  max-height: 84vh;
   --text-color-link: #ff4f8b;
   --text-color-link-hover: #ff699b;
   --text-color-link-active: #e63d78;
@@ -159,12 +160,26 @@ defineExpose({ open: handleCoGuest });
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 
+// The kit's dialog has no internal scroll of its own (its container is
+// overflow:hidden with no max-height budget), so on shorter screens the
+// bottom of the panel (Speaker/Test) was getting clipped instead of
+// scrolling into view. Give the header/body a fixed share and let the
+// body itself scroll.
 :deep(.setting-dialog .tui-dialog-header) {
-  padding-bottom: 4px;
+  padding-bottom: 2px;
+  flex-shrink: 0;
+}
+:deep(.setting-dialog.tui-dialog-container-mobile .tui-dialog-title) {
+  padding: 18px 20px 0 !important;
+  font-size: 16px !important;
+}
+:deep(.setting-dialog .tui-dialog-body) {
+  overflow-y: auto;
+  min-height: 0;
 }
 
 :deep(.setting-dialog .tui-dialog-title) {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
   background: linear-gradient(90deg, #ff4f8b, #9b2df7);
   -webkit-background-clip: text;
@@ -173,7 +188,8 @@ defineExpose({ open: handleCoGuest });
 }
 
 :deep(.setting-dialog .select-content) {
-  border-radius: 14px !important;
+  border-radius: 12px !important;
+  height: 38px !important;
 }
 
 :deep(.setting-dialog .tui-button) {
@@ -184,19 +200,18 @@ defineExpose({ open: handleCoGuest });
 .setting-panel {
   display: flex;
   flex-direction: column;
-  max-height: 600px;
   width: 100%;
-  padding: 0 8px;
-  overflow: hidden;
+  padding: 0 4px;
+  overflow-y: auto;
   @include scrollbar;
   .section {
-    margin-bottom: 32px;
+    margin-bottom: 18px;
 
     .section-title {
       position: relative;
-      font-size: 16px;
+      font-size: 14.5px;
       font-weight: 800;
-      margin-bottom: 18px;
+      margin-bottom: 12px;
       padding-left: 12px;
 
       &::before {
@@ -214,14 +229,15 @@ defineExpose({ open: handleCoGuest });
     .row {
       display: flex;
       align-items: center;
-      margin-bottom: 16px;
+      margin-bottom: 10px;
 
       .label {
         width: 96px;
+        font-size: 13.5px;
       }
       .select {
         width: 100%;
-        font-size: 14px;
+        font-size: 13.5px;
       }
     }
 
@@ -244,6 +260,17 @@ defineExpose({ open: handleCoGuest });
 .divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.1);
-  margin-bottom: 32px;
+  margin-bottom: 16px;
+}
+
+// AudioSettingPanel is a library component rendered inside .setting-panel
+// with its own generous spacing — tighten it to match the rest of the
+// dialog so everything fits without scrolling on most phones.
+:deep(.audio-setting-tab .item-setting) {
+  margin-bottom: 12px !important;
+}
+:deep(.audio-setting-tab .title) {
+  margin-bottom: 6px !important;
+  font-size: 13px !important;
 }
 </style>
