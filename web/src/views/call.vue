@@ -43,16 +43,20 @@
       💰 {{ ratePerMinute }}/min · Saldo {{ myCoins }}
     </div>
 
-    <!-- Gift animation — transparent, slides in from the left with the
+    <!-- Gift icon/animation — big, transparent, centered over the video. -->
+    <Transition name="gift-pop">
+      <div v-if="giftToast" class="gift-center-ico">
+        <img v-if="giftToast.kind === 'image'" :src="giftToast.icon" alt="" />
+        <img v-else-if="giftToast.kind === 'gif'" :src="giftToast.icon" alt="" class="gift-center-gif" />
+        <LottieIcon v-else-if="giftToast.kind === 'lottie'" :src="giftToast.icon" :size="140" />
+        <template v-else>{{ giftToast.icon }}</template>
+      </div>
+    </Transition>
+
+    <!-- Gift phrase — transparent, slides in from the left with the
          sender + quantity, same idea as a live-room gift banner. -->
     <Transition name="gift-slide">
       <div v-if="giftToast" class="gift-toast">
-        <span class="gift-toast-ico">
-          <img v-if="giftToast.kind === 'image'" :src="giftToast.icon" alt="" />
-          <img v-else-if="giftToast.kind === 'gif'" :src="giftToast.icon" alt="" class="gift-toast-gif" />
-          <LottieIcon v-else-if="giftToast.kind === 'lottie'" :src="giftToast.icon" :size="56" />
-          <template v-else>{{ giftToast.icon }}</template>
-        </span>
         <span class="gift-toast-text">
           <b>{{ giftToast.fromMe ? 'Tú' : (peerName || 'Alguien') }}</b> ha enviado x1
         </span>
@@ -855,7 +859,41 @@ onUnmounted(() => {
   white-space: nowrap;
 }
 
-/* Gift animation — transparent banner sliding in from the left edge,
+/* Gift icon/animation — big, transparent, centered over the video. */
+.gift-center-ico {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  font-size: 96px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 140px;
+  min-height: 140px;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.5));
+  pointer-events: none;
+}
+.gift-center-ico img { width: 140px; height: 140px; object-fit: contain; }
+.gift-center-gif { width: 180px !important; height: auto !important; border-radius: 16px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); }
+.gift-pop-enter-active {
+  transition: transform 0.4s cubic-bezier(0.2, 1.5, 0.3, 1), opacity 0.25s ease;
+}
+.gift-pop-leave-active {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+.gift-pop-enter-from {
+  transform: translate(-50%, -50%) scale(0.3);
+  opacity: 0;
+}
+.gift-pop-leave-to {
+  transform: translate(-50%, -50%) scale(1.15);
+  opacity: 0;
+}
+
+/* Gift phrase — transparent banner sliding in from the left edge,
    like a live-room gift notification. */
 .gift-toast {
   position: absolute;
@@ -863,30 +901,12 @@ onUnmounted(() => {
   left: 14px;
   right: 70px;
   z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: transparent;
   color: #fff;
   font-size: 14px;
   font-weight: 600;
   text-shadow: 0 1px 5px rgba(0, 0, 0, 0.7), 0 0 10px rgba(0, 0, 0, 0.4);
   pointer-events: none;
 }
-.gift-toast-ico {
-  flex-shrink: 0;
-  font-size: 40px;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 48px;
-  min-height: 48px;
-  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
-}
-.gift-toast-ico img { width: 48px; height: 48px; object-fit: contain; }
-.gift-toast-gif { width: 84px !important; height: auto !important; border-radius: 10px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
-.gift-toast-text { font-size: 14px; }
 .gift-toast-text b { font-weight: 800; }
 .gift-slide-enter-active {
   transition: transform 0.4s cubic-bezier(0.2, 1.3, 0.3, 1), opacity 0.25s ease;
