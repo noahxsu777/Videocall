@@ -46,7 +46,11 @@
     <!-- Gift received toast (host side) -->
     <Transition name="gift-pop">
       <div v-if="giftToast" class="gift-toast">
-        <span class="gift-toast-ico">{{ giftToast.icon }}</span>
+        <span class="gift-toast-ico">
+          <img v-if="giftToast.kind === 'image'" :src="giftToast.icon" alt="" />
+          <LottieIcon v-else-if="giftToast.kind === 'lottie'" :src="giftToast.icon" :size="28" />
+          <template v-else>{{ giftToast.icon }}</template>
+        </span>
         <span class="gift-toast-text">{{ peerName || 'Alguien' }} te envió +{{ giftToast.coins }} 🪙</span>
       </div>
     </Transition>
@@ -116,7 +120,11 @@
               :disabled="sendingGift || myCoins < g.coins"
               @click="sendGift(g)"
             >
-              <span class="gift-option-ico">{{ g.icon }}</span>
+              <span class="gift-option-ico">
+                <img v-if="g.kind === 'image'" :src="g.icon" alt="" />
+                <LottieIcon v-else-if="g.kind === 'lottie'" :src="g.icon" :size="34" />
+                <template v-else>{{ g.icon }}</template>
+              </span>
               <span class="gift-option-coins">{{ g.coins }} 🪙</span>
             </button>
           </div>
@@ -133,6 +141,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../auth/useAuth';
 import { getProfile } from '../data/profiles';
 import { joinCallChannel, getCallRate, getCoins, transferCoins, cancelRing } from '../data/calls';
+import LottieIcon from '../components/LottieIcon.vue';
 
 type CallState = 'ringing' | 'connecting' | 'connected' | 'ended';
 
@@ -204,15 +213,18 @@ const BILL_INTERVAL_SECONDS = 10;
 // per-minute rate. Reuses the same atomic transfer_call_coins RPC as
 // billing, so gifts land straight in the host's withdrawable balance and
 // show up in Transacciones -> Ganancias like any other call earning.
-const GIFT_PRESETS = [
-  { icon: '🌹', coins: 50 },
-  { icon: '🎉', coins: 100 },
-  { icon: '💎', coins: 500 },
-  { icon: '👑', coins: 1000 },
+type GiftKind = 'emoji' | 'image' | 'lottie';
+interface GiftPreset { kind: GiftKind; icon: string; coins: number }
+const GIFT_PRESETS: GiftPreset[] = [
+  { kind: 'image', icon: 'https://cdn3.emoji.gg/emojis/2071-heart-eyes.png', coins: 50 },
+  { kind: 'emoji', icon: '🎉', coins: 100 },
+  { kind: 'emoji', icon: '💎', coins: 500 },
+  { kind: 'emoji', icon: '👑', coins: 1000 },
+  { kind: 'lottie', icon: 'https://lottie.host/cd4c56a4-dbe3-484c-903d-b21f15c934e7/JtQ5tcpSNL.lottie', coins: 2000 },
 ];
 const giftSheetOpen = ref(false);
 const sendingGift = ref(false);
-const giftToast = ref<{ icon: string; coins: number } | null>(null);
+const giftToast = ref<{ kind: GiftKind; icon: string; coins: number } | null>(null);
 let giftToastTimer: number | null = null;
 
 let pc: RTCPeerConnection | null = null;
@@ -302,7 +314,7 @@ function startBilling() {
   }, BILL_INTERVAL_SECONDS * 1000);
 }
 
-async function sendGift(preset: { icon: string; coins: number }) {
+async function sendGift(preset: GiftPreset) {
   if (sendingGift.value || myCoins.value < preset.coins) {
     return;
   }
@@ -313,7 +325,7 @@ async function sendGift(preset: { icon: string; coins: number }) {
     channel?.send({
       type: 'broadcast',
       event: 'signal',
-      payload: { type: 'gift', icon: preset.icon, coins: preset.coins },
+      payload: { type: 'gift', kind: preset.kind, icon: preset.icon, coins: preset.coins },
     });
     giftSheetOpen.value = false;
   } catch (error) {
@@ -391,7 +403,7 @@ async function handleSignal(payload: any) {
     case 'gift':
       if (!isPayer.value && typeof payload.coins === 'number') {
         coinsEarned.value += payload.coins;
-        showGiftToast(payload.icon || '🎁', payload.coins);
+        showGiftToast(payload.kind || 'emoji', payload.icon || '🎁', payload.coins);
       }
       break;
     default:
@@ -399,11 +411,11 @@ async function handleSignal(payload: any) {
   }
 }
 
-function showGiftToast(icon: string, coins: number) {
+function showGiftToast(kind: GiftKind, icon: string, coins: number) {
   if (giftToastTimer) {
     window.clearTimeout(giftToastTimer);
   }
-  giftToast.value = { icon, coins };
+  giftToast.value = { kind, icon, coins };
   giftToastTimer = window.setTimeout(() => {
     giftToast.value = null;
     giftToastTimer = null;
@@ -767,7 +779,13 @@ onUnmounted(() => {
   font-weight: 700;
   white-space: nowrap;
 }
-.gift-toast-ico { font-size: 20px; }
+.gift-toast-ico {
+  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.gift-toast-ico img { width: 24px; height: 24px; object-fit: contain; }
 .gift-pop-enter-active,
 .gift-pop-leave-active {
   transition: transform 0.3s cubic-bezier(0.2, 1.2, 0.3, 1), opacity 0.3s ease;
@@ -813,7 +831,7 @@ onUnmounted(() => {
 }
 .gift-options {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
   gap: 10px;
   margin-bottom: 16px;
 }
@@ -830,7 +848,14 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .gift-option:disabled { opacity: 0.4; }
-.gift-option-ico { font-size: 26px; }
+.gift-option-ico {
+  font-size: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+}
+.gift-option-ico img { width: 30px; height: 30px; object-fit: contain; }
 .gift-option-coins { font-size: 12px; font-weight: 700; color: #ffe0a3; }
 .gift-sheet-cancel {
   width: 100%;
