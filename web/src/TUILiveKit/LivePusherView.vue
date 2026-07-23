@@ -263,13 +263,20 @@
         <!-- Tango-style pre-live card: cover thumbnail + notification
              message sent to followers when the live actually starts. -->
         <div v-if="isMobile && !isInLive" class="pre-live-card">
-          <button class="pre-live-cover" @click="liveSettingButtonRef?.open?.()">
+          <button class="pre-live-cover" :disabled="preLiveCoverUploading" @click="preLiveCoverInputRef?.click()">
             <img v-if="liveParams.coverUrl" :src="liveParams.coverUrl" alt="" />
             <span v-else class="pre-live-cover-placeholder">🎬</span>
             <span class="pre-live-cover-edit">
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
             </span>
           </button>
+          <input
+            ref="preLiveCoverInputRef"
+            type="file"
+            accept="image/*"
+            hidden
+            @change="onPreLiveCoverSelected"
+          >
           <div class="pre-live-notify">
             <span class="pre-live-notify-label">Notificación para los seguidores</span>
             <input
@@ -460,7 +467,8 @@ import LiveChat from '../components/LiveChat.vue';
 import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
 import ShareLiveSheet from '../components/ShareLiveSheet.vue';
 import { useAuth } from '../auth/useAuth';
-import { notifyLiveStarted, addEarnedCoins } from '../data/profiles';
+import { notifyLiveStarted, addEarnedCoins, uploadCover } from '../data/profiles';
+import { UPLOAD_ALLOWED_MIME_TYPES, UPLOAD_MAX_FILE_SIZE_MB } from '../api/upload';
 import { recordLiveSession } from '../data/stats';
 import { copyToClipboard, isSvgCoverUrl } from './utils/utils';
 import { errorHandler } from './utils/errorHandler';
@@ -889,6 +897,41 @@ const preLiveShareOpen = ref(false);
 const settingButtonRef = ref<{ open?: () => void } | null>(null);
 const liveSettingButtonRef = ref<{ open?: () => void } | null>(null);
 const liveStartMessage = ref('');
+
+// Tapping the pre-live cover thumbnail opens the gallery directly (no
+// intermediate dialog) — whatever photo is picked becomes the Cover
+// shown once the live actually starts.
+const preLiveCoverInputRef = ref<HTMLInputElement | null>(null);
+const preLiveCoverUploading = ref(false);
+async function onPreLiveCoverSelected(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file || preLiveCoverUploading.value) {
+    return;
+  }
+  if (!UPLOAD_ALLOWED_MIME_TYPES.includes(file.type)) {
+    TUIToast.error({ message: t('Unsupported image format') });
+    return;
+  }
+  if (file.size > UPLOAD_MAX_FILE_SIZE_MB * 1024 * 1024) {
+    TUIToast.error({ message: t('File size cannot exceed {size}MB').replace('{size}', String(UPLOAD_MAX_FILE_SIZE_MB)) });
+    return;
+  }
+  if (!authUser.value?.id) {
+    TUIToast.error({ message: t('Please log in first') });
+    return;
+  }
+  preLiveCoverUploading.value = true;
+  try {
+    const url = await uploadCover(authUser.value.id, file);
+    await handleLiveSettingConfirm({ liveName: liveParams.value.liveName, coverUrl: url });
+  } catch (error) {
+    TUIToast.error({ message: (error as Error)?.message || t('Upload failed, please try again') });
+  } finally {
+    preLiveCoverUploading.value = false;
+  }
+}
 const camVideoStyle = computed(() => ({
   filter: camFilter.value,
   transform: isMirrored.value ? 'scaleX(-1)' : 'none',
