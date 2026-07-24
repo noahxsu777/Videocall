@@ -16,6 +16,36 @@
 
     <p v-if="isOffline" class="offline-banner">📡 Sin conexión — mostrando tus últimos mensajes guardados</p>
 
+    <!-- Story-style bubbles: your own "go live" sphere + one sphere per
+         followed creator who is LIVE right now (tap → enter their live). -->
+    <div v-if="!newOpen" class="stories-row">
+      <button class="story" @click="router.push('/live-pusher')">
+        <span class="story-ring story-ring-self">
+          <span class="story-avatar">
+            <img v-if="myAvatar" :src="myAvatar" alt="" />
+            <span v-else>{{ (displayName || '?').charAt(0).toUpperCase() }}</span>
+          </span>
+          <span class="story-plus">+</span>
+        </span>
+        <span class="story-name">Tu live</span>
+      </button>
+      <button
+        v-for="b in liveBubbles"
+        :key="b.userId"
+        class="story"
+        @click="openLiveBubble(b)"
+      >
+        <span class="story-ring story-ring-live">
+          <span class="story-avatar">
+            <img v-if="b.avatar" :src="b.avatar" alt="" />
+            <span v-else>{{ b.name.charAt(0).toUpperCase() }}</span>
+          </span>
+          <span class="story-live-pill">LIVE</span>
+        </span>
+        <span class="story-name">{{ b.name }}</span>
+      </button>
+    </div>
+
     <!-- New chat: search users -->
     <div v-if="newOpen" class="search-panel">
       <input
@@ -177,6 +207,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
+import { useLiveListState } from 'tuikit-atomicx-vue3';
 import GlassBackButton from '../components/GlassBackButton.vue';
 import VerifiedBadge from '../components/VerifiedBadge.vue';
 import CallSettingsSheet from '../components/CallSettingsSheet.vue';
@@ -221,6 +252,55 @@ const isOffline = ref(typeof navigator !== 'undefined' && !navigator.onLine);
 let unsubscribe: (() => void) | null = null;
 let pollTimer: number | null = null;
 let searchTimer: number | null = null;
+
+// --- Story-style live bubbles -------------------------------------------
+// One sphere per followed creator currently LIVE (Instagram-stories look).
+// Sources: Tencent's live list (who is live right now) intersected with
+// the Supabase follows of this user; refreshed on a slow poll.
+interface LiveBubble { userId: string; liveId: string; name: string; avatar: string | null }
+const liveBubbles = ref<LiveBubble[]>([]);
+const myAvatar = (user.value?.user_metadata?.avatar_url as string) || null;
+const { liveList, fetchLiveList } = useLiveListState();
+let followingMap: Map<string, Profile> | null = null;
+let liveBubbleTimer: number | null = null;
+
+async function refreshLiveBubbles() {
+  if (!myId) {
+    return;
+  }
+  try {
+    if (!followingMap) {
+      const following = await listFollowingProfiles(myId);
+      followingMap = new Map(following.map(p => [p.id, p]));
+    }
+    await fetchLiveList({ cursor: '', count: 50 });
+    const bubbles: LiveBubble[] = [];
+    for (const live of liveList.value) {
+      const ownerId = live.liveOwner?.userId;
+      if (!ownerId || ownerId === myId) {
+        continue;
+      }
+      const prof = followingMap.get(ownerId);
+      if (!prof) {
+        continue;
+      }
+      bubbles.push({
+        userId: ownerId,
+        liveId: live.liveId,
+        name: prof.display_name || prof.username || live.liveOwner?.userName || 'Usuario',
+        avatar: prof.avatar_url || live.liveOwner?.avatarUrl || null,
+      });
+    }
+    liveBubbles.value = bubbles;
+  } catch (error) {
+    // Engine not logged in yet / transient — keep whatever we had.
+    console.warn('[messages] live bubbles refresh failed:', error);
+  }
+}
+
+function openLiveBubble(b: LiveBubble) {
+  router.push({ path: '/live-player', query: { liveId: b.liveId } });
+}
 
 function fmtTime(iso: string): string {
   const d = new Date(iso);
@@ -569,12 +649,19 @@ onMounted(async () => {
       loadList();
     }
   }, 7000);
+  // Live bubbles: check right away (short delay so the Tencent engine
+  // login can settle on a cold start) and then on a slow poll.
+  window.setTimeout(() => { void refreshLiveBubbles(); }, 1500);
+  liveBubbleTimer = window.setInterval(() => { void refreshLiveBubbles(); }, 30000);
 });
 
 onUnmounted(() => {
   unsubscribe?.();
   if (pollTimer) {
     window.clearInterval(pollTimer);
+  }
+  if (liveBubbleTimer) {
+    window.clearInterval(liveBubbleTimer);
   }
   window.removeEventListener('online', handleOnline);
   window.removeEventListener('offline', handleOffline);
@@ -596,6 +683,107 @@ onUnmounted(() => {
   justify-content: space-between;
   padding: 14px 16px 10px;
 }
+/* Story-style live bubbles row */
+.stories-row {
+  display: flex;
+  gap: 14px;
+  padding: 4px 14px 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-bottom: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+.stories-row::-webkit-scrollbar { display: none; }
+.story {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 68px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: #fff;
+  cursor: pointer;
+}
+.story-ring {
+  position: relative;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.story-ring-self {
+  border: 2px solid rgba(255, 255, 255, 0.22);
+}
+.story-ring-live {
+  background: linear-gradient(45deg, #ff2e74, #9b2df7, #ff2e74) border-box;
+  background-size: 200% 200%;
+  border: 2.5px solid transparent;
+  animation: story-ring-spin 2.4s linear infinite;
+}
+@keyframes story-ring-spin {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.story-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #26262e;
+  border: 2.5px solid #050308;
+  font-size: 20px;
+  font-weight: 800;
+  box-sizing: border-box;
+}
+.story-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.story-plus {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #8b3dff, #ff2e74);
+  border: 2.5px solid #050308;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+}
+.story-live-pill {
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1.5px 7px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #ff2e74, #9b2df7);
+  border: 2px solid #050308;
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+}
+.story-name {
+  max-width: 68px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
 .msg-title {
   font-size: 22px;
   font-weight: 800;
