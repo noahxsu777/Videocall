@@ -9,15 +9,20 @@ const initializing = ref(true);
 let initialized = false;
 
 /**
- * A stable Tencent-friendly userId derived from the Supabase user.
+ * A stable Tencent-friendly userId derived from a Supabase user id.
  * Tencent userID only allows letters, numbers, underscore — so we strip
  * the UUID's dashes. This is what we pass to the live/chat SDK as userID.
+ * One-way (truncated): convert Supabase → Tencent to compare, never back.
  */
+export function tencentIdForUserId(supabaseUserId: string): string {
+  return `u_${supabaseUserId.replace(/-/g, '')}`.slice(0, 32);
+}
+
 export function tencentUserIdFor(user: User | null): string {
   if (!user) {
     return '';
   }
-  return `u_${user.id.replace(/-/g, '')}`.slice(0, 32);
+  return tencentIdForUserId(user.id);
 }
 
 export function displayNameFor(user: User | null): string {

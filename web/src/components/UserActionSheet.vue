@@ -104,6 +104,9 @@ export interface SheetTarget {
  * Moderation context, passed only when the sheet opens inside a live:
  * who the host is, what the CURRENT user is allowed to do, and which
  * users are chat-muted right now (engine state, tracked by the parent).
+ * hostId and mutedIds are TENCENT ids (u_<uuid-sin-guiones>) because
+ * that's what the engine/audience list reports; SheetTarget.id is the
+ * Supabase uuid, so comparisons go through tencentIdForUserId().
  */
 export interface SheetModeration {
   liveId: string;
@@ -118,7 +121,7 @@ export interface SheetModeration {
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { useAuth } from '../auth/useAuth';
+import { useAuth, tencentIdForUserId } from '../auth/useAuth';
 import VerifiedBadge from './VerifiedBadge.vue';
 import {
   getProfile,
@@ -173,15 +176,19 @@ const permMute = ref(true);
 const permKick = ref(true);
 const modBusy = ref(false);
 
+const targetIsHost = computed(() =>
+  !!props.target && !!props.moderation
+  && tencentIdForUserId(props.target.id) === props.moderation.hostId);
+
 const modActionsVisible = computed(() =>
   !!props.moderation
   && !!props.target
   && !isSelf.value
-  && props.target.id !== props.moderation.hostId
+  && !targetIsHost.value
   && (props.moderation.canMute || props.moderation.canKick || props.moderation.isHost));
 
 const targetIsMuted = computed(() =>
-  !!props.target && !!props.moderation?.mutedIds.includes(props.target.id));
+  !!props.target && !!props.moderation?.mutedIds.includes(tencentIdForUserId(props.target.id)));
 
 function doMute() {
   if (props.target) {
@@ -256,7 +263,8 @@ watch(
     modFormOpen.value = false;
     permMute.value = true;
     permKick.value = true;
-    if (props.moderation?.isHost && props.target && props.target.id !== props.moderation.hostId) {
+    if (props.moderation?.isHost && props.target
+      && tencentIdForUserId(props.target.id) !== props.moderation.hostId) {
       void getModPerms(props.moderation.liveId, props.target.id)
         .then((perms) => { targetModPerms.value = perms; })
         .catch(() => {});

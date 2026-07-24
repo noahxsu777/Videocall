@@ -212,7 +212,7 @@ import GlassBackButton from '../components/GlassBackButton.vue';
 import VerifiedBadge from '../components/VerifiedBadge.vue';
 import CallSettingsSheet from '../components/CallSettingsSheet.vue';
 import ListSkeleton from '../components/ListSkeleton.vue';
-import { useAuth } from '../auth/useAuth';
+import { useAuth, tencentIdForUserId } from '../auth/useAuth';
 import { getProfile, uploadChatImage, type Profile } from '../data/profiles';
 import { getCallRate, getCoins, ringUser } from '../data/calls';
 import {
@@ -271,13 +271,17 @@ async function refreshLiveBubbles() {
   try {
     if (!followingMap) {
       const following = await listFollowingProfiles(myId);
-      followingMap = new Map(following.map(p => [p.id, p]));
+      // IMPORTANT: keyed by the TENCENT id (u_<uuid-sin-guiones>), because
+      // that's what the live list reports as liveOwner.userId — matching
+      // against the raw Supabase uuid never hit, so bubbles never showed.
+      followingMap = new Map(following.map(p => [tencentIdForUserId(p.id), p]));
     }
     await fetchLiveList({ cursor: '', count: 50 });
+    const myTencentId = tencentIdForUserId(myId);
     const bubbles: LiveBubble[] = [];
     for (const live of liveList.value) {
       const ownerId = live.liveOwner?.userId;
-      if (!ownerId || ownerId === myId) {
+      if (!ownerId || ownerId === myTencentId) {
         continue;
       }
       const prof = followingMap.get(ownerId);
@@ -285,7 +289,7 @@ async function refreshLiveBubbles() {
         continue;
       }
       bubbles.push({
-        userId: ownerId,
+        userId: prof.id,
         liveId: live.liveId,
         name: prof.display_name || prof.username || live.liveOwner?.userName || 'Usuario',
         avatar: prof.avatar_url || live.liveOwner?.avatarUrl || null,

@@ -485,7 +485,7 @@ import LiveChat from '../components/LiveChat.vue';
 import UserActionSheet, { type SheetTarget, type SheetModeration } from '../components/UserActionSheet.vue';
 import ShareLiveSheet from '../components/ShareLiveSheet.vue';
 import ModerationSheet from '../components/ModerationSheet.vue';
-import { useAuth } from '../auth/useAuth';
+import { useAuth, tencentIdForUserId, tencentUserIdFor } from '../auth/useAuth';
 import { notifyLiveStarted, addEarnedCoins, uploadCover } from '../data/profiles';
 import { UPLOAD_ALLOWED_MIME_TYPES, UPLOAD_MAX_FILE_SIZE_MB } from '../api/upload';
 import { recordLiveSession } from '../data/stats';
@@ -659,7 +659,8 @@ const hostModeration = computed<SheetModeration | null>(() => {
   }
   return {
     liveId: currentLive.value?.liveId || liveParams.value.liveId,
-    hostId: authUser.value.id,
+    // Tencent id, matching what the engine/audience list reports.
+    hostId: tencentUserIdFor(authUser.value),
     isHost: true,
     canMute: true,
     canKick: true,
@@ -667,9 +668,15 @@ const hostModeration = computed<SheetModeration | null>(() => {
   };
 });
 
+// SheetTarget ids are Supabase uuids (from the chat's extensionInfo.uid);
+// the engine only knows the derived Tencent ids, so convert before every
+// engine call.
 const handleModMute = async (target: SheetTarget, mute: boolean) => {
   try {
-    await (roomEngine.instance as any)?.disableSendingMessageByAdmin({ userId: target.id, isDisable: mute });
+    await (roomEngine.instance as any)?.disableSendingMessageByAdmin({
+      userId: tencentIdForUserId(target.id),
+      isDisable: mute,
+    });
     TUIToast.success({ message: mute ? `${target.name} silenciado` : `${target.name} puede hablar de nuevo` });
   } catch (error) {
     console.warn('[moderation] mute failed:', error);
@@ -679,7 +686,7 @@ const handleModMute = async (target: SheetTarget, mute: boolean) => {
 
 const handleModKick = async (target: SheetTarget) => {
   try {
-    await (roomEngine.instance as any)?.kickRemoteUserOutOfRoom({ userId: target.id });
+    await (roomEngine.instance as any)?.kickRemoteUserOutOfRoom({ userId: tencentIdForUserId(target.id) });
     TUIToast.success({ message: `${target.name} fue expulsado del live` });
   } catch (error) {
     console.warn('[moderation] kick failed:', error);
@@ -692,7 +699,10 @@ const handleModKick = async (target: SheetTarget) => {
 // mute/kick engine calls actually work; the Supabase row only gates the UI.
 const handleModPromote = async (target: SheetTarget) => {
   try {
-    await (roomEngine.instance as any)?.changeUserRole({ userId: target.id, userRole: TUIRole.kAdministrator });
+    await (roomEngine.instance as any)?.changeUserRole({
+      userId: tencentIdForUserId(target.id),
+      userRole: TUIRole.kAdministrator,
+    });
   } catch (error) {
     console.warn('[moderation] promote failed (user may have left):', error);
   }
@@ -701,7 +711,10 @@ const handleModPromote = async (target: SheetTarget) => {
 
 const handleModDemote = async (userId: string, name?: string) => {
   try {
-    await (roomEngine.instance as any)?.changeUserRole({ userId, userRole: TUIRole.kGeneralUser });
+    await (roomEngine.instance as any)?.changeUserRole({
+      userId: tencentIdForUserId(userId),
+      userRole: TUIRole.kGeneralUser,
+    });
   } catch (error) {
     console.warn('[moderation] demote failed (user may have left):', error);
   }

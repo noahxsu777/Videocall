@@ -208,10 +208,10 @@ import { useSeatApplication } from '../SeatApplication/useSeatApplication';
 import ShareLiveSheet from '../../../components/ShareLiveSheet.vue';
 import LiveQualitySheet from '../../../components/LiveQualitySheet.vue';
 import LiveChat from '../../../components/LiveChat.vue';
-import { TUIRole } from '@tencentcloud/tuiroom-engine-js';
 import UserActionSheet, { type SheetTarget, type SheetModeration } from '../../../components/UserActionSheet.vue';
 import { initRoomEngineLanguage } from '../../../utils/utils';
 import { getModPerms, isBlocked, type ModPerms } from '../../../data/moderation';
+import { useAuth, tencentIdForUserId } from '../../../auth/useAuth';
 
 const { t } = useUIKit();
 
@@ -260,11 +260,13 @@ function handleOpenChatUser(target: SheetTarget) {
 // granted actions (mute / kick). The engine calls work because the host
 // also promoted them to room admin when granting the role.
 const roomEngineRef = useRoomEngine();
+const { user: authUser } = useAuth();
 const modPerms = ref<ModPerms | null>(null);
 const mutedIds = computed(() =>
   audienceList.value.filter((a: any) => a.isMessageDisabled).map((a: any) => a.userId as string));
 const viewerModeration = computed<SheetModeration | null>(() => {
   const liveId = currentLive.value?.liveId;
+  // Already a Tencent id — exactly what SheetModeration.hostId expects.
   const hostId = currentLive.value?.liveOwner?.userId;
   if (!liveId || !hostId || !modPerms.value) {
     return null;
@@ -279,9 +281,13 @@ const viewerModeration = computed<SheetModeration | null>(() => {
   };
 });
 
+// SheetTarget ids are Supabase uuids; the engine wants Tencent ids.
 const handleModMute = async (target: SheetTarget, mute: boolean) => {
   try {
-    await (roomEngineRef.instance as any)?.disableSendingMessageByAdmin({ userId: target.id, isDisable: mute });
+    await (roomEngineRef.instance as any)?.disableSendingMessageByAdmin({
+      userId: tencentIdForUserId(target.id),
+      isDisable: mute,
+    });
     TUIToast.success({ message: mute ? `${target.name} silenciado` : `${target.name} puede hablar de nuevo` });
   } catch (error) {
     console.warn('[moderation] mute failed:', error);
@@ -291,7 +297,7 @@ const handleModMute = async (target: SheetTarget, mute: boolean) => {
 
 const handleModKick = async (target: SheetTarget) => {
   try {
-    await (roomEngineRef.instance as any)?.kickRemoteUserOutOfRoom({ userId: target.id });
+    await (roomEngineRef.instance as any)?.kickRemoteUserOutOfRoom({ userId: tencentIdForUserId(target.id) });
     TUIToast.success({ message: `${target.name} fue expulsado del live` });
   } catch (error) {
     console.warn('[moderation] kick failed:', error);
@@ -300,9 +306,10 @@ const handleModKick = async (target: SheetTarget) => {
 };
 
 // On joining a live: bounce blocked users straight out, and load this
-// viewer's moderator permissions (if any).
+// viewer's moderator permissions (if any). Supabase rows are keyed by the
+// Supabase uuid, so use the auth user, NOT the Tencent login id.
 watch(() => currentLive.value?.liveId, async (liveId) => {
-  const myId = loginUserInfo.value?.userId;
+  const myId = authUser.value?.id;
   if (!liveId || !myId) {
     modPerms.value = null;
     return;
