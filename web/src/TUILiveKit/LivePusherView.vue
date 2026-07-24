@@ -150,6 +150,10 @@
         <div v-if="isInLive" class="camera-action-btn" :class="{ 'is-on': camFilter !== 'none' }" @click="filterPickerVisible = !filterPickerVisible">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 9v6l8 6 8-6V9z"/><path d="M12 3v18M4 9l16 0"/></svg>
         </div>
+        <!-- Moderation: manage this live's moderators + blocked users. -->
+        <div v-if="isInLive" class="camera-action-btn" @click="modSheetOpen = true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10Z"/></svg>
+        </div>
       </div>
       <!-- Tango-style pre-live action stack: effects, share, settings.
            Only shown before the creator taps "Iniciar directo" — once
@@ -359,7 +363,20 @@
       </div>
     </div>
     <LivePusherNotification />
-    <UserActionSheet v-model="chatUserSheet" :target="chatUserTarget" />
+    <UserActionSheet
+      v-model="chatUserSheet"
+      :target="chatUserTarget"
+      :moderation="hostModeration"
+      @mod-mute="handleModMute"
+      @mod-kick="handleModKick"
+      @mod-promote="handleModPromote"
+      @mod-demote="(t) => handleModDemote(t.id, t.name)"
+    />
+    <ModerationSheet
+      v-model="modSheetOpen"
+      :live-id="hostModeration?.liveId || ''"
+      @mod-demote="(id) => handleModDemote(id)"
+    />
     </template>
     <TUIDialog
       v-model:visible="exitLiveDialogVisible"
@@ -406,6 +423,7 @@
 import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import TUIRoomEngine, {
   TUISeatMode,
+  TUIRole,
   TRTCVideoFillMode,
   TRTCVideoRotation,
   TRTCVideoMirrorType,
@@ -464,8 +482,9 @@ import SettingButton from './component/SettingButton.vue';
 import SpeakerVolumeSetting from './component/SpeakerVolumeSetting.vue';
 import LivePusherNotification from './component/LivePusherNotification.vue';
 import LiveChat from '../components/LiveChat.vue';
-import UserActionSheet, { type SheetTarget } from '../components/UserActionSheet.vue';
+import UserActionSheet, { type SheetTarget, type SheetModeration } from '../components/UserActionSheet.vue';
 import ShareLiveSheet from '../components/ShareLiveSheet.vue';
+import ModerationSheet from '../components/ModerationSheet.vue';
 import { useAuth } from '../auth/useAuth';
 import { notifyLiveStarted, addEarnedCoins, uploadCover } from '../data/profiles';
 import { UPLOAD_ALLOWED_MIME_TYPES, UPLOAD_MAX_FILE_SIZE_MB } from '../api/upload';
@@ -510,7 +529,7 @@ const { loginUserInfo } = useLoginState();
 const { displayName: authDisplayName, user: authUser } = useAuth();
 const { currentLive, startLive, endLive, joinLive, subscribeEvent: subscribeLiveListEvent, unsubscribeEvent: unsubscribeLiveListEvent, updateLiveInfo } = useLiveListState();
 const roomEngine = useRoomEngine();
-const { audienceCount } = useLiveAudienceState();
+const { audienceCount, audienceList } = useLiveAudienceState();
 const {
   openLocalMicrophone,
   openLocalCamera,
@@ -624,6 +643,71 @@ const chatUserTarget = ref<SheetTarget | null>(null);
 const onOpenChatUser = (target: SheetTarget) => {
   chatUserTarget.value = target;
   chatUserSheet.value = true;
+};
+
+// --- Live moderation (host side) -----------------------------------------
+// The host can mute/kick anyone and promote moderators from the user
+// sheet; the sheet writes the Supabase state and emits events for the
+// engine-side enforcement below. Chat-mute state comes from the audience
+// list (isMessageDisabled is engine-tracked).
+const modSheetOpen = ref(false);
+const mutedIds = computed(() =>
+  audienceList.value.filter((a: any) => a.isMessageDisabled).map((a: any) => a.userId as string));
+const hostModeration = computed<SheetModeration | null>(() => {
+  if (!isInLive.value || !authUser.value) {
+    return null;
+  }
+  return {
+    liveId: currentLive.value?.liveId || liveParams.value.liveId,
+    hostId: authUser.value.id,
+    isHost: true,
+    canMute: true,
+    canKick: true,
+    mutedIds: mutedIds.value,
+  };
+});
+
+const handleModMute = async (target: SheetTarget, mute: boolean) => {
+  try {
+    await (roomEngine.instance as any)?.disableSendingMessageByAdmin({ userId: target.id, isDisable: mute });
+    TUIToast.success({ message: mute ? `${target.name} silenciado` : `${target.name} puede hablar de nuevo` });
+  } catch (error) {
+    console.warn('[moderation] mute failed:', error);
+    TUIToast.error({ message: 'No se pudo silenciar. Inténtalo de nuevo.' });
+  }
+};
+
+const handleModKick = async (target: SheetTarget) => {
+  try {
+    await (roomEngine.instance as any)?.kickRemoteUserOutOfRoom({ userId: target.id });
+    TUIToast.success({ message: `${target.name} fue expulsado del live` });
+  } catch (error) {
+    console.warn('[moderation] kick failed:', error);
+    // The Supabase block row (written by the sheet) still stops re-entry.
+    TUIToast.error({ message: 'No se pudo expulsar ahora, pero quedó bloqueado.' });
+  }
+};
+
+// Promoting to Tencent room admin is what lets the moderator's own
+// mute/kick engine calls actually work; the Supabase row only gates the UI.
+const handleModPromote = async (target: SheetTarget) => {
+  try {
+    await (roomEngine.instance as any)?.changeUserRole({ userId: target.id, userRole: TUIRole.kAdministrator });
+  } catch (error) {
+    console.warn('[moderation] promote failed (user may have left):', error);
+  }
+  TUIToast.success({ message: `${target.name} ahora es moderador 🛡️` });
+};
+
+const handleModDemote = async (userId: string, name?: string) => {
+  try {
+    await (roomEngine.instance as any)?.changeUserRole({ userId, userRole: TUIRole.kGeneralUser });
+  } catch (error) {
+    console.warn('[moderation] demote failed (user may have left):', error);
+  }
+  if (name) {
+    TUIToast.info({ message: `${name} ya no es moderador` });
+  }
 };
 // Back to the pre-live state (live ended) → bring the preview back.
 watch(isInLive, (inLive) => {

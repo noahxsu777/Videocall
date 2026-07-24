@@ -692,3 +692,71 @@ create policy "admins read agency applications" on public.agency_applications fo
 -- No SQL policies needed for it — the app uploads with the logged-in
 -- user's own session, and a public bucket allows anyone to read/play.
 -- =====================================================================
+
+-- ---------- moderación de lives (moderadores + expulsados) ----------
+-- El anfitrión promueve moderadores con permisos granulares (silenciar /
+-- expulsar). Los expulsados quedan en una lista de bloqueados por live que
+-- les impide volver a entrar. El live_id sigue la convención de la app:
+-- 'live_<user_id_del_anfitrión>', que es lo que valida la política del host.
+create table if not exists public.live_moderators (
+  live_id text not null,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  granted_by uuid not null,
+  name text,
+  avatar_url text,
+  can_mute boolean not null default true,
+  can_kick boolean not null default true,
+  created_at timestamptz not null default now(),
+  primary key (live_id, user_id)
+);
+alter table public.live_moderators enable row level security;
+drop policy if exists "anyone reads live moderators" on public.live_moderators;
+create policy "anyone reads live moderators"
+  on public.live_moderators for select using (true);
+drop policy if exists "host manages live moderators" on public.live_moderators;
+create policy "host manages live moderators"
+  on public.live_moderators for all
+  using (live_id = 'live_' || auth.uid()::text)
+  with check (live_id = 'live_' || auth.uid()::text and auth.uid() = granted_by);
+
+create table if not exists public.live_blocks (
+  live_id text not null,
+  user_id uuid not null,
+  blocked_by uuid not null,
+  name text,
+  avatar_url text,
+  created_at timestamptz not null default now(),
+  primary key (live_id, user_id)
+);
+alter table public.live_blocks enable row level security;
+drop policy if exists "anyone reads live blocks" on public.live_blocks;
+create policy "anyone reads live blocks"
+  on public.live_blocks for select using (true);
+-- Puede bloquear el anfitrión del live o un moderador con permiso de expulsar.
+drop policy if exists "host and kick-mods block users" on public.live_blocks;
+create policy "host and kick-mods block users"
+  on public.live_blocks for insert
+  with check (
+    auth.uid() = blocked_by
+    and (
+      live_id = 'live_' || auth.uid()::text
+      or exists (
+        select 1 from public.live_moderators m
+        where m.live_id = live_blocks.live_id
+          and m.user_id = auth.uid()
+          and m.can_kick
+      )
+    )
+  );
+drop policy if exists "host and kick-mods unblock users" on public.live_blocks;
+create policy "host and kick-mods unblock users"
+  on public.live_blocks for delete
+  using (
+    live_id = 'live_' || auth.uid()::text
+    or exists (
+      select 1 from public.live_moderators m
+      where m.live_id = live_blocks.live_id
+        and m.user_id = auth.uid()
+        and m.can_kick
+    )
+  );

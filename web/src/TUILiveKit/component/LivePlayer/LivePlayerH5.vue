@@ -64,7 +64,13 @@
         @open-user="handleOpenChatUser"
       />
     </div>
-    <UserActionSheet v-model="chatUserSheet" :target="chatUserTarget" />
+    <UserActionSheet
+      v-model="chatUserSheet"
+      :target="chatUserTarget"
+      :moderation="viewerModeration"
+      @mod-mute="handleModMute"
+      @mod-kick="handleModKick"
+    />
     <div ref="bottomBarRef" class="bottom">
       <!-- All viewer actions in one tidy right-aligned row above the
            message box, so nothing overflows off-screen. -->
@@ -192,6 +198,7 @@ import {
   LiveGiftEvents,
   useLivePlayerState,
   PlayerControlButton,
+  useRoomEngine,
   type LikesMessage,
 } from 'tuikit-atomicx-vue3';
 import Drawer from '../../base-component/Drawer.vue';
@@ -201,8 +208,10 @@ import { useSeatApplication } from '../SeatApplication/useSeatApplication';
 import ShareLiveSheet from '../../../components/ShareLiveSheet.vue';
 import LiveQualitySheet from '../../../components/LiveQualitySheet.vue';
 import LiveChat from '../../../components/LiveChat.vue';
-import UserActionSheet, { type SheetTarget } from '../../../components/UserActionSheet.vue';
+import { TUIRole } from '@tencentcloud/tuiroom-engine-js';
+import UserActionSheet, { type SheetTarget, type SheetModeration } from '../../../components/UserActionSheet.vue';
 import { initRoomEngineLanguage } from '../../../utils/utils';
+import { getModPerms, isBlocked, type ModPerms } from '../../../data/moderation';
 
 const { t } = useUIKit();
 
@@ -245,6 +254,70 @@ function handleOpenChatUser(target: SheetTarget) {
   chatUserTarget.value = target;
   chatUserSheet.value = true;
 }
+
+// --- Live moderation (moderator side) ------------------------------------
+// If the host made this viewer a moderator, the user sheet shows the
+// granted actions (mute / kick). The engine calls work because the host
+// also promoted them to room admin when granting the role.
+const roomEngineRef = useRoomEngine();
+const modPerms = ref<ModPerms | null>(null);
+const mutedIds = computed(() =>
+  audienceList.value.filter((a: any) => a.isMessageDisabled).map((a: any) => a.userId as string));
+const viewerModeration = computed<SheetModeration | null>(() => {
+  const liveId = currentLive.value?.liveId;
+  const hostId = currentLive.value?.liveOwner?.userId;
+  if (!liveId || !hostId || !modPerms.value) {
+    return null;
+  }
+  return {
+    liveId,
+    hostId,
+    isHost: false,
+    canMute: modPerms.value.canMute,
+    canKick: modPerms.value.canKick,
+    mutedIds: mutedIds.value,
+  };
+});
+
+const handleModMute = async (target: SheetTarget, mute: boolean) => {
+  try {
+    await (roomEngineRef.instance as any)?.disableSendingMessageByAdmin({ userId: target.id, isDisable: mute });
+    TUIToast.success({ message: mute ? `${target.name} silenciado` : `${target.name} puede hablar de nuevo` });
+  } catch (error) {
+    console.warn('[moderation] mute failed:', error);
+    TUIToast.error({ message: 'No se pudo silenciar. Inténtalo de nuevo.' });
+  }
+};
+
+const handleModKick = async (target: SheetTarget) => {
+  try {
+    await (roomEngineRef.instance as any)?.kickRemoteUserOutOfRoom({ userId: target.id });
+    TUIToast.success({ message: `${target.name} fue expulsado del live` });
+  } catch (error) {
+    console.warn('[moderation] kick failed:', error);
+    TUIToast.error({ message: 'No se pudo expulsar ahora, pero quedó bloqueado.' });
+  }
+};
+
+// On joining a live: bounce blocked users straight out, and load this
+// viewer's moderator permissions (if any).
+watch(() => currentLive.value?.liveId, async (liveId) => {
+  const myId = loginUserInfo.value?.userId;
+  if (!liveId || !myId) {
+    modPerms.value = null;
+    return;
+  }
+  try {
+    if (await isBlocked(liveId, myId)) {
+      TUIToast.error({ message: 'Fuiste expulsado de este live y no puedes volver a entrar.' });
+      emit('leaveLive');
+      return;
+    }
+    modPerms.value = await getModPerms(liveId, myId);
+  } catch (error) {
+    console.warn('[moderation] entry check failed:', error);
+  }
+}, { immediate: true });
 
 // Hide Tencent's built-in tap-to-reveal PlayerControl bar (the plain
 // Play/Resolution/Volume/PictureInPicture/Fullscreen strip) — it looks

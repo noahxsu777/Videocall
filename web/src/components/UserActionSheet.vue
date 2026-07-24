@@ -33,6 +33,59 @@
           <button class="act act-outline" @click="message">Mensaje</button>
         </div>
 
+        <!-- Live moderation: shown to the host and to moderators (per their
+             granted permissions) when the sheet is opened inside a live. -->
+        <template v-if="modActionsVisible">
+          <div class="sheet-actions">
+            <button
+              v-if="moderation!.canMute"
+              class="act act-outline"
+              :disabled="modBusy"
+              @click="doMute"
+            >
+              {{ targetIsMuted ? '🔊 Quitar silencio' : '🔇 Silenciar' }}
+            </button>
+            <button
+              v-if="moderation!.canKick"
+              class="act act-danger"
+              :disabled="modBusy"
+              @click="doKick"
+            >
+              ⛔ Expulsar
+            </button>
+          </div>
+          <template v-if="moderation!.isHost">
+            <button
+              v-if="targetModPerms"
+              class="sheet-view"
+              :disabled="modBusy"
+              @click="doRemoveMod"
+            >
+              🛡️ Quitar moderador
+            </button>
+            <button
+              v-else
+              class="sheet-view"
+              @click="modFormOpen = !modFormOpen"
+            >
+              🛡️ Hacer moderador
+            </button>
+            <div v-if="modFormOpen && !targetModPerms" class="mod-form">
+              <label class="mod-perm">
+                <input v-model="permMute" type="checkbox" />
+                <span>Puede silenciar usuarios</span>
+              </label>
+              <label class="mod-perm">
+                <input v-model="permKick" type="checkbox" />
+                <span>Puede expulsar usuarios</span>
+              </label>
+              <button class="act act-primary mod-confirm" :disabled="modBusy || (!permMute && !permKick)" @click="doMakeMod">
+                Confirmar moderador
+              </button>
+            </div>
+          </template>
+        </template>
+
         <button class="sheet-view" @click="viewProfile">Ver perfil</button>
         <button class="sheet-cancel" @click="close">Cancelar</button>
       </div>
@@ -45,6 +98,20 @@ export interface SheetTarget {
   id: string;
   name: string;
   avatarUrl: string | null;
+}
+
+/**
+ * Moderation context, passed only when the sheet opens inside a live:
+ * who the host is, what the CURRENT user is allowed to do, and which
+ * users are chat-muted right now (engine state, tracked by the parent).
+ */
+export interface SheetModeration {
+  liveId: string;
+  hostId: string;
+  isHost: boolean;
+  canMute: boolean;
+  canKick: boolean;
+  mutedIds: string[];
 }
 </script>
 
@@ -61,14 +128,28 @@ import {
   unfollow,
   isVipActive,
 } from '../data/profiles';
+import {
+  getModPerms,
+  setModerator,
+  removeModerator,
+  blockUser,
+  type ModPerms,
+} from '../data/moderation';
 
 const props = defineProps<{
   modelValue: boolean;
   target: SheetTarget | null;
+  moderation?: SheetModeration | null;
 }>();
 const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'followed', following: boolean): void;
+  // Engine-level enforcement is the parent's job (it owns the room
+  // engine); the sheet only writes the Supabase state and emits these.
+  (e: 'mod-mute', target: SheetTarget, mute: boolean): void;
+  (e: 'mod-kick', target: SheetTarget): void;
+  (e: 'mod-promote', target: SheetTarget): void;
+  (e: 'mod-demote', target: SheetTarget): void;
 }>();
 
 const router = useRouter();
@@ -85,6 +166,81 @@ const targetIsVerified = ref(false);
 const initial = computed(() => (props.target?.name || '?').charAt(0).toUpperCase());
 const isSelf = computed(() => !!user.value && props.target?.id === user.value.id);
 
+// --- Live moderation ------------------------------------------------------
+const targetModPerms = ref<ModPerms | null>(null);
+const modFormOpen = ref(false);
+const permMute = ref(true);
+const permKick = ref(true);
+const modBusy = ref(false);
+
+const modActionsVisible = computed(() =>
+  !!props.moderation
+  && !!props.target
+  && !isSelf.value
+  && props.target.id !== props.moderation.hostId
+  && (props.moderation.canMute || props.moderation.canKick || props.moderation.isHost));
+
+const targetIsMuted = computed(() =>
+  !!props.target && !!props.moderation?.mutedIds.includes(props.target.id));
+
+function doMute() {
+  if (props.target) {
+    emit('mod-mute', props.target, !targetIsMuted.value);
+  }
+}
+
+async function doKick() {
+  if (!props.target || !user.value || !props.moderation) {
+    return;
+  }
+  modBusy.value = true;
+  try {
+    // Block first so re-entry is already denied by the time the engine
+    // kick lands; the parent handles the engine part.
+    await blockUser(props.moderation.liveId, props.target, user.value.id);
+    emit('mod-kick', props.target);
+    close();
+  } catch (error) {
+    console.warn('[sheet] block failed:', error);
+  } finally {
+    modBusy.value = false;
+  }
+}
+
+async function doMakeMod() {
+  if (!props.target || !user.value || !props.moderation) {
+    return;
+  }
+  modBusy.value = true;
+  try {
+    const perms = { canMute: permMute.value, canKick: permKick.value };
+    await setModerator(props.moderation.liveId, props.target, perms, user.value.id);
+    targetModPerms.value = perms;
+    modFormOpen.value = false;
+    emit('mod-promote', props.target);
+  } catch (error) {
+    console.warn('[sheet] set moderator failed:', error);
+  } finally {
+    modBusy.value = false;
+  }
+}
+
+async function doRemoveMod() {
+  if (!props.target || !props.moderation) {
+    return;
+  }
+  modBusy.value = true;
+  try {
+    await removeModerator(props.moderation.liveId, props.target.id);
+    targetModPerms.value = null;
+    emit('mod-demote', props.target);
+  } catch (error) {
+    console.warn('[sheet] remove moderator failed:', error);
+  } finally {
+    modBusy.value = false;
+  }
+}
+
 watch(
   () => [props.modelValue, props.target?.id],
   async () => {
@@ -96,6 +252,15 @@ watch(
     followsMe.value = false;
     targetIsVip.value = false;
     targetIsVerified.value = false;
+    targetModPerms.value = null;
+    modFormOpen.value = false;
+    permMute.value = true;
+    permKick.value = true;
+    if (props.moderation?.isHost && props.target && props.target.id !== props.moderation.hostId) {
+      void getModPerms(props.moderation.liveId, props.target.id)
+        .then((perms) => { targetModPerms.value = perms; })
+        .catch(() => {});
+    }
     try {
       const [c, prof] = await Promise.all([
         getFollowCounts(props.target.id),
@@ -273,7 +438,34 @@ function viewProfile() {
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
 }
+.act-danger {
+  background: rgba(255, 59, 48, 0.18);
+  color: #ff6f6f;
+}
 .act:disabled { opacity: 0.6; }
+
+.mod-form {
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.mod-perm {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+}
+.mod-perm input {
+  width: 18px;
+  height: 18px;
+  accent-color: #ff2e74;
+}
+.mod-confirm { height: 42px; }
 
 .sheet-view,
 .sheet-cancel {
