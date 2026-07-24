@@ -33,7 +33,17 @@
         />
       </div>
     </div>
-    <div v-show="canvas" class="stream-view">
+    <!-- Battle/co-host composed canvas is wider than tall (e.g. 720x640):
+         letting it letterbox inside the full-height view left it floating
+         vertically centered, lower than where the host sees the tiles.
+         Pin it to the top (under the top bar) with the canvas's own
+         aspect ratio so viewer and host see the same framing. -->
+    <div
+      v-show="canvas"
+      class="stream-view"
+      :class="{ 'stream-view-battle': isWideCanvas }"
+      :style="battleStreamStyle"
+    >
       <LiveView @empty-seat-click="handleApplyForSeat" />
     </div>
     <div v-if="isApplyingSeat" class="pending-approval-card" @click="handleCancelApplicationOnSeat">
@@ -232,6 +242,19 @@ watch(isMessageMuted, (newVal, oldVal) => {
   }
 });
 const { canvas } = useLiveSeatState();
+
+// Wider-than-tall canvas = battle / side-by-side co-host composition.
+const isWideCanvas = computed(() => {
+  const c = canvas.value;
+  return !!c && c.width > 0 && c.height > 0 && c.width > c.height;
+});
+const battleStreamStyle = computed(() => {
+  const c = canvas.value;
+  if (!isWideCanvas.value || !c) {
+    return {};
+  }
+  return { aspectRatio: `${c.width} / ${c.height}` };
+});
 const { giftInfoList, sendLikes, subscribeEvent: subscribeGiftEvent, unsubscribeEvent: unsubscribeGiftEvent } = useLiveGiftState();
 // H5 path: skips device selection, applies for seat with default devices.
 // This hook shares module-level state with SeatApplicationButtonH5's instance.
@@ -1017,6 +1040,19 @@ function handleBarrageInputBlur() {
       width: 100%;
     }
   }
+}
+
+// Battle/co-host: pin the composed canvas to the top edge (just under
+// the top bar), sized by its own aspect ratio — matching where the host
+// sees the tiles instead of a vertically-centered letterbox.
+.stream-view-battle {
+  position: absolute !important;
+  top: 60px !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: auto !important;
+  width: 100% !important;
+  height: auto !important;
 }
 
 .leave-live-dialog {

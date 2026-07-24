@@ -100,8 +100,12 @@ function isMine(m: any): boolean {
 // point — a private line to the streamer); the sender also sees their own
 // message so they know it went through. No one else — not even other
 // VIP viewers — sees someone else's whisper.
+// Capped to the LAST 15 messages so the overlay stays a light, recent
+// ticker instead of an ever-growing history over the video.
 const visibleMessages = computed(() =>
-  (messageList.value || []).filter(m => !isVipOnly(m) || props.isHost || isMine(m)));
+  (messageList.value || [])
+    .filter(m => !isVipOnly(m) || props.isHost || isMine(m))
+    .slice(-15));
 
 function toggleVip() {
   if (!canSendVip.value) {
