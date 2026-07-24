@@ -73,7 +73,7 @@
           :disabled="followLoading"
           @click="toggleFollow"
         >
-          {{ following ? 'Siguiendo' : 'Seguir' }}
+          {{ following ? (followsMe ? 'Amigos 🤝' : 'Siguiendo') : 'Seguir' }}
         </button>
         <button class="btn btn-outline" @click="messageUser">Mensaje</button>
       </template>
@@ -134,6 +134,8 @@ const profile = ref<Profile | null>(null);
 const photos = ref<Photo[]>([]);
 const counts = ref({ followers: 0, following: 0 });
 const following = ref(false);
+// Mutual follow → the button reads "Amigos" instead of "Siguiendo".
+const followsMe = ref(false);
 const followLoading = ref(false);
 const loadError = ref('');
 
@@ -173,7 +175,10 @@ async function load() {
       },
     );
     if (!isOwnProfile.value && user.value) {
-      following.value = await isFollowing(user.value.id, id);
+      [following.value, followsMe.value] = await Promise.all([
+        isFollowing(user.value.id, id),
+        isFollowing(id, user.value.id),
+      ]);
     }
   } catch (error: any) {
     loadError.value = 'No se pudo cargar el perfil. ¿Ya creaste las tablas en Supabase?';

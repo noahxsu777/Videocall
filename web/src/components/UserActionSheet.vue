@@ -28,7 +28,7 @@
             :disabled="busy"
             @click="toggleFollow"
           >
-            {{ following ? 'Siguiendo' : 'Seguir' }}
+            {{ following ? (followsMe ? 'Amigos 🤝' : 'Siguiendo') : 'Seguir' }}
           </button>
           <button class="act act-outline" @click="message">Mensaje</button>
         </div>
@@ -75,6 +75,8 @@ const router = useRouter();
 const { user } = useAuth();
 
 const following = ref(false);
+// Mutual follow → the button reads "Amigos" instead of "Siguiendo".
+const followsMe = ref(false);
 const busy = ref(false);
 const counts = ref<{ followers: number; following: number } | null>(null);
 const targetIsVip = ref(false);
@@ -91,6 +93,7 @@ watch(
     }
     counts.value = null;
     following.value = false;
+    followsMe.value = false;
     targetIsVip.value = false;
     targetIsVerified.value = false;
     try {
@@ -102,7 +105,10 @@ watch(
       targetIsVip.value = isVipActive(prof?.vip_until);
       targetIsVerified.value = !!prof?.verified;
       if (user.value && !isSelf.value) {
-        following.value = await isFollowing(user.value.id, props.target.id);
+        [following.value, followsMe.value] = await Promise.all([
+          isFollowing(user.value.id, props.target.id),
+          isFollowing(props.target.id, user.value.id),
+        ]);
       }
     } catch (error) {
       console.warn('[sheet] load failed:', error);
